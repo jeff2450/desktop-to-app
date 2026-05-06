@@ -1,0 +1,65 @@
+FROM node:20-bookworm
+
+# ── System dependencies ───────────────────────────────────────────────────────
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    ca-certificates \
+    fakeroot \
+    dpkg \
+    # Wine for Windows .exe cross-compilation
+    wine64 \
+    wine32 \
+    # AppImage tools
+    libfuse2 \
+    # Electron dependencies
+    libglib2.0-0 \
+    libx11-6 \
+    libx11-xcb1 \
+    libxcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxi6 \
+    libxrandr2 \
+    libxrender1 \
+    libxss1 \
+    libxtst6 \
+    libnss3 \
+    libnspr4 \
+    libasound2 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libdrm2 \
+    libgbm1 \
+    libgtk-3-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── pnpm ──────────────────────────────────────────────────────────────────────
+RUN npm install -g pnpm@9
+
+# ── Wine initialisation (suppress first-run dialogs) ─────────────────────────
+ENV WINEDEBUG=-all
+ENV WINEPREFIX=/root/.wine
+RUN wineboot --init 2>/dev/null || true
+
+# ── WebToApp CLI ──────────────────────────────────────────────────────────────
+WORKDIR /app
+COPY package.json pnpm-workspace.yaml ./
+COPY packages/ ./packages/
+COPY apps/api/package.json ./apps/api/
+RUN pnpm install --frozen-lockfile
+RUN pnpm build
+
+# Make webtoapp CLI available globally
+RUN ln -s /app/packages/cli/bin/webtoapp.js /usr/local/bin/webtoapp
+
+# ── Build workspace ───────────────────────────────────────────────────────────
+WORKDIR /workspace
+
+ENV NODE_ENV=production
+ENV USE_SYSTEM_FPM=true
+
+ENTRYPOINT ["node", "/app/packages/cli/bin/webtoapp.js"]
+CMD ["--help"]

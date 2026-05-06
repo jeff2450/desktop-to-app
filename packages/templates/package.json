@@ -1,0 +1,24 @@
+{
+  "name": "@webtoapp/templates",
+  "version": "1.0.0",
+  "description": "Handlebars templates for generated Electron, backend, and client files",
+  "type": "module",
+  "exports": {
+    "./*": "./*"
+  },
+  "scripts": {
+    "build": "echo 'No build step — templates are used as-is'",
+    "clean": "echo 'Nothing to clean'"
+  },
+  "dependencies": {
+    "handlebars": "^4.7.8"
+  },
+  "devDependencies": {
+    "@types/handlebars": "^4.1.0"
+  },
+  "files": [
+    "electron/**/*.hbs",
+    "backend/**/*.hbs",
+    "localApi/**/*.hbs"
+  ]
+}

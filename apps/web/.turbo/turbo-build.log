@@ -1,0 +1,35 @@
+
+> @webtoapp/web@1.0.0 build C:\Users\JEFF-PC\Desktop\web-2-app\Converter web to app\apps\web
+> next build
+
+  ▲ Next.js 14.2.35
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/10) ...
+   Generating static pages (2/10) 
+   Generating static pages (4/10) 
+   Generating static pages (7/10) 
+ ✓ Generating static pages (10/10)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                              Size     First Load JS
+┌ ○ /_not-found                          872 B          88.1 kB
+├ ○ /auth/login                          1.86 kB        97.9 kB
+├ ○ /dashboard                           3.2 kB         99.3 kB
+├ ○ /dashboard/billing                   2.84 kB        98.9 kB
+├ ○ /dashboard/conversions               2.71 kB        98.8 kB
+├ ○ /dashboard/conversions/id            4.3 kB          100 kB
+├ ○ /dashboard/conversions/new           3.15 kB        99.2 kB
+└ ○ /dashboard/settings                  2.87 kB        98.9 kB
++ First Load JS shared by all            87.3 kB
+  ├ chunks/5b8f0dd8-e7ec6d33186a94db.js  53.6 kB
+  ├ chunks/749-7d79d30d36e06bd8.js       31.7 kB
+  └ other shared chunks (total)          1.89 kB
+
+
+○  (Static)  prerendered as static content
+

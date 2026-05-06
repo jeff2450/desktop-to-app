@@ -1,0 +1,68 @@
+name: Publish CLI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    name: Publish @webtoapp/cli to npm
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm build
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Set package version
+        run: |
+          cd packages/cli
+          npm version ${{ steps.version.outputs.version }} --no-git-tag-version
+
+      - name: Publish to npm
+        run: pnpm --filter @webtoapp/cli publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: WebToApp ${{ github.ref_name }}
+          body: |
+            ## WebToApp ${{ github.ref_name }}
+
+            Install or update:
+            ```bash
+            npx webtoapp@${{ steps.version.outputs.version }} init
+            ```
+
+            Or install globally:
+            ```bash
+            npm install -g webtoapp@${{ steps.version.outputs.version }}
+            ```
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}

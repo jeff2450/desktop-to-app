@@ -1,0 +1,4 @@
+
+> @webtoapp/builder@1.0.0 typecheck C:\Users\JEFF-PC\Desktop\web-2-app\webtoapp\packages\builder
+> tsc --noEmit
+

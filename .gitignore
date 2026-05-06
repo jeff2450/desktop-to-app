@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.next/
+build/
+release/
+coverage/
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+.webtoapp/
+.data/
+*.db
+*.db-shm
+*.db-wal
+.DS_Store
+Thumbs.db

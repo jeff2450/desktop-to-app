@@ -1,0 +1,53 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+/**
+ * Secure context bridge — exposes a minimal, typed API to the renderer.
+ * Never expose ipcRenderer directly. Only allow specific channels.
+ */
+
+const SEND_CHANNELS = ['app:minimize', 'app:maximize', 'app:close'];
+const INVOKE_CHANNELS = ['app:get-version', 'app:get-path'];
+const RECEIVE_CHANNELS = ['app:update-available'];
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  platform: process.platform,
+  arch: process.arch,
+
+  versions: {
+    node: process.versions.node,
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    app: null, // populated after invoke below
+  },
+
+  // Fire-and-forget IPC
+  send(channel, ...args) {
+    if (SEND_CHANNELS.includes(channel)) {
+      ipcRenderer.send(channel, ...args);
+    }
+  },
+
+  // Request-response IPC
+  async invoke(channel, ...args) {
+    if (INVOKE_CHANNELS.includes(channel)) {
+      return ipcRenderer.invoke(channel, ...args);
+    }
+    throw new Error(`Channel '${channel}' not allowed`);
+  },
+
+  // Subscribe to events from main process
+  on(channel, callback) {
+    if (RECEIVE_CHANNELS.includes(channel)) {
+      const handler = (_event, ...args) => callback(...args);
+      ipcRenderer.on(channel, handler);
+      // Return unsubscribe function
+      return () => ipcRenderer.removeListener(channel, handler);
+    }
+    return () => {};
+  },
+
+  // Convenience: get the app data path for local storage paths
+  async getAppDataPath() {
+    return ipcRenderer.invoke('app:get-path', 'userData');
+  },
+});

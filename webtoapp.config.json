@@ -1,0 +1,22 @@
+{
+  "mode": "offline",
+  "name": "Webtoapp",
+  "version": "1.0.0",
+  "appId": "com.example.myapp",
+  "source": ".",
+  "targets": [
+    "windows",
+    "linux"
+  ],
+  "backend": {
+    "type": "auto",
+    "port": 3001
+  },
+  "auth": {
+    "type": "local",
+    "defaultAdmin": "admin@app.local"
+  },
+  "database": {
+    "type": "sqlite"
+  }
+}

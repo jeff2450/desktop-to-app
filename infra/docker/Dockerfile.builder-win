@@ -1,0 +1,39 @@
+# Windows builder image — runs on Windows Server Core via GitHub Actions
+# Used for producing signed .exe installers natively (no Wine needed).
+#
+# Build:   docker build -f Dockerfile.builder-win -t webtoapp/builder-win .
+# Run:     docker run --rm -v %cd%:/workspace webtoapp/builder-win convert ...
+
+FROM mcr.microsoft.com/windows/servercore:ltsc2022
+
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop';"]
+
+# ── Node.js ───────────────────────────────────────────────────────────────────
+RUN Invoke-WebRequest -Uri 'https://nodejs.org/dist/v20.14.0/node-v20.14.0-x64.msi' \
+    -OutFile 'node.msi'; \
+    Start-Process msiexec -ArgumentList '/i node.msi /quiet' -Wait; \
+    Remove-Item node.msi
+
+# ── pnpm ──────────────────────────────────────────────────────────────────────
+RUN npm install -g pnpm@9
+
+# ── Git ───────────────────────────────────────────────────────────────────────
+RUN Invoke-WebRequest -Uri 'https://github.com/git-for-windows/git/releases/download/v2.45.0.windows.1/Git-2.45.0-64-bit.exe' \
+    -OutFile 'git-installer.exe'; \
+    Start-Process git-installer.exe -ArgumentList '/VERYSILENT /NORESTART' -Wait; \
+    Remove-Item git-installer.exe
+
+# ── WebToApp ──────────────────────────────────────────────────────────────────
+WORKDIR C:/app
+COPY package.json pnpm-workspace.yaml ./
+COPY packages/ ./packages/
+
+RUN pnpm install --frozen-lockfile
+RUN pnpm build
+
+WORKDIR C:/workspace
+
+ENV NODE_ENV=production
+
+ENTRYPOINT ["node", "C:/app/packages/cli/bin/webtoapp.js"]
+CMD ["--help"]

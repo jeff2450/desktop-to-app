@@ -1,0 +1,35 @@
+{
+  "name": "@webtoapp/core",
+  "version": "1.0.0",
+  "description": "Shared conversion engine — used by CLI and API",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "ts-morph": "^23.0.0",
+    "handlebars": "^4.7.8",
+    "better-sqlite3": "^11.0.0",
+    "@webtoapp/transformers": "workspace:*",
+    "@webtoapp/builder": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0",
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/handlebars": "^4.1.0",
+    "vitest": "^1.6.0"
+  }
+}

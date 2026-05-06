@@ -1,0 +1,117 @@
+const { app, BrowserWindow, shell, ipcMain, nativeTheme } = require('electron');
+const path = require('path');
+const { spawn } = require('child_process');
+const { autoUpdater } = require('electron-updater');
+
+const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+let mainWindow;
+let backendProcess;
+
+// ─── Backend ──────────────────────────────────────────────────────────────────
+
+function startBackend() {
+  const serverPath = isDev
+    ? path.join(__dirname, '../backend/server.js')
+    : path.join(process.resourcesPath, 'backend', 'server.js');
+
+  backendProcess = spawn(process.execPath, [serverPath], {
+    env: {
+      ...process.env,
+      PORT: '{{backendPort}}',
+      NODE_ENV: isDev ? 'development' : 'production',
+      ELECTRON_RUN_AS_NODE: '1',
+    },
+    stdio: isDev ? 'inherit' : 'pipe',
+  });
+
+  backendProcess.on('error', (err) => {
+    console.error('[WebToApp] Backend failed to start:', err);
+  });
+
+  if (!isDev && backendProcess.stdout) {
+    backendProcess.stdout.on('data', (d) => console.log('[backend]', d.toString().trim()));
+  }
+}
+
+// ─── Window ───────────────────────────────────────────────────────────────────
+
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1280,
+    height: 800,
+    minWidth: 800,
+    minHeight: 600,
+    title: '{{appName}}',
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0f0f0f' : '#ffffff',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+    show: false, // show once ready-to-show fires
+  });
+
+  const devUrl = 'http://localhost:{{devPort}}';
+  const prodUrl = `file://${path.join(__dirname, '../dist/index.html')}`;
+
+  mainWindow.loadURL(isDev ? devUrl : prodUrl);
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    if (isDev) mainWindow.webContents.openDevTools();
+  });
+
+  // Open external links in the OS browser
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('http')) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+
+  mainWindow.on('closed', () => { mainWindow = null; });
+}
+
+// ─── IPC handlers ─────────────────────────────────────────────────────────────
+
+ipcMain.handle('app:get-version', () => app.getVersion());
+ipcMain.handle('app:get-path', (_e, name) => app.getPath(name));
+ipcMain.on('app:minimize', () => mainWindow?.minimize());
+ipcMain.on('app:maximize', () => {
+  mainWindow?.isMaximized() ? mainWindow.unmaximize() : mainWindow?.maximize();
+});
+ipcMain.on('app:close', () => mainWindow?.close());
+
+// ─── Auto updater ─────────────────────────────────────────────────────────────
+
+function setupAutoUpdater() {
+  if (isDev) return;
+  autoUpdater.checkForUpdatesAndNotify();
+  autoUpdater.on('update-available', () => {
+    mainWindow?.webContents.send('app:update-available');
+  });
+}
+
+// ─── App lifecycle ────────────────────────────────────────────────────────────
+
+app.whenReady().then(() => {
+  startBackend();
+  // Wait for backend to initialise before showing window
+  setTimeout(() => {
+    createWindow();
+    setupAutoUpdater();
+  }, 600);
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+});
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('before-quit', () => {
+  if (backendProcess && !backendProcess.killed) {
+    backendProcess.kill('SIGTERM');
+  }
+});
