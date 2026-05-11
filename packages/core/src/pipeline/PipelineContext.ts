@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs/promises";
 import type { ConversionConfig } from "../types/ConversionConfig.js";
 import type { DetectionResult } from "../types/DetectionResult.js";
 import type { MigrationPlan } from "../types/MigrationPlan.js";
@@ -23,6 +24,19 @@ export interface LogEntry {
   stage?: string;
 }
 
+/** Ordered list of all stage names — used for resume logic */
+const STAGE_ORDER = [
+  "00-preflight",
+  "01-detect",
+  "02-plan",
+  "03-transform",
+  "04-scaffold",
+  "05-install",
+  "06-build",
+  "07-package",
+  "07b-mobile",
+] as const;
+
 /**
  * Shared mutable state that flows through every pipeline stage.
  * Stages read from it to get earlier results and write to it
@@ -40,6 +54,13 @@ export class PipelineContext {
   /** Absolute path to the temp working directory for this run */
   readonly workDir: string;
 
+  /**
+   * Improvement #9: True when dry-run mode is active.
+   * Stages should skip all file writes and npm installs,
+   * but still log what they *would* do.
+   */
+  readonly dryRun: boolean;
+
   /** Populated by stage 01-detect */
   detection?: DetectionResult;
 
@@ -52,6 +73,7 @@ export class PipelineContext {
   private readonly _stages: Map<string, StageRecord> = new Map();
   private readonly _logs: LogEntry[] = [];
   private _onLog?: (entry: LogEntry) => void;
+  private _logFilePath?: string;
 
   constructor(params: {
     config: ConversionConfig;
@@ -64,7 +86,10 @@ export class PipelineContext {
     this.sourceDir = params.sourceDir;
     this.outputDir = params.outputDir;
     this.workDir = params.workDir;
+    this.dryRun = params.config.dryRun ?? false;
     this._onLog = params.onLog;
+    // Improvement #7: structured JSON log file path
+    this._logFilePath = path.join(params.outputDir, "webtoapp-conversion.log");
   }
 
   // ─── Stage tracking ────────────────────────────────────────────────────────
@@ -86,6 +111,8 @@ export class PipelineContext {
     stage.completedAt = completedAt;
     stage.durationMs = completedAt.getTime() - (stage.startedAt?.getTime() ?? 0);
     this.log("info", `Stage complete: ${name} (${stage.durationMs}ms)`, name);
+    // Flush logs to disk after every successful stage (improvement #7)
+    this.flushLogs().catch(() => {});
   }
 
   failStage(name: string, error: Error): void {
@@ -95,6 +122,8 @@ export class PipelineContext {
     stage.error = error.message;
     stage.completedAt = new Date();
     this.log("error", `Stage failed: ${name} — ${error.message}`, name);
+    // Flush logs so the log file is available for post-mortem analysis
+    this.flushLogs().catch(() => {});
   }
 
   skipStage(name: string, reason: string): void {
@@ -106,6 +135,29 @@ export class PipelineContext {
     return Array.from(this._stages.values());
   }
 
+  // ─── Improvement #8: Stage resume support ─────────────────────────────────
+
+  /**
+   * Returns true if this stage should be skipped because the user configured
+   * resumeFromStage and this stage runs before the resume point.
+   *
+   * Usage inside each stage function:
+   *   if (ctx.shouldSkipStage(STAGE)) {
+   *     ctx.skipStage(STAGE, 'resuming from later stage');
+   *     return;
+   *   }
+   */
+  shouldSkipStage(stageName: string): boolean {
+    const resumeFrom = this.config.resumeFromStage;
+    if (!resumeFrom) return false;
+
+    const resumeIdx = STAGE_ORDER.indexOf(resumeFrom as typeof STAGE_ORDER[number]);
+    const thisIdx   = STAGE_ORDER.indexOf(stageName  as typeof STAGE_ORDER[number]);
+
+    if (resumeIdx === -1 || thisIdx === -1) return false;
+    return thisIdx < resumeIdx;
+  }
+
   // ─── Logging ───────────────────────────────────────────────────────────────
 
   log(level: LogLevel, message: string, stage?: string): void {
@@ -113,14 +165,58 @@ export class PipelineContext {
     this._logs.push(entry);
     this._onLog?.(entry);
 
-    if (this.config.verbose) {
+    // Always print errors; print others only when verbose or dryRun
+    if (level === "error" || this.config.verbose || this.dryRun) {
       const prefix = stage ? `[${stage}]` : "[pipeline]";
-      console[level === "error" ? "error" : "log"](`${prefix} ${message}`);
+      const tag = level === "error" ? "❌" : level === "warn" ? "⚠ " : "  ";
+      console[level === "error" ? "error" : "log"](`${tag} ${prefix} ${message}`);
     }
   }
 
   getLogs(): LogEntry[] {
     return [...this._logs];
+  }
+
+  /**
+   * Improvement #7: Flush all buffered log entries to a newline-delimited JSON
+   * log file in the output directory. Safe to call multiple times.
+   * Each line is a JSON object: { ts, level, stage, msg }
+   */
+  async flushLogs(): Promise<void> {
+    if (!this._logFilePath) return;
+    if (this.dryRun) return; // never write files in dry-run mode
+
+    try {
+      await fs.mkdir(path.dirname(this._logFilePath), { recursive: true });
+      const lines = this._logs.map((e) =>
+        JSON.stringify({
+          ts:    e.timestamp.toISOString(),
+          level: e.level,
+          stage: e.stage ?? "pipeline",
+          msg:   e.message,
+        })
+      );
+      await fs.writeFile(this._logFilePath, lines.join("\n") + "\n", "utf-8");
+    } catch {
+      // Log file write failure is non-fatal — never crash the pipeline over it
+    }
+  }
+
+  /**
+   * Delete the on-disk log file produced by `flushLogs`.
+   * Called automatically after a successful run when `config.cleanLogs` is true.
+   * Safe to call multiple times — silently ignores missing files.
+   */
+  async deleteLogFile(): Promise<void> {
+    if (!this._logFilePath) return;
+    const target = this._logFilePath;
+    this._logFilePath = undefined; // prevent future flushes from re-creating it
+    try {
+      await fs.unlink(target);
+      this.log("info", `Log file deleted: ${target}`);
+    } catch {
+      // File may already be gone — not an error
+    }
   }
 
   // ─── Helpers ───────────────────────────────────────────────────────────────

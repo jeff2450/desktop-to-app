@@ -14,6 +14,7 @@ import { runInstallStage } from "./stages/05-install.js";
 import { runBuildStage } from "./stages/06-build.js";
 import { runPackageStage } from "./stages/07-package.js";
 import { runMobileStage } from "./stages/07b-mobile.js";
+import { runPreflightStage } from "./stages/00-preflight.js";
 
 /**
  * The main entry point for converting a web project to a desktop app.
@@ -56,43 +57,147 @@ export class ConversionPipeline {
     });
 
     ctx.log("info", `WebToApp conversion started`);
-    ctx.log("info", `Source: ${sourceDir}`);
-    ctx.log("info", `Output: ${outputDir}`);
+    ctx.log("info", `Source:  ${sourceDir}`);
+    ctx.log("info", `Output:  ${outputDir}`);
     ctx.log("info", `Targets: ${this.config.targets.join(", ")}`);
+    ctx.log("info", `Mode:    ${this.config.mode}`);
+    if (ctx.dryRun) ctx.log("info", "🔍 DRY-RUN — no files will be written");
+    if (this.config.resumeFromStage) {
+      ctx.log("info", `Resuming from stage: ${this.config.resumeFromStage}`);
+    }
+
+    // ── Error #10 Fix: Backup before starting, rollback on any failure ──
+    const backupDir = outputDir + ".backup";
+    await this.createBackup(outputDir, backupDir, ctx);
 
     try {
+      // Stage 00 — Pre-flight validation (NEW: fast-fails before touching anything)
+      await runPreflightStage(ctx);
+
       // Stage 01 — Detect
-      await runDetectStage(ctx);
+      if (ctx.shouldSkipStage("01-detect")) ctx.skipStage("01-detect", "resuming from later stage");
+      else await runDetectStage(ctx);
 
       // Stage 02 — Plan
-      await runPlanStage(ctx);
+      if (ctx.shouldSkipStage("02-plan")) ctx.skipStage("02-plan", "resuming from later stage");
+      else await runPlanStage(ctx);
 
       // Stage 03 — Transform source files
-      await runTransformStage(ctx);
+      if (ctx.shouldSkipStage("03-transform")) ctx.skipStage("03-transform", "resuming from later stage");
+      else await runTransformStage(ctx);
 
       // Stage 04 — Scaffold Electron + backend files
-      await runScaffoldStage(ctx);
+      if (ctx.shouldSkipStage("04-scaffold")) ctx.skipStage("04-scaffold", "resuming from later stage");
+      else await runScaffoldStage(ctx);
 
       // Stage 05 — Install dependencies
-      await runInstallStage(ctx);
+      if (ctx.shouldSkipStage("05-install")) ctx.skipStage("05-install", "resuming from later stage");
+      else await runInstallStage(ctx);
 
       // Stage 06 — Vite build
-      await runBuildStage(ctx);
+      if (ctx.shouldSkipStage("06-build")) ctx.skipStage("06-build", "resuming from later stage");
+      else await runBuildStage(ctx);
 
       // Stage 07 — Package installer
-      await runPackageStage(ctx);
+      if (ctx.shouldSkipStage("07-package")) ctx.skipStage("07-package", "resuming from later stage");
+      else await runPackageStage(ctx);
 
       // Stage 07b — Mobile (Android/iOS) — skipped if no mobile targets
-      await runMobileStage(ctx);
+      if (ctx.shouldSkipStage("07b-mobile")) ctx.skipStage("07b-mobile", "resuming from later stage");
+      else await runMobileStage(ctx);
+
+      // All stages succeeded — remove backup and flush logs
+      await fs.rm(backupDir, { recursive: true, force: true }).catch(() => {});
+      await ctx.flushLogs();
+
+      // If the user asked for a clean output, remove the log file after flushing
+      if (this.config.cleanLogs) {
+        await ctx.deleteLogFile();
+      }
+
+      ctx.log("info", "Conversion complete — backup removed");
 
       return this.buildResult(ctx, "success");
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       ctx.log("error", `Pipeline failed: ${error.message}`);
+
+      // Rollback to the state before conversion started
+      await this.rollback(outputDir, backupDir, ctx);
+      await ctx.flushLogs();
+
       return this.buildResult(ctx, "failed", error);
     } finally {
       // Clean up temp dir
       await fs.rm(workDir, { recursive: true, force: true }).catch(() => {});
+    }
+  }
+
+  /**
+   * Error #10: Snapshot outputDir → backupDir so we can restore on failure.
+   * If outputDir doesn't exist yet there is nothing to back up.
+   */
+  private async createBackup(
+    outputDir: string,
+    backupDir: string,
+    ctx: PipelineContext
+  ): Promise<void> {
+    const exists = await fs
+      .stat(outputDir)
+      .then((s) => s.isDirectory())
+      .catch(() => false);
+
+    if (!exists) {
+      ctx.log("info", "No existing output directory — skipping backup");
+      return;
+    }
+
+    // Remove any stale backup from a previous failed run
+    await fs.rm(backupDir, { recursive: true, force: true }).catch(() => {});
+
+    await this.copyDir(outputDir, backupDir);
+    ctx.log("info", `Backup created: ${backupDir}`);
+  }
+
+  /**
+   * Error #10: Restore outputDir from backupDir after a failed pipeline run.
+   */
+  private async rollback(
+    outputDir: string,
+    backupDir: string,
+    ctx: PipelineContext
+  ): Promise<void> {
+    const backupExists = await fs
+      .stat(backupDir)
+      .then((s) => s.isDirectory())
+      .catch(() => false);
+
+    if (!backupExists) {
+      // Nothing to restore — just clean up the partial output
+      ctx.log("warn", "No backup found — removing partial output directory");
+      await fs.rm(outputDir, { recursive: true, force: true }).catch(() => {});
+      return;
+    }
+
+    ctx.log("info", "Rolling back to pre-conversion state...");
+    await fs.rm(outputDir, { recursive: true, force: true }).catch(() => {});
+    await this.copyDir(backupDir, outputDir);
+    await fs.rm(backupDir, { recursive: true, force: true }).catch(() => {});
+    ctx.log("info", "Rollback complete — output directory restored");
+  }
+
+  /** Recursive directory copy helper */
+  private async copyDir(src: string, dest: string): Promise<void> {
+    await fs.mkdir(dest, { recursive: true });
+    const entries = await fs.readdir(src, { withFileTypes: true });
+    for (const entry of entries) {
+      const srcPath = path.join(src, entry.name);
+      const destPath = path.join(dest, entry.name);
+      if (entry.isDirectory()) {
+        await this.copyDir(srcPath, destPath);
+      } else {
+        await fs.copyFile(srcPath, destPath);
+      }
     }
   }
 

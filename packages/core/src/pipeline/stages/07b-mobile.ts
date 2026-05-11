@@ -30,7 +30,7 @@ export async function runMobileStage(ctx: PipelineContext): Promise<void> {
       appId: ctx.config.appId,
       version: ctx.config.version,
       targets: mobileTargets,
-      onLog: (line) => ctx.log("info", line, STAGE),
+      onLog: (line: string) => ctx.log("info", line, STAGE),
     });
 
     if (!result.success) {

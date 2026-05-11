@@ -143,6 +143,26 @@ async function detectProject(
     (await fileExists(path.join(sourceDir, "public", "sw.js"))) ||
     (await fileExists(path.join(sourceDir, "public", "service-worker.js")));
 
+  // ── Improvement #3: Extract per-table column definitions ───────
+  const tableColumns = await extractTableColumns(sourceDir);
+
+  // ── Improvement #6: Auto-detect app icon ───────────────────────
+  const iconPath = await detectIconPath(sourceDir);
+  if (iconPath) ctx.log("info", `Icon auto-detected: ${iconPath}`, STAGE);
+
+  // ── Improvement #11: Detect TypeScript path aliases ────────────
+  const pathAliases = await extractPathAliases(sourceDir);
+  if (Object.keys(pathAliases).length > 0) {
+    ctx.log("info", `Path aliases: ${Object.keys(pathAliases).join(", ")}`, STAGE);
+  }
+
+  // ── Phase 2: Extract RLS Policies ──────────────────────────────
+  const rlsPolicies = await extractRlsPolicies(sourceDir);
+  const rlsTableCount = Object.keys(rlsPolicies).length;
+  if (rlsTableCount > 0) {
+    ctx.log("info", `Detected RLS policies for ${rlsTableCount} tables`, STAGE);
+  }
+
   // ── Confidence score ───────────────────────────────────────────
   let confidence = 0.5;
   if (frameworkDetected) confidence += 0.2;
@@ -163,6 +183,8 @@ async function detectProject(
     backend,
     auth,
     tables,
+    tableColumns,
+    rlsPolicies,
     uiLibrary,
     hasOfflineSupport,
     confidence,
@@ -170,8 +192,11 @@ async function detectProject(
     scannedFiles: sourceFiles,
     dependencies: deps,
     devDependencies: devDeps,
+    iconPath,
+    pathAliases,
   };
 }
+
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -276,3 +301,226 @@ async function extractTableNames(sourceDir: string): Promise<string[]> {
 async function fileExists(p: string): Promise<boolean> {
   return fs.access(p).then(() => true).catch(() => false);
 }
+
+// ─── Improvement #3: Per-table column extraction ─────────────────────────────
+
+import type { ColumnDefinition, RlsPolicy } from "../../types/DetectionResult.js";
+
+/**
+ * Extracts column definitions per table from Supabase types.ts.
+ * Maps TypeScript types to SQLite-compatible column types so
+ * Stage 04 can generate proper CREATE TABLE statements.
+ */
+async function extractTableColumns(
+  sourceDir: string
+): Promise<Record<string, ColumnDefinition[]>> {
+  const result: Record<string, ColumnDefinition[]> = {};
+
+  const candidates = [
+    path.join(sourceDir, "src", "integrations", "supabase", "types.ts"),
+    path.join(sourceDir, "supabase", "types.ts"),
+    path.join(sourceDir, "src", "types", "supabase.ts"),
+  ];
+
+  for (const tp of candidates) {
+    if (!(await fileExists(tp))) continue;
+    const content = await fs.readFile(tp, "utf-8").catch(() => "");
+    parseSupabaseTypes(content, result);
+    break;
+  }
+
+  // Fallback: parse SQL migrations for column defs
+  const migrationsDir = path.join(sourceDir, "supabase", "migrations");
+  if (await fileExists(migrationsDir)) {
+    const files = await fs.readdir(migrationsDir).catch(() => [] as string[]);
+    for (const file of files.filter((f) => f.endsWith(".sql"))) {
+      const sql = await fs.readFile(path.join(migrationsDir, file), "utf-8").catch(() => "");
+      parseSqlMigration(sql, result);
+    }
+  }
+
+  return result;
+}
+
+function parseSqlType(pgType: string): ColumnDefinition["type"] {
+  const t = pgType.toLowerCase();
+  if (t.includes("int") || t === "serial" || t === "bigserial") return "INTEGER";
+  if (t.includes("float") || t.includes("double") || t === "numeric" || t === "decimal") return "REAL";
+  if (t === "boolean" || t === "bool") return "BOOLEAN";
+  if (t.includes("blob") || t === "bytea") return "BLOB";
+  return "TEXT";
+}
+
+function parseSqlMigration(sql: string, result: Record<string, ColumnDefinition[]>): void {
+  // Match CREATE TABLE blocks
+  const tableRe = /create\s+table\s+(?:if\s+not\s+exists\s+)?["']?(\w+)["']?\s*\(([^;]+)\)/gi;
+  let tableMatch: RegExpExecArray | null;
+
+  while ((tableMatch = tableRe.exec(sql)) !== null) {
+    const tableName = tableMatch[1]!;
+    const body = tableMatch[2]!;
+    const cols: ColumnDefinition[] = [];
+
+    for (const line of body.split(",")) {
+      const colRe = /^\s*["']?(\w+)["']?\s+(\w+(?:\s*\(\d+\))?)/;
+      const m = colRe.exec(line.trim());
+      if (!m) continue;
+      const colName = m[1]!;
+      if (["primary", "unique", "constraint", "check", "foreign"].includes(colName.toLowerCase())) continue;
+
+      cols.push({
+        name: colName,
+        type: parseSqlType(m[2]!),
+        nullable: !line.includes("NOT NULL"),
+        primaryKey: line.toLowerCase().includes("primary key") || colName === "id",
+        defaultValue: undefined,
+      });
+    }
+
+    if (cols.length > 0 && !result[tableName]) {
+      result[tableName] = cols;
+    }
+  }
+}
+
+function parseSupabaseTypes(content: string, result: Record<string, ColumnDefinition[]>): void {
+  // Find: Tables: { tableName: { Row: { col: type; ... } } }
+  const tableBlockRe = /["'](\w+)["']\s*:\s*\{[^}]*Row:\s*\{([^}]+)\}/g;
+  let m: RegExpExecArray | null;
+
+  while ((m = tableBlockRe.exec(content)) !== null) {
+    const tableName = m[1]!;
+    const rowBlock = m[2]!;
+    const cols: ColumnDefinition[] = [];
+
+    for (const line of rowBlock.split("\n")) {
+      const colRe = /["']?(\w+)["']?\s*:\s*([^;|]+)/;
+      const cm = colRe.exec(line.trim());
+      if (!cm) continue;
+      const colName = cm[1]!.trim();
+      const tsType = cm[2]!.trim().toLowerCase();
+      if (!colName || colName === "//") continue;
+
+      let sqlType: ColumnDefinition["type"] = "TEXT";
+      if (tsType.includes("number")) sqlType = "REAL";
+      if (tsType.includes("boolean")) sqlType = "BOOLEAN";
+
+      cols.push({
+        name: colName,
+        type: sqlType,
+        nullable: tsType.includes("null"),
+        primaryKey: colName === "id",
+      });
+    }
+
+    if (cols.length > 0) result[tableName] = cols;
+  }
+}
+
+// ─── Improvement #6: Icon auto-detection ─────────────────────────────────────
+
+async function detectIconPath(sourceDir: string): Promise<string | undefined> {
+  const candidates = [
+    "public/icon.png",
+    "public/logo.png",
+    "public/favicon.png",
+    "src/assets/icon.png",
+    "src/assets/logo.png",
+    "assets/icon.png",
+    "public/favicon.ico",   // .ico works but .png preferred for Electron
+  ];
+  for (const rel of candidates) {
+    if (await fileExists(path.join(sourceDir, rel))) return rel;
+  }
+  return undefined;
+}
+
+// ─── Improvement #11: TypeScript path alias extraction ───────────────────────
+
+async function extractPathAliases(sourceDir: string): Promise<Record<string, string>> {
+  const tsconfigCandidates = [
+    "tsconfig.json",
+    "tsconfig.app.json",
+    "tsconfig.base.json",
+  ];
+
+  for (const candidate of tsconfigCandidates) {
+    const tsconfigPath = path.join(sourceDir, candidate);
+    if (!(await fileExists(tsconfigPath))) continue;
+
+    try {
+      const raw = await fs.readFile(tsconfigPath, "utf-8");
+      // Strip comments from tsconfig (which is valid JSONC but not JSON)
+      const stripped = raw.replace(/\/\/[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+      const tsconfig = JSON.parse(stripped);
+      const paths: Record<string, string[]> = tsconfig?.compilerOptions?.paths ?? {};
+
+      const aliases: Record<string, string> = {};
+      for (const [alias, targets] of Object.entries(paths)) {
+        if (!targets[0]) continue;
+        // Strip trailing wildcard: "@/*" → "@", "./src/*" → "./src"
+        const key = alias.replace(/\/\*$/, "");
+        const val = targets[0].replace(/\/\*$/, "");
+        aliases[key] = val;
+      }
+      return aliases;
+    } catch {
+      // malformed tsconfig — skip
+    }
+  }
+
+  // If no tsconfig aliases found, infer the common @/ → ./src convention
+  if (await fileExists(path.join(sourceDir, "src"))) {
+    return { "@": "./src" };
+  }
+  return {};
+}
+
+// ─── Phase 2: RLS Policy Extraction ──────────────────────────────────────────
+
+async function extractRlsPolicies(sourceDir: string): Promise<Record<string, RlsPolicy[]>> {
+  const result: Record<string, RlsPolicy[]> = {};
+  const migrationsDir = path.join(sourceDir, "supabase", "migrations");
+
+  if (!(await fileExists(migrationsDir))) {
+    return result;
+  }
+
+  const files = await fs.readdir(migrationsDir).catch(() => [] as string[]);
+  for (const file of files.filter((f) => f.endsWith(".sql"))) {
+    const sql = await fs.readFile(path.join(migrationsDir, file), "utf-8").catch(() => "");
+
+    // Basic regex to match CREATE POLICY statements
+    // Matches: create policy "name" on table_name for action using (expr)
+    const policyRe = /create\s+policy\s+["']?([^"']+)["']?\s+on\s+["']?(?:\w+["']?\.["']?)?(\w+)["']?\s+.*?for\s+(select|insert|update|delete|all).*?(?:using|with\s+check)\s*\((.*?)\)/gis;
+    
+    let match: RegExpExecArray | null;
+    while ((match = policyRe.exec(sql)) !== null) {
+      const name = match[1]!;
+      const table = match[2]!;
+      const action = match[3]!.toUpperCase() as RlsPolicy["action"];
+      const using = match[4]!.trim();
+
+      // Check if it's an ownership policy: auth.uid() = user_id or user_id = auth.uid()
+      const ownerMatch = /(?:auth\.uid\(\)\s*=\s*(\w+))|(?:(\w+)\s*=\s*auth\.uid\(\))/i.exec(using);
+      const isOwnerOnly = ownerMatch !== null;
+      const ownerColumn = ownerMatch ? (ownerMatch[1] || ownerMatch[2]) : undefined;
+
+      if (!result[table]) {
+        result[table] = [];
+      }
+
+      result[table]!.push({
+        name,
+        table,
+        action,
+        using,
+        isOwnerOnly,
+        ownerColumn
+      });
+    }
+  }
+
+  return result;
+}
+

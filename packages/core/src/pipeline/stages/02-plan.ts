@@ -77,13 +77,13 @@ async function buildMigrationPlan(
 
     // Only add Electron — keep all cloud deps, don't touch any source files
     Object.assign(dependenciesToAdd, {
-      electron: "^31.0.0",
+      electron: "31.0.0",
       "electron-updater": "^6.1.0",
     });
 
     filesToGenerate.push(
       {
-        outputPath: "electron/main.js",
+        outputPath: "electron/main.cjs",
         generatorType: "electron-main",
         templateVars: {
           appName: ctx.config.name,
@@ -93,7 +93,7 @@ async function buildMigrationPlan(
         },
       },
       {
-        outputPath: "electron/preload.js",
+        outputPath: "electron/preload.cjs",
         generatorType: "electron-preload",
         templateVars: {},
       },
@@ -151,7 +151,7 @@ async function buildMigrationPlan(
 
   // ── Deps to add ────────────────────────────────────────────────────
   Object.assign(dependenciesToAdd, {
-    electron: "^31.0.0",
+    electron: "31.0.0",
     "better-sqlite3": "^11.0.0",
     express: "^4.19.0",
     cors: "^2.8.5",
@@ -179,7 +179,7 @@ async function buildMigrationPlan(
   // ── Generate: Electron main ────────────────────────────────────────
   filesToGenerate.push(
     {
-      outputPath: "electron/main.js",
+      outputPath: "electron/main.cjs",
       generatorType: "electron-main",
       templateVars: {
         appName: ctx.config.name,
@@ -189,7 +189,7 @@ async function buildMigrationPlan(
       },
     },
     {
-      outputPath: "electron/preload.js",
+      outputPath: "electron/preload.cjs",
       generatorType: "electron-preload",
       templateVars: {},
     },
@@ -210,12 +210,12 @@ async function buildMigrationPlan(
   if (ctx.config.backend.type !== "none") {
     filesToGenerate.push(
       {
-        outputPath: "backend/server.js",
+        outputPath: "backend/server.cjs",
         generatorType: "express-server",
         templateVars: { port: ctx.config.backend.port ?? 3001, tables, appName: ctx.config.name },
       },
       {
-        outputPath: "backend/database.js",
+        outputPath: "backend/database.cjs",
         generatorType: "sqlite-database",
         templateVars: { tables },
       }
@@ -223,17 +223,18 @@ async function buildMigrationPlan(
 
     if (ctx.config.auth.type === "local") {
       filesToGenerate.push({
-        outputPath: "backend/auth.js",
+        outputPath: "backend/auth.cjs",
         generatorType: "jwt-auth",
         templateVars: { defaultAdmin: ctx.config.auth.defaultAdmin ?? "admin@app.local" },
       });
     }
 
     for (const table of tables) {
+      const policies = ctx.detection?.rlsPolicies?.[table];
       filesToGenerate.push({
-        outputPath: `backend/routes/${table}.js`,
+        outputPath: `backend/routes/${table}.cjs`,
         generatorType: "crud-routes",
-        templateVars: { table },
+        templateVars: { table, policies },
       });
     }
 
@@ -267,7 +268,7 @@ async function buildMigrationPlan(
   const scriptsToInject: Record<string, string> = {
     "electron:dev": "concurrently \"vite\" \"wait-on tcp:5173 && electron .\"",
     "electron:build": "vite build && electron-builder",
-    "backend:start": "node backend/server.js",
+    "backend:start": "node backend/server.cjs",
   };
 
   const aiTransforms = filesToTransform.filter((f) => f.transformerType === "ai");

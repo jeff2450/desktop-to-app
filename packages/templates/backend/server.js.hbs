@@ -6,10 +6,10 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const { initDatabase } = require('./database');
-const authRouter = require('./auth');
+const { initDatabase } = require('./database.cjs');
+const authRouter = require('./auth.cjs');
 {{#each tables}}
-const {{this}}Router = require('./routes/{{this}}');
+const {{this}}Router = require('./routes/{{this}}.cjs');
 {{/each}}
 
 const app = express();

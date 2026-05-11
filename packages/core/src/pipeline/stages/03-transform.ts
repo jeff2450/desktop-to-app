@@ -6,6 +6,35 @@ import { transformFile } from "@webtoapp/transformers";
 
 const STAGE = "03-transform";
 
+// ─── Modules removed in non-hybrid mode (Stage 04 deletes these files) ─────────
+// We must also strip every import/usage of them from surviving source files.
+const DELETED_MODULE_PATTERNS: Array<{ importPattern: RegExp; jsxPattern?: RegExp }> = [
+  {
+    // import { syncEngine } from '@/lib/syncEngine'
+    // import { syncEngine } from '../lib/syncEngine'
+    importPattern: /^.*import[^'"]*from\s*['"][^'"]*syncEngine['"]\s*;?\s*\n?/gm,
+  },
+  {
+    // import SyncStatus from '...'
+    // import { SyncStatus } from '...'
+    importPattern: /^.*import[^'"]*SyncStatus[^'"]*from\s*['"][^'"]*['"]\s*;?\s*\n?/gm,
+    jsxPattern: /<SyncStatus[^>]*\/?>(\s*<\/SyncStatus>)?/g,
+  },
+  {
+    importPattern: /^.*import[^'"]*useSyncStatus[^'"]*from\s*['"][^'"]*['"]\s*;?\s*\n?/gm,
+    jsxPattern: /useSyncStatus\(\)[^;]*;?\n?/g,
+  },
+  {
+    importPattern: /^.*import[^'"]*useOnlineStatus[^'"]*from\s*['"][^'"]*['"]\s*;?\s*\n?/gm,
+    jsxPattern: /useOnlineStatus\(\)[^;]*;?\n?/g,
+  },
+  {
+    // import { SyncStatusBadge } from '...'
+    importPattern: /^.*import[^'"]*SyncStatusBadge[^'"]*from\s*['"][^'"]*['"]\s*;?\s*\n?/gm,
+    jsxPattern: /<SyncStatusBadge[^>]*\/?>(\s*<\/SyncStatusBadge>)?/g,
+  },
+];
+
 /**
  * Stage 03 — Transform
  *
@@ -95,6 +124,18 @@ export async function runTransformStage(ctx: PipelineContext): Promise<void> {
     // ── Also copy non-source assets ────────────────────────────────
     await copyPublicAssets(ctx);
     await copySrcAssets(ctx);
+
+    // ── Error #1 Fix: Scrub orphaned imports from deleted modules ──
+    // Stage 04 deletes syncEngine.ts, useOnlineStatus.ts etc. in
+    // non-hybrid mode. We must remove every import / JSX reference
+    // to those files from the surviving source files BEFORE vite build.
+    if (ctx.config.mode !== "hybrid") {
+      await scrubOrphanedImports(ctx);
+    }
+
+    // ── Error #8 Fix: React Router in Electron requires HashRouter ──
+    // BrowserRouter uses the HTML5 History API which fails on file://
+    await fixReactRouterForElectron(ctx);
 
     ctx.log("info", `Transformed: ${transformed} files`, STAGE);
     ctx.log("info", `Copied:      ${copied} files`, STAGE);
@@ -213,4 +254,98 @@ async function copySrcAssets(ctx: PipelineContext): Promise<void> {
   }
 
   ctx.log("info", "Copied src/ assets and config files", "03-transform");
+}
+
+/**
+ * Error #1 Fix: Scrub orphaned import statements and JSX usages that
+ * reference files deleted by Stage 04 (syncEngine, SyncStatus, etc.).
+ *
+ * Without this, vite throws:
+ *   "Could not load .../syncEngine (imported by SyncStatus.tsx)"
+ */
+async function scrubOrphanedImports(ctx: PipelineContext): Promise<void> {
+  const srcDir = path.join(ctx.outputDir, "src");
+  if (!(await dirExists(srcDir))) return;
+
+  let scrubbed = 0;
+
+  async function walkAndScrub(dir: string): Promise<void> {
+    const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await walkAndScrub(fullPath);
+      } else if (/\.tsx?$/.test(entry.name)) {
+        let content = await fs.readFile(fullPath, "utf-8");
+        let changed = false;
+
+        for (const { importPattern, jsxPattern } of DELETED_MODULE_PATTERNS) {
+          // Reset lastIndex for global regexes before each file
+          importPattern.lastIndex = 0;
+          if (jsxPattern) jsxPattern.lastIndex = 0;
+
+          const before = content;
+          content = content.replace(importPattern, "");
+          if (jsxPattern) {
+            content = content.replace(jsxPattern, "/* removed by WebToApp */");
+          }
+          if (content !== before) changed = true;
+        }
+
+        if (changed) {
+          await fs.writeFile(fullPath, content, "utf-8");
+          const rel = path.relative(ctx.outputDir, fullPath);
+          ctx.log("info", `Scrubbed orphaned imports: ${rel}`, STAGE);
+          scrubbed++;
+        }
+      }
+    }
+  }
+
+  await walkAndScrub(srcDir);
+  if (scrubbed > 0) {
+    ctx.log("info", `Removed orphaned imports from ${scrubbed} file(s)`, STAGE);
+  }
+}
+
+/**
+ * Error #8 Fix: Replace BrowserRouter with HashRouter.
+ * Electron serves files via file://, meaning HTML5 History API routing
+ * (BrowserRouter) fails and shows 404 or blank pages on navigation.
+ * We must use HashRouter instead.
+ */
+async function fixReactRouterForElectron(ctx: PipelineContext): Promise<void> {
+  const srcDir = path.join(ctx.outputDir, "src");
+  if (!(await dirExists(srcDir))) return;
+
+  let fixed = 0;
+
+  async function walkAndFix(dir: string): Promise<void> {
+    const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await walkAndFix(fullPath);
+      } else if (/\.(tsx?|jsx?)$/.test(entry.name)) {
+        let content = await fs.readFile(fullPath, "utf-8");
+        const before = content;
+
+        // Replace imports
+        content = content.replace(/\bBrowserRouter\b/g, "HashRouter");
+        content = content.replace(/\bcreateBrowserRouter\b/g, "createHashRouter");
+
+        if (content !== before) {
+          await fs.writeFile(fullPath, content, "utf-8");
+          const rel = path.relative(ctx.outputDir, fullPath);
+          ctx.log("info", `Fixed routing (BrowserRouter → HashRouter): ${rel}`, STAGE);
+          fixed++;
+        }
+      }
+    }
+  }
+
+  await walkAndFix(srcDir);
+  if (fixed > 0) {
+    ctx.log("info", `Applied HashRouter fix to ${fixed} file(s)`, STAGE);
+  }
 }

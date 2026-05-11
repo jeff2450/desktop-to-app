@@ -91,15 +91,60 @@ async function writeOutputPackageJson(ctx: PipelineContext): Promise<void> {
     delete deps[dep];
   }
 
+  // ── Error #2 Fix: electron MUST be in devDependencies ─────────
+  // electron-builder will error if electron is listed as a runtime dependency.
+  const electronDevOnly = ["electron", "electron-builder", "electron-rebuild", "@electron/rebuild"];
+  const extractedDevFromDeps: Record<string, string> = {};
+  for (const pkg_name of electronDevOnly) {
+    if (deps[pkg_name]) {
+      extractedDevFromDeps[pkg_name] = deps[pkg_name];
+      delete deps[pkg_name];
+      ctx.log("info", `Moved ${pkg_name} from dependencies → devDependencies`, STAGE);
+    }
+  }
+
+  // ── Error #4 Fix: vite-plugin-pwa is web-only (safety net) ────
+  const pwaPackages = ["vite-plugin-pwa", "@vite-pwa/assets-generator", "workbox-window", "workbox-precaching"];
+  for (const p of pwaPackages) {
+    if (deps[p]) {
+      delete deps[p];
+      ctx.log("info", `Removed web-only dep: ${p}`, STAGE);
+    }
+  }
+
+  // ── Error #7 Fix: date-fns v4 is incompatible with react-day-picker v8 ──
+  // react-day-picker v8 declares a peer dependency on date-fns v2 or v3.
+  // If the source project has date-fns v4, npm install will fail unless we
+  // downgrade it to the latest compatible v3 release.
+  const dayPickerVersion = deps["react-day-picker"] as string | undefined;
+  const dateFnsVersion = deps["date-fns"] as string | undefined;
+  if (
+    dayPickerVersion?.startsWith("^8") || dayPickerVersion?.startsWith("8") &&
+    dateFnsVersion && (dateFnsVersion.startsWith("^4") || dateFnsVersion.startsWith("4"))
+  ) {
+    deps["date-fns"] = "^3.6.0";
+    ctx.log(
+      "info",
+      `Downgraded date-fns ${dateFnsVersion} → ^3.6.0 (react-day-picker@8 peer requirement)`,
+      STAGE
+    );
+  }
+
   // Keep ALL original devDeps (includes vite, @vitejs/plugin-react, typescript etc.)
   // and add electron build tools on top
-  const devDeps = {
+  const devDeps: Record<string, string> = {
     ...((sourcePkg["devDependencies"] as Record<string, string>) ?? {}),
+    ...extractedDevFromDeps,
     "electron-builder": "^24.13.0",
     "@electron/rebuild": "^3.6.0",
     concurrently: "^8.2.0",
     "wait-on": "^7.2.0",
   };
+
+  // Also strip PWA packages from devDeps
+  for (const p of pwaPackages) {
+    delete (devDeps as Record<string, string>)[p];
+  }
 
   // Merge scripts
   const scripts = {
@@ -112,7 +157,8 @@ async function writeOutputPackageJson(ctx: PipelineContext): Promise<void> {
     name: ctx.config.name.toLowerCase().replace(/\s+/g, "-"),
     version: ctx.config.version,
     description: `${ctx.config.name} — desktop app`,
-    main: "electron/main.js",
+    author: (sourcePkg["author"] as string | undefined) ?? (ctx.config as any).author ?? "WebToApp Conversion",
+    main: "electron/main.cjs",
     scripts,
     dependencies: deps,
     devDependencies: devDeps,

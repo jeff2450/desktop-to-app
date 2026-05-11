@@ -25,13 +25,15 @@ program
   .option("-t, --target <targets...>", "Build targets: windows, linux, mac")
   .option("--verbose", "Enable verbose logging")
   .option("--dry-run", "Plan conversion without writing files")
+  .option("--clean-logs", "Delete the conversion log file after a successful run")
   .action(async (opts) => {
     await convertCommand({
-      config:  opts.config,
-      output:  opts.output,
-      target:  opts.target,
-      verbose: opts.verbose,
-      dryRun:  opts.dryRun,
+      config:    opts.config,
+      output:    opts.output,
+      target:    opts.target,
+      verbose:   opts.verbose,
+      dryRun:    opts.dryRun,
+      cleanLogs: opts.cleanLogs,
     });
   });
 

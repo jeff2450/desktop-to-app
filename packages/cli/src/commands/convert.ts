@@ -10,6 +10,7 @@ export interface ConvertOptions {
   target?: string[];
   verbose?: boolean;
   dryRun?: boolean;
+  cleanLogs?: boolean;
 }
 
 /**
@@ -36,8 +37,9 @@ export async function convertCommand(options: ConvertOptions): Promise<void> {
   }
 
   // Apply CLI overrides
-  if (options.output) config = { ...config, output: path.resolve(options.output) };
+  if (options.output)  config = { ...config, output: path.resolve(options.output) };
   if (options.verbose) config = { ...config, verbose: true };
+  if (options.cleanLogs) config = { ...config, cleanLogs: true };
   if (options.target?.length) {
     config = {
       ...config,

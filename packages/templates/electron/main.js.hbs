@@ -11,8 +11,8 @@ let backendProcess;
 
 function startBackend() {
   const serverPath = isDev
-    ? path.join(__dirname, '../backend/server.js')
-    : path.join(process.resourcesPath, 'backend', 'server.js');
+    ? path.join(__dirname, '../backend/server.cjs')
+    : path.join(process.resourcesPath, 'backend', 'server.cjs');
 
   backendProcess = spawn(process.execPath, [serverPath], {
     env: {
@@ -44,7 +44,7 @@ function createWindow() {
     title: '{{appName}}',
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#0f0f0f' : '#ffffff',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,

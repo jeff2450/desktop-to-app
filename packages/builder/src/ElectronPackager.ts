@@ -65,9 +65,44 @@ export class ElectronPackager {
       installerPaths.forEach((p) => log(`  → ${p}`));
 
       return { success: true, installerPaths, durationMs: Date.now() - start };
-    } catch (err) {
-      const error = err instanceof Error ? err.message : String(err);
-      log(`[packager] ERROR: ${error}`);
+    } catch (err: any) {
+      const rawError = err instanceof Error ? err.message : String(err);
+      const stdout = err.stdout ? err.stdout.toString() : "";
+      const stderr = err.stderr ? err.stderr.toString() : "";
+
+      // Dump the full output to a log file so the user can inspect it
+      const logPath = path.join(opts.projectDir, "build-error.log");
+      const logContent = [
+        `electron-builder failed at ${new Date().toISOString()}`,
+        `Command exit code: ${err.code ?? "unknown"}`,
+        "",
+        "=== STDOUT ===",
+        stdout || "(empty)",
+        "",
+        "=== STDERR ===",
+        stderr || "(empty)",
+        "",
+        "=== ERROR MESSAGE ===",
+        rawError,
+      ].join("\n");
+
+      await fs.writeFile(logPath, logContent, "utf-8").catch(() => {});
+
+      // Surface a clear, actionable error in the pipeline log
+      log(`[packager] ERROR: ${rawError}`);
+      log(`[packager] Full build log written to: ${logPath}`);
+
+      // Also print first 60 lines of stderr directly so the key error is visible
+      if (stderr) {
+        const errLines = stderr.split("\n").filter(Boolean).slice(0, 60);
+        errLines.forEach((l: string) => log(`[packager] [stderr] ${l}`));
+      }
+      if (stdout) {
+        const outLines = stdout.split("\n").filter(Boolean).slice(0, 20);
+        outLines.forEach((l: string) => log(`[packager] [stdout] ${l}`));
+      }
+
+      const error = `${rawError}\n  → Full log: ${logPath}`;
       return { success: false, installerPaths: [], error, durationMs: Date.now() - start };
     }
   }

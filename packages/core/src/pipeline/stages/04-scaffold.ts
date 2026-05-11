@@ -40,9 +40,33 @@ export async function runScaffoldStage(ctx: PipelineContext): Promise<void> {
     const { filesToGenerate } = ctx.plan;
     let generated = 0;
 
+    let validIconDest: string | undefined;
+    if (ctx.config.icon) {
+      const ext = path.extname(ctx.config.icon).toLowerCase();
+      validIconDest = ext === ".ico" ? "assets/icon.ico" : "assets/icon.png";
+    } else if (ctx.detection?.iconPath && ctx.detection.iconPath.toLowerCase().endsWith(".png")) {
+      validIconDest = "assets/icon.png";
+    }
+
     for (const filePlan of filesToGenerate) {
       const outputPath = path.join(ctx.outputDir, filePlan.outputPath);
       await fs.mkdir(path.dirname(outputPath), { recursive: true });
+
+      if (ctx.dryRun) {
+        ctx.log("info", `[DRY-RUN] Would generate: ${filePlan.outputPath}`, STAGE);
+        generated++;
+        continue;
+      }
+
+      // Inject detected tableColumns into sqlite-database template vars
+      if (filePlan.generatorType === "sqlite-database" && ctx.detection?.tableColumns) {
+        (filePlan.templateVars as Record<string, unknown>)["tableColumns"] =
+          ctx.detection.tableColumns;
+      }
+      
+      if (filePlan.generatorType === "electron-builder-config" && validIconDest) {
+        (filePlan.templateVars as Record<string, unknown>)["icon"] = validIconDest;
+      }
 
       const content = await generateFile(filePlan, ctx);
       await fs.writeFile(outputPath, content, "utf-8");
@@ -52,7 +76,7 @@ export async function runScaffoldStage(ctx: PipelineContext): Promise<void> {
     }
 
     // Ensure syncEngine.ts is deleted if not in hybrid mode
-    if (ctx.config.mode !== "hybrid") {
+    if (ctx.config.mode !== "hybrid" && !ctx.dryRun) {
       try {
         await fs.rm(path.join(ctx.outputDir, "src/lib/syncEngine.ts"), { force: true });
         await fs.rm(path.join(ctx.outputDir, "src/hooks/useOnlineStatus.ts"), { force: true });
@@ -60,7 +84,15 @@ export async function runScaffoldStage(ctx: PipelineContext): Promise<void> {
     }
 
     // ── Patch package.json ─────────────────────────────────────────
-    await patchPackageJson(ctx);
+    if (!ctx.dryRun) await patchPackageJson(ctx);
+    else ctx.log("info", "[DRY-RUN] Would patch package.json", STAGE);
+
+    // ── Improvement #5: Generate clean .env ───────────────────────
+    if (!ctx.dryRun) await generateCleanEnv(ctx);
+    else ctx.log("info", "[DRY-RUN] Would generate clean .env", STAGE);
+
+    // ── Improvement #6: Copy auto-detected icon ───────────────────
+    if (!ctx.dryRun) await copyAppIcon(ctx);
 
     ctx.log("info", `Scaffolded ${generated} files`, STAGE);
     ctx.completeStage(STAGE);
@@ -74,6 +106,11 @@ export async function runScaffoldStage(ctx: PipelineContext): Promise<void> {
 /**
  * Updates the output package.json with necessary scripts and dependencies
  * for Electron and the local Express backend.
+ *
+ * Fixes applied here:
+ *  #2 — electron must live in devDependencies (electron-builder requirement)
+ *  #3 — author field is required by electron-builder
+ *  #4 — vite-plugin-pwa is web-only and breaks in Electron environments
  */
 async function patchPackageJson(ctx: PipelineContext): Promise<void> {
   const pkgPath = path.join(ctx.outputDir, "package.json");
@@ -122,8 +159,40 @@ async function patchPackageJson(ctx: PipelineContext): Promise<void> {
     }
   }
 
+  // ── Error #2 Fix: electron MUST be in devDependencies ─────────
+  // electron-builder rejects builds where electron is a runtime dep.
+  const electronDevOnlyPackages = ["electron", "electron-builder", "electron-rebuild", "@electron/rebuild"];
+  for (const pkg_name of electronDevOnlyPackages) {
+    if (pkg.dependencies[pkg_name]) {
+      pkg.devDependencies[pkg_name] = pkg.dependencies[pkg_name];
+      delete pkg.dependencies[pkg_name];
+      ctx.log("info", `Moved ${pkg_name} from dependencies → devDependencies`, STAGE);
+    }
+  }
+
+  // ── Error #3 Fix: electron-builder requires an author field ───
+  if (!pkg.author) {
+    pkg.author = (ctx.config as any).author ?? "WebToApp Conversion";
+    ctx.log("info", "Added missing author field to package.json", STAGE);
+  }
+
+  // ── Error #4 Fix: remove vite-plugin-pwa (web-only, breaks Electron) ──
+  // Service workers are not supported in Electron. Remove the dep so that
+  // the vite build does not try to import it.
+  const pwaPlugins = ["vite-plugin-pwa", "@vite-pwa/assets-generator", "workbox-window", "workbox-precaching"];
+  for (const p of pwaPlugins) {
+    if (pkg.dependencies[p]) {
+      delete pkg.dependencies[p];
+      ctx.log("info", `Removed web-only package from dependencies: ${p}`, STAGE);
+    }
+    if (pkg.devDependencies[p]) {
+      delete pkg.devDependencies[p];
+      ctx.log("info", `Removed web-only package from devDependencies: ${p}`, STAGE);
+    }
+  }
+
   // Set main to electron entry point
-  pkg.main = "electron/main.js";
+  pkg.main = "electron/main.cjs";
 
   await fs.writeFile(pkgPath, JSON.stringify(pkg, null, 2), "utf-8");
   ctx.log("info", "Patched package.json using migration plan", STAGE);
@@ -209,8 +278,8 @@ let backendProcess;
 
 function startBackend() {
   const serverPath = isDev
-    ? path.join(__dirname, '../backend/server.js')
-    : path.join(process.resourcesPath, 'backend/server.js');
+    ? path.join(__dirname, '../backend/server.cjs')
+    : path.join(process.resourcesPath, 'backend/server.cjs');
 
   backendProcess = spawn('node', [serverPath], {
     env: { ...process.env, PORT: '${backendPort}' },
@@ -228,17 +297,18 @@ function createWindow() {
     minHeight: 600,
     title: '${appName}',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
 
-  const url = isDev
-    ? 'http://localhost:${devPort}'
-    : \`file://\${path.join(__dirname, '../dist/index.html')}\`;
-
-  mainWindow.loadURL(url);
+  if (isDev) {
+    mainWindow.loadURL('http://localhost:${devPort}');
+    mainWindow.webContents.openDevTools();
+  } else {
+    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+  }
 
   // Open external links in the browser, not Electron
   mainWindow.webContents.setWindowOpenHandler(({ url: u }) => {
@@ -304,37 +374,36 @@ function generateElectronBuilderConfig(vars: Record<string, unknown>): string {
   const appId = vars["appId"] as string ?? "com.webtoapp.app";
   const appName = vars["appName"] as string ?? "App";
   const targets = vars["targets"] as string[] ?? ["windows"];
-  const icon = vars["icon"] as string ?? "assets/icon.png";
+  const icon = vars["icon"] as string | undefined;
+
+  const iconLine = icon ? `  icon: ${icon}\n` : "";
 
   const winSection = targets.includes("windows") ? `
-  win:
-    target:
-      - target: nsis
-        arch: [x64]
-    icon: ${icon}
-  nsis:
-    oneClick: false
-    allowToChangeInstallationDirectory: true
-    createDesktopShortcut: true` : "";
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+${iconLine}nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true` : "";
 
   const linuxSection = targets.includes("linux") ? `
-  linux:
-    target:
-      - target: AppImage
-        arch: [x64]
-      - target: deb
-        arch: [x64]
-    icon: ${icon}
-    category: Utility` : "";
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+${iconLine}  category: Utility` : "";
 
   const macSection = targets.includes("mac") ? `
-  mac:
-    target:
-      - target: dmg
-        arch: [x64, arm64]
-    icon: ${icon}
-    hardenedRuntime: true
-    entitlements: build/entitlements.mac.plist` : "";
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+${iconLine}  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist` : "";
 
   return `appId: ${appId}
 productName: ${appName}
@@ -369,7 +438,7 @@ function generateExpressServer(vars: Record<string, unknown>): string {
   const appName = vars["appName"] as string ?? "App";
 
   const routeImports = tables
-    .map((t) => `const ${t}Router = require('./routes/${t}');`)
+    .map((t) => `const ${t}Router = require('./routes/${t}.cjs');`)
     .join("\n");
 
   const routeUses = tables
@@ -383,8 +452,8 @@ function generateExpressServer(vars: Record<string, unknown>): string {
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { initDatabase } = require('./database');
-const authRouter = require('./auth');
+const { initDatabase } = require('./database.cjs');
+const authRouter = require('./auth.cjs');
 ${routeImports}
 
 const app = express();
@@ -433,8 +502,37 @@ start().catch((err) => {
 
 function generateSqliteDatabase(vars: Record<string, unknown>): string {
   const tables = vars["tables"] as string[] ?? [];
+  const tableColumns = vars["tableColumns"] as Record<string, Array<{ name: string; type: string; nullable: boolean; primaryKey: boolean; defaultValue?: string }>> | undefined;
 
-  const createTables = tables.map((t) => `
+  /**
+   * Improvement #3: Use detected column definitions when available.
+   * Falls back to the generic data TEXT blob column only when no schema info exists.
+   */
+  const createTables = tables.map((t) => {
+    const cols = tableColumns?.[t];
+
+    if (cols && cols.length > 0) {
+      // Build columns from the detected schema
+      const colDefs = cols.map((col) => {
+        let def = `      ${col.name} ${col.type}`;
+        if (col.primaryKey) def += " PRIMARY KEY";
+        if (!col.nullable && !col.primaryKey) def += " NOT NULL";
+        if (col.defaultValue) def += ` DEFAULT ${col.defaultValue}`;
+        if (col.name === "created_at") def += " DEFAULT (datetime('now'))";
+        if (col.name === "updated_at") def += " DEFAULT (datetime('now'))";
+        return def;
+      }).join(",\n");
+
+      return `
+  db.exec(\`
+    CREATE TABLE IF NOT EXISTS ${t} (
+${colDefs}
+    )
+  \`);`;
+    }
+
+    // Generic fallback (no schema info detected)
+    return `
   db.exec(\`
     CREATE TABLE IF NOT EXISTS ${t} (
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
@@ -442,7 +540,8 @@ function generateSqliteDatabase(vars: Record<string, unknown>): string {
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     )
-  \`);`).join("\n");
+  \`);`;
+  }).join("\n");
 
   return `/**
  * SQLite database setup — generated by WebToApp
@@ -499,7 +598,7 @@ function generateJwtAuth(vars: Record<string, unknown>): string {
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { getDb } = require('./database');
+const { getDb } = require('./database.cjs');
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'webtoapp-local-secret-change-in-production';
@@ -602,6 +701,44 @@ module.exports.requireAuth = requireAuth;
 
 function generateCrudRoutes(vars: Record<string, unknown>): string {
   const table = vars["table"] as string ?? "items";
+  // Extract policies from variables passed in by 02-plan.ts
+  const policies = vars["policies"] as import('../../types/DetectionResult.js').RlsPolicy[] | undefined;
+
+  let requireAuthImport = "";
+  let authMiddleware = "";
+  let getCondition = "";
+  let getIdCondition = "";
+  let getIdParams = "";
+  let postInject = "";
+  let putCondition = "";
+  let putParams = "";
+  let deleteCondition = "";
+  let deleteParams = "";
+
+  if (policies?.some((p) => p.isOwnerOnly)) {
+    const policy = policies.find((p) => p.isOwnerOnly)!;
+    const col = policy.ownerColumn || "user_id";
+
+    requireAuthImport = "\nconst { requireAuth } = require('../auth.cjs');";
+    authMiddleware = "requireAuth, ";
+
+    getCondition = `\n  // RLS Enforcement: Only return rows owned by the current user
+  conditions.push('${col} = ?');
+  params.push(req.user.id);`;
+
+    getIdCondition = ` AND ${col} = ?`;
+    getIdParams = `, req.user.id`;
+
+    postInject = `
+  // RLS Enforcement: Force ownership of newly inserted rows
+  for (const row of rows) row.${col} = req.user.id;`;
+
+    putCondition = ` AND ${col} = ?`;
+    putParams = `, req.user.id`;
+
+    deleteCondition = ` AND ${col} = ?`;
+    deleteParams = `, req.user.id`;
+  }
 
   return `/**
  * CRUD routes for '${table}' — generated by WebToApp
@@ -609,12 +746,12 @@ function generateCrudRoutes(vars: Record<string, unknown>): string {
  * can call these routes the same way it called Supabase.
  */
 const express = require('express');
-const { getDb } = require('../database');
+const { getDb } = require('../database.cjs');${requireAuthImport}
 
 const router = express.Router();
 
 // GET /api/${table} — list all rows (supports ?column=value filters)
-router.get('/', (req, res) => {
+router.get('/', ${authMiddleware}(req, res) => {
   const db = getDb();
   const { limit = 1000, offset = 0, order, ...filters } = req.query;
 
@@ -623,7 +760,7 @@ router.get('/', (req, res) => {
   const conditions = Object.entries(filters).map(([col, val]) => {
     params.push(val);
     return \`\${col} = ?\`;
-  });
+  });${getCondition}
 
   if (conditions.length) query += \` WHERE \${conditions.join(' AND ')}\`;
   if (order) query += \` ORDER BY \${order.replace(/[^a-zA-Z0-9_,.]/g, '')}\`;
@@ -635,18 +772,18 @@ router.get('/', (req, res) => {
 });
 
 // GET /api/${table}/:id — get one row
-router.get('/:id', (req, res) => {
+router.get('/:id', ${authMiddleware}(req, res) => {
   const db = getDb();
-  const row = db.prepare('SELECT * FROM ${table} WHERE id = ?').get(req.params.id);
+  const row = db.prepare(\`SELECT * FROM ${table} WHERE id = ?${getIdCondition}\`).get(req.params.id${getIdParams});
   if (!row) return res.status(404).json({ data: null, error: 'Not found' });
   res.json({ data: row, error: null });
 });
 
 // POST /api/${table} — insert row(s)
-router.post('/', (req, res) => {
+router.post('/', ${authMiddleware}(req, res) => {
   const db = getDb();
   const rows = Array.isArray(req.body) ? req.body : [req.body];
-  const inserted = [];
+  const inserted = [];${postInject}
 
   const insertOne = db.transaction((row) => {
     const id = row.id ?? crypto.randomUUID();
@@ -666,7 +803,7 @@ router.post('/', (req, res) => {
 });
 
 // PUT /api/${table}/:id — update row
-router.put('/:id', (req, res) => {
+router.put('/:id', ${authMiddleware}(req, res) => {
   const db = getDb();
   const cols = Object.keys(req.body);
   if (!cols.length) return res.status(400).json({ error: 'No fields to update' });
@@ -675,25 +812,25 @@ router.put('/:id', (req, res) => {
   const vals = cols.map((c) => req.body[c]);
 
   db.prepare(
-    \`UPDATE ${table} SET \${setClauses}, updated_at = datetime('now') WHERE id = ?\`
-  ).run(...vals, req.params.id);
+    \`UPDATE ${table} SET \${setClauses}, updated_at = datetime('now') WHERE id = ?${putCondition}\`
+  ).run(...vals, req.params.id${putParams});
 
   const updated = db.prepare('SELECT * FROM ${table} WHERE id = ?').get(req.params.id);
   res.json({ data: updated, error: null });
 });
 
 // DELETE /api/${table}/:id — delete row
-router.delete('/:id', (req, res) => {
+router.delete('/:id', ${authMiddleware}(req, res) => {
   const db = getDb();
-  db.prepare('DELETE FROM ${table} WHERE id = ?').run(req.params.id);
+  db.prepare(\`DELETE FROM ${table} WHERE id = ?${deleteCondition}\`).run(req.params.id${deleteParams});
   res.json({ data: null, error: null });
 });
 
 // POST /api/${table}/upsert — upsert row(s)
-router.post('/upsert', (req, res) => {
+router.post('/upsert', ${authMiddleware}(req, res) => {
   const db = getDb();
   const rows = Array.isArray(req.body) ? req.body : [req.body];
-  const upserted = [];
+  const upserted = [];${postInject}
 
   const upsertOne = db.transaction((row) => {
     const id = row.id ?? crypto.randomUUID();
@@ -1324,4 +1461,94 @@ function formatRelative(date: Date): string {
   return \`\${Math.floor(secs / 3600)}h ago\`;
 }
 `;
+}
+
+// ─── Improvement #5: Generate a clean .env ────────────────────────────────────
+
+/**
+ * Reads the source project's .env / .env.local and generates a sanitised
+ * version for the output project. Cloud credentials (Supabase URL, Firebase
+ * config, Clerk keys, etc.) are commented out so they don't accidentally
+ * reach the packaged desktop app. Local API vars are injected instead.
+ */
+async function generateCleanEnv(ctx: PipelineContext): Promise<void> {
+  const cloudKeyPatterns = [
+    /SUPABASE/i, /FIREBASE/i, /CLERK/i, /AUTH0/i, /STRIPE/i,
+    /SENDGRID/i, /TWILIO/i, /AWS_/i, /SENTRY/i,
+  ];
+
+  const sourceEnvFiles = [".env", ".env.local", ".env.production"];
+  let sourceContent = "";
+
+  for (const f of sourceEnvFiles) {
+    try {
+      sourceContent = await fs.readFile(path.join(ctx.sourceDir, f), "utf-8");
+      break;
+    } catch { /* try next */ }
+  }
+
+  const lines = sourceContent ? sourceContent.split("\n") : [];
+  const outputLines: string[] = [
+    "# Generated by WebToApp — desktop app environment",
+    "# Cloud credentials have been commented out (not needed in offline mode)",
+    "",
+    "VITE_LOCAL_API=true",
+    `VITE_API_PORT=${ctx.config.backend?.port ?? 3001}`,
+    "",
+    "# Original cloud variables (kept for reference, commented out):",
+  ];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+
+    const isCloudKey = cloudKeyPatterns.some((re) => re.test(trimmed));
+    outputLines.push(isCloudKey ? `# ${line}` : line);
+  }
+
+  const destPath = path.join(ctx.outputDir, ".env");
+  await fs.writeFile(destPath, outputLines.join("\n") + "\n", "utf-8");
+  ctx.log("info", "Generated clean .env (cloud credentials commented out)", STAGE);
+}
+
+// ─── Improvement #6: Copy auto-detected app icon ──────────────────────────────
+
+/**
+ * Copies the auto-detected app icon from the source project to
+ * assets/icon.png in the output project (where electron-builder expects it).
+ * If no icon was detected, a warning is logged but the pipeline continues.
+ */
+async function copyAppIcon(ctx: PipelineContext): Promise<void> {
+  if (ctx.config.icon) {
+    const ext = path.extname(ctx.config.icon).toLowerCase();
+    const destName = ext === ".ico" ? "icon.ico" : "icon.png";
+    const iconDest = path.join(ctx.outputDir, "assets", destName);
+    try {
+      await fs.mkdir(path.dirname(iconDest), { recursive: true });
+      await fs.copyFile(path.join(ctx.sourceDir, ctx.config.icon), iconDest);
+      ctx.log("info", `Copied config icon: ${ctx.config.icon} → assets/${destName}`, STAGE);
+    } catch {
+      ctx.log("warn", `Could not copy config icon: ${ctx.config.icon}`, STAGE);
+    }
+    return;
+  }
+
+  const iconSrc = ctx.detection?.iconPath;
+  if (!iconSrc || !iconSrc.toLowerCase().endsWith(".png")) {
+    ctx.log(
+      "info",
+      "No valid PNG app icon auto-detected. electron-builder will use the default blank icon.",
+      STAGE
+    );
+    return;
+  }
+
+  const iconDest = path.join(ctx.outputDir, "assets", "icon.png");
+  try {
+    await fs.mkdir(path.dirname(iconDest), { recursive: true });
+    await fs.copyFile(path.join(ctx.sourceDir, iconSrc), iconDest);
+    ctx.log("info", `Copied auto-detected icon: ${iconSrc} → assets/icon.png`, STAGE);
+  } catch {
+    ctx.log("warn", `Could not copy icon from ${iconSrc}`, STAGE);
+  }
 }

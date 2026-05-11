@@ -4,7 +4,10 @@
  */
 const express = require('express');
 const crypto = require('crypto');
-const { getDb } = require('../database');
+const { getDb } = require('../database.cjs');
+{{#if policies}}
+const { requireAuth } = require('../auth.cjs');
+{{/if}}
 
 const router = express.Router();
 const TABLE = '{{table}}';

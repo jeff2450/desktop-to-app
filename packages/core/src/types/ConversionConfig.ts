@@ -64,6 +64,33 @@ export interface ConversionConfig {
 
   /** Whether to enable verbose pipeline logging */
   verbose?: boolean;
+
+  /**
+   * Dry-run mode — log every planned action but skip all file writes
+   * and npm installs. Use this to preview what the pipeline would do.
+   */
+  dryRun?: boolean;
+
+  /**
+   * Author name written into package.json (required by electron-builder).
+   * @example "Acme Corp"
+   */
+  author?: string;
+
+  /**
+   * Resume the pipeline from this stage name (e.g. "05-install").
+   * Stages before this name will be skipped if their output already exists.
+   * Use after a partial failure to avoid re-running successful stages.
+   */
+  resumeFromStage?: string;
+
+  /**
+   * When true, the `webtoapp-conversion.log` file will be deleted from the
+   * output directory after a **successful** pipeline run.
+   * On failure the log is always kept so you can inspect it.
+   * @default false
+   */
+  cleanLogs?: boolean;
 }
 
 export interface BackendConfig {
