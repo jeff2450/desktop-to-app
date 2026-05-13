@@ -37,74 +37,79 @@ export class ElectronPackager {
     log(`[packager] Starting electron-builder for ${opts.appName} v${opts.version}`);
     log(`[packager] Targets: ${opts.targets.join(", ")}`);
 
-    try {
-      const targetFlags = this.buildTargetFlags(opts.targets);
+    const targetFlags = this.buildTargetFlags(opts.targets);
+    let anySuccess = false;
+    let errors: string[] = [];
 
-      // Run electron-builder via npx — works on Windows, Linux, macOS
-      log("[packager] Running electron-builder...");
-      const buildCmd = cmd(`npx electron-builder ${targetFlags.join(" ")}`);
+    for (const targetFlag of targetFlags) {
+      log(`[packager] Running electron-builder for target ${targetFlag}...`);
+      const buildCmd = cmd(`npx electron-builder ${targetFlag}`);
 
-      const { stdout, stderr } = await execAsync(buildCmd, {
-        cwd: opts.projectDir,
-        env: {
-          ...process.env,
-          CSC_IDENTITY_AUTO_DISCOVERY: "false",
-        },
-        maxBuffer: 200 * 1024 * 1024,
-      });
+      try {
+        const { stdout, stderr } = await execAsync(buildCmd, {
+          cwd: opts.projectDir,
+          env: {
+            ...process.env,
+            CSC_IDENTITY_AUTO_DISCOVERY: "false",
+          },
+          maxBuffer: 200 * 1024 * 1024,
+        });
 
-      if (stdout) stdout.split("\n").forEach(log);
-      if (stderr) stderr.split("\n").filter(Boolean).forEach((l) => log(`[packager] ${l}`));
+        if (stdout) stdout.split("\n").forEach(log);
+        if (stderr) stderr.split("\n").filter(Boolean).forEach((l) => log(`[packager] ${l}`));
 
-      // Find produced installers
-      const installerPaths = await this.findInstallers(
-        path.join(opts.projectDir, "release")
-      );
+        anySuccess = true;
+      } catch (err: any) {
+        const rawError = err instanceof Error ? err.message : String(err);
+        const stdout = err.stdout ? err.stdout.toString() : "";
+        const stderr = err.stderr ? err.stderr.toString() : "";
 
-      log(`[packager] Done. ${installerPaths.length} installer(s) produced.`);
-      installerPaths.forEach((p) => log(`  → ${p}`));
+        const logPath = path.join(opts.projectDir, `build-error-${targetFlag.replace('--', '')}.log`);
+        const logContent = [
+          `electron-builder failed at ${new Date().toISOString()}`,
+          `Target: ${targetFlag}`,
+          `Command exit code: ${err.code ?? "unknown"}`,
+          "",
+          "=== STDOUT ===",
+          stdout || "(empty)",
+          "",
+          "=== STDERR ===",
+          stderr || "(empty)",
+          "",
+          "=== ERROR MESSAGE ===",
+          rawError,
+        ].join("\n");
 
-      return { success: true, installerPaths, durationMs: Date.now() - start };
-    } catch (err: any) {
-      const rawError = err instanceof Error ? err.message : String(err);
-      const stdout = err.stdout ? err.stdout.toString() : "";
-      const stderr = err.stderr ? err.stderr.toString() : "";
+        await fs.writeFile(logPath, logContent, "utf-8").catch(() => {});
 
-      // Dump the full output to a log file so the user can inspect it
-      const logPath = path.join(opts.projectDir, "build-error.log");
-      const logContent = [
-        `electron-builder failed at ${new Date().toISOString()}`,
-        `Command exit code: ${err.code ?? "unknown"}`,
-        "",
-        "=== STDOUT ===",
-        stdout || "(empty)",
-        "",
-        "=== STDERR ===",
-        stderr || "(empty)",
-        "",
-        "=== ERROR MESSAGE ===",
-        rawError,
-      ].join("\n");
+        log(`[packager] ERROR on target ${targetFlag}: ${rawError}`);
+        log(`[packager] Full build log written to: ${logPath}`);
 
-      await fs.writeFile(logPath, logContent, "utf-8").catch(() => {});
+        if (stderr) {
+          const errLines = stderr.split("\n").filter(Boolean).slice(0, 60);
+          errLines.forEach((l: string) => log(`[packager] [stderr] ${l}`));
+        }
+        if (stdout) {
+          const outLines = stdout.split("\n").filter(Boolean).slice(0, 20);
+          outLines.forEach((l: string) => log(`[packager] [stdout] ${l}`));
+        }
 
-      // Surface a clear, actionable error in the pipeline log
-      log(`[packager] ERROR: ${rawError}`);
-      log(`[packager] Full build log written to: ${logPath}`);
-
-      // Also print first 60 lines of stderr directly so the key error is visible
-      if (stderr) {
-        const errLines = stderr.split("\n").filter(Boolean).slice(0, 60);
-        errLines.forEach((l: string) => log(`[packager] [stderr] ${l}`));
+        errors.push(`Target ${targetFlag} failed: ${rawError}\n  → Full log: ${logPath}`);
       }
-      if (stdout) {
-        const outLines = stdout.split("\n").filter(Boolean).slice(0, 20);
-        outLines.forEach((l: string) => log(`[packager] [stdout] ${l}`));
-      }
-
-      const error = `${rawError}\n  → Full log: ${logPath}`;
-      return { success: false, installerPaths: [], error, durationMs: Date.now() - start };
     }
+
+    const installerPaths = await this.findInstallers(
+      path.join(opts.projectDir, "release")
+    );
+
+    if (!anySuccess && targetFlags.length > 0) {
+      return { success: false, installerPaths: [], error: errors.join("\n\n"), durationMs: Date.now() - start };
+    }
+
+    log(`[packager] Done. ${installerPaths.length} installer(s) produced.`);
+    installerPaths.forEach((p) => log(`  → ${p}`));
+
+    return { success: true, installerPaths, durationMs: Date.now() - start };
   }
 
   private buildTargetFlags(targets: PackageOptions["targets"]): string[] {

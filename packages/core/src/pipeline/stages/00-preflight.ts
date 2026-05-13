@@ -57,7 +57,7 @@ export async function runPreflightStage(ctx: PipelineContext): Promise<void> {
 
   // ── src/ directory ──────────────────────────────────────────────
   if (!(await isDir(path.join(ctx.sourceDir, "src")))) {
-    warnings.push("No src/ directory found — detection and transformation coverage may be limited.");
+    failures.push("No src/ directory found — detection and transformation require a standard src folder.");
   }
 
   // ── Vite config ─────────────────────────────────────────────────
@@ -74,9 +74,9 @@ export async function runPreflightStage(ctx: PipelineContext): Promise<void> {
       ...(pkg["devDependencies"] as Record<string, string> ?? {}),
     };
     if (!("vite" in allDeps)) {
-      warnings.push(
+      failures.push(
         "No vite.config file found and vite is not a dependency. " +
-        "The build stage will generate a minimal vite.config — review it after conversion."
+        "WebToApp requires a Vite project."
       );
     }
   }

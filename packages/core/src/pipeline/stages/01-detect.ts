@@ -403,12 +403,12 @@ function parseSqlMigration(sql: string, result: Record<string, ColumnDefinition[
 
 function parseSupabaseTypes(content: string, result: Record<string, ColumnDefinition[]>): void {
   // Find: Tables: { tableName: { Row: { col: type; ... } } }
-  const tableBlockRe = /["'](\w+)["']\s*:\s*\{[^}]*Row:\s*\{([^}]+)\}/g;
+  const tableBlockRe = /(?:["'](\w+)["']|(\w+))\s*:\s*\{[^}]*Row:\s*\{([^}]+)\}/g;
   let m: RegExpExecArray | null;
 
   while ((m = tableBlockRe.exec(content)) !== null) {
-    const tableName = m[1]!;
-    const rowBlock = m[2]!;
+    const tableName = (m[1] || m[2])!;
+    const rowBlock = m[3]!;
     const cols: ColumnDefinition[] = [];
 
     for (const line of rowBlock.split("\n")) {

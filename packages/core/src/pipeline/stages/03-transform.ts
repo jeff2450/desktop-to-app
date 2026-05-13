@@ -3,37 +3,10 @@ import fs from "node:fs/promises";
 
 import type { PipelineContext } from "../PipelineContext.js";
 import { transformFile } from "@webtoapp/transformers";
+import { Project, SyntaxKind } from "ts-morph";
 
 const STAGE = "03-transform";
 
-// ─── Modules removed in non-hybrid mode (Stage 04 deletes these files) ─────────
-// We must also strip every import/usage of them from surviving source files.
-const DELETED_MODULE_PATTERNS: Array<{ importPattern: RegExp; jsxPattern?: RegExp }> = [
-  {
-    // import { syncEngine } from '@/lib/syncEngine'
-    // import { syncEngine } from '../lib/syncEngine'
-    importPattern: /^.*import[^'"]*from\s*['"][^'"]*syncEngine['"]\s*;?\s*\n?/gm,
-  },
-  {
-    // import SyncStatus from '...'
-    // import { SyncStatus } from '...'
-    importPattern: /^.*import[^'"]*SyncStatus[^'"]*from\s*['"][^'"]*['"]\s*;?\s*\n?/gm,
-    jsxPattern: /<SyncStatus[^>]*\/?>(\s*<\/SyncStatus>)?/g,
-  },
-  {
-    importPattern: /^.*import[^'"]*useSyncStatus[^'"]*from\s*['"][^'"]*['"]\s*;?\s*\n?/gm,
-    jsxPattern: /useSyncStatus\(\)[^;]*;?\n?/g,
-  },
-  {
-    importPattern: /^.*import[^'"]*useOnlineStatus[^'"]*from\s*['"][^'"]*['"]\s*;?\s*\n?/gm,
-    jsxPattern: /useOnlineStatus\(\)[^;]*;?\n?/g,
-  },
-  {
-    // import { SyncStatusBadge } from '...'
-    importPattern: /^.*import[^'"]*SyncStatusBadge[^'"]*from\s*['"][^'"]*['"]\s*;?\s*\n?/gm,
-    jsxPattern: /<SyncStatusBadge[^>]*\/?>(\s*<\/SyncStatusBadge>)?/g,
-  },
-];
 
 /**
  * Stage 03 — Transform
@@ -57,6 +30,14 @@ export async function runTransformStage(ctx: PipelineContext): Promise<void> {
 
   try {
     const { filesToTransform, filesToCopy } = ctx.plan;
+
+    if (ctx.dryRun) {
+      ctx.log("info", `[DRY-RUN] Would transform ${filesToTransform.length} files and copy ${filesToCopy.length} files`, STAGE);
+      ctx.log("info", `[DRY-RUN] Would sanitize .env and scrub orphaned imports`, STAGE);
+      ctx.completeStage(STAGE);
+      return;
+    }
+
     let transformed = 0;
     let copied = 0;
     let failed = 0;
@@ -248,7 +229,16 @@ async function copySrcAssets(ctx: PipelineContext): Promise<void> {
     const srcExists = await fs.access(src).then(() => true).catch(() => false);
     const destExists = await fs.access(dest).then(() => true).catch(() => false);
     if (srcExists && !destExists) {
-      await fs.copyFile(src, dest);
+      if (file.startsWith(".env")) {
+        let content = await fs.readFile(src, "utf-8");
+        content = content.replace(/^(.*(?:SUPABASE|FIREBASE).*)$/gm, "# $1 # stripped by WebToApp");
+        if (!content.includes("VITE_LOCAL_API")) {
+          content += "\n\n# Added by WebToApp\nVITE_LOCAL_API=true\nVITE_API_PORT=3001\n";
+        }
+        await fs.writeFile(dest, content, "utf-8");
+      } else {
+        await fs.copyFile(src, dest);
+      }
       ctx.log("debug", `Copied asset: ${file}`, "03-transform");
     }
   }
@@ -267,44 +257,84 @@ async function scrubOrphanedImports(ctx: PipelineContext): Promise<void> {
   const srcDir = path.join(ctx.outputDir, "src");
   if (!(await dirExists(srcDir))) return;
 
+  if (!ctx.plan?.filesToDelete || ctx.plan.filesToDelete.length === 0) return;
+
+  const deletedModules = ctx.plan.filesToDelete
+    .map((file) => path.basename(file, path.extname(file)))
+    .filter(Boolean);
+
+  if (deletedModules.length === 0) return;
+
+  const project = new Project();
+  // Ensure glob pattern uses forward slashes
+  project.addSourceFilesAtPaths(path.join(srcDir, "**/*.{ts,tsx}").replace(/\\/g, '/'));
+
   let scrubbed = 0;
 
-  async function walkAndScrub(dir: string): Promise<void> {
-    const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
-    for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        await walkAndScrub(fullPath);
-      } else if (/\.tsx?$/.test(entry.name)) {
-        let content = await fs.readFile(fullPath, "utf-8");
-        let changed = false;
+  for (const sourceFile of project.getSourceFiles()) {
+    let changed = false;
 
-        for (const { importPattern, jsxPattern } of DELETED_MODULE_PATTERNS) {
-          // Reset lastIndex for global regexes before each file
-          importPattern.lastIndex = 0;
-          if (jsxPattern) jsxPattern.lastIndex = 0;
-
-          const before = content;
-          content = content.replace(importPattern, "");
-          if (jsxPattern) {
-            content = content.replace(jsxPattern, "/* removed by WebToApp */");
-          }
-          if (content !== before) changed = true;
+    for (const moduleName of deletedModules) {
+      // 1. Remove import declarations
+      const imports = sourceFile.getImportDeclarations();
+      for (const imp of imports) {
+        if (imp.getModuleSpecifierValue().includes(moduleName)) {
+          imp.remove();
+          changed = true;
         }
+      }
 
-        if (changed) {
-          await fs.writeFile(fullPath, content, "utf-8");
-          const rel = path.relative(ctx.outputDir, fullPath);
-          ctx.log("info", `Scrubbed orphaned imports: ${rel}`, STAGE);
-          scrubbed++;
+      // 2. Remove JSX elements
+      const jsxElements = sourceFile.getDescendantsOfKind(SyntaxKind.JsxElement);
+      for (const jsx of jsxElements) {
+        const identifier = jsx.getOpeningElement().getTagNameNode().getText();
+        if (identifier === moduleName) {
+          jsx.replaceWithText("<></>");
+          changed = true;
+        }
+      }
+
+      const jsxSelfClosing = sourceFile.getDescendantsOfKind(SyntaxKind.JsxSelfClosingElement);
+      for (const jsx of jsxSelfClosing) {
+        const identifier = jsx.getTagNameNode().getText();
+        if (identifier === moduleName) {
+          jsx.replaceWithText("<></>");
+          changed = true;
+        }
+      }
+
+      // 3. Remove hook calls
+      if (moduleName.startsWith("use")) {
+        const calls = sourceFile.getDescendantsOfKind(SyntaxKind.CallExpression);
+        for (const call of calls) {
+          if (call.getExpression().getText() === moduleName) {
+            const parent = call.getParent();
+            if (parent?.getKind() === SyntaxKind.VariableDeclaration) {
+              const varStmt = parent.getParentIfKind(SyntaxKind.VariableDeclarationList)?.getParentIfKind(SyntaxKind.VariableStatement);
+              if (varStmt) {
+                varStmt.remove();
+              } else {
+                call.replaceWithText("undefined");
+              }
+            } else if (parent?.getKind() === SyntaxKind.ExpressionStatement) {
+              parent.remove();
+            } else {
+              call.replaceWithText("undefined");
+            }
+            changed = true;
+          }
         }
       }
     }
+
+    if (changed) {
+      scrubbed++;
+    }
   }
 
-  await walkAndScrub(srcDir);
   if (scrubbed > 0) {
-    ctx.log("info", `Removed orphaned imports from ${scrubbed} file(s)`, STAGE);
+    await project.save();
+    ctx.log("info", `Removed orphaned imports from ${scrubbed} file(s) using AST`, STAGE);
   }
 }
 

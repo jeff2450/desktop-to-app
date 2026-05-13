@@ -62,6 +62,10 @@ export class ConversionPipeline {
     ctx.log("info", `Targets: ${this.config.targets.join(", ")}`);
     ctx.log("info", `Mode:    ${this.config.mode}`);
     if (ctx.dryRun) ctx.log("info", "🔍 DRY-RUN — no files will be written");
+    
+    // Auto-resume if state exists
+    await ctx.loadState();
+
     if (this.config.resumeFromStage) {
       ctx.log("info", `Resuming from stage: ${this.config.resumeFromStage}`);
     }
@@ -172,18 +176,36 @@ export class ConversionPipeline {
       .then((s) => s.isDirectory())
       .catch(() => false);
 
+    // Preserve state and log files during rollback
+    const stateFile = path.join(outputDir, "webtoapp-state.json");
+    const logFile = path.join(outputDir, "webtoapp-conversion.log");
+    
+    let stateData: string | null = null;
+    let logData: string | null = null;
+    try { stateData = await fs.readFile(stateFile, "utf-8"); } catch {}
+    try { logData = await fs.readFile(logFile, "utf-8"); } catch {}
+
     if (!backupExists) {
       // Nothing to restore — just clean up the partial output
       ctx.log("warn", "No backup found — removing partial output directory");
       await fs.rm(outputDir, { recursive: true, force: true }).catch(() => {});
-      return;
+    } else {
+      ctx.log("info", "Rolling back to pre-conversion state...");
+      await fs.rm(outputDir, { recursive: true, force: true }).catch(() => {});
+      await this.copyDir(backupDir, outputDir);
+      await fs.rm(backupDir, { recursive: true, force: true }).catch(() => {});
+      ctx.log("info", "Rollback complete — output directory restored");
     }
 
-    ctx.log("info", "Rolling back to pre-conversion state...");
-    await fs.rm(outputDir, { recursive: true, force: true }).catch(() => {});
-    await this.copyDir(backupDir, outputDir);
-    await fs.rm(backupDir, { recursive: true, force: true }).catch(() => {});
-    ctx.log("info", "Rollback complete — output directory restored");
+    // Restore preserved files
+    if (stateData) {
+      await fs.mkdir(outputDir, { recursive: true }).catch(() => {});
+      await fs.writeFile(stateFile, stateData, "utf-8");
+    }
+    if (logData) {
+      await fs.mkdir(outputDir, { recursive: true }).catch(() => {});
+      await fs.writeFile(logFile, logData, "utf-8");
+    }
   }
 
   /** Recursive directory copy helper */

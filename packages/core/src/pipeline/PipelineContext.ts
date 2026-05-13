@@ -74,6 +74,8 @@ export class PipelineContext {
   private readonly _logs: LogEntry[] = [];
   private _onLog?: (entry: LogEntry) => void;
   private _logFilePath?: string;
+  private _stateFilePath: string;
+  private _lastCompletedStage?: string;
 
   constructor(params: {
     config: ConversionConfig;
@@ -90,6 +92,8 @@ export class PipelineContext {
     this._onLog = params.onLog;
     // Improvement #7: structured JSON log file path
     this._logFilePath = path.join(params.outputDir, "webtoapp-conversion.log");
+    // Improvement #6: State persistence file path
+    this._stateFilePath = path.join(params.outputDir, "webtoapp-state.json");
   }
 
   // ─── Stage tracking ────────────────────────────────────────────────────────
@@ -111,7 +115,8 @@ export class PipelineContext {
     stage.completedAt = completedAt;
     stage.durationMs = completedAt.getTime() - (stage.startedAt?.getTime() ?? 0);
     this.log("info", `Stage complete: ${name} (${stage.durationMs}ms)`, name);
-    // Flush logs to disk after every successful stage (improvement #7)
+    // Flush logs and state to disk after every successful stage (improvement #6, #7)
+    this.saveState().catch(() => {});
     this.flushLogs().catch(() => {});
   }
 
@@ -149,13 +154,46 @@ export class PipelineContext {
    */
   shouldSkipStage(stageName: string): boolean {
     const resumeFrom = this.config.resumeFromStage;
-    if (!resumeFrom) return false;
+    if (resumeFrom) {
+      const resumeIdx = STAGE_ORDER.indexOf(resumeFrom as typeof STAGE_ORDER[number]);
+      const thisIdx   = STAGE_ORDER.indexOf(stageName  as typeof STAGE_ORDER[number]);
+      if (resumeIdx !== -1 && thisIdx !== -1) return thisIdx < resumeIdx;
+    }
 
-    const resumeIdx = STAGE_ORDER.indexOf(resumeFrom as typeof STAGE_ORDER[number]);
-    const thisIdx   = STAGE_ORDER.indexOf(stageName  as typeof STAGE_ORDER[number]);
+    if (this._lastCompletedStage) {
+      const lastIdx = STAGE_ORDER.indexOf(this._lastCompletedStage as typeof STAGE_ORDER[number]);
+      const thisIdx = STAGE_ORDER.indexOf(stageName as typeof STAGE_ORDER[number]);
+      if (lastIdx !== -1 && thisIdx !== -1) return thisIdx <= lastIdx;
+    }
 
-    if (resumeIdx === -1 || thisIdx === -1) return false;
-    return thisIdx < resumeIdx;
+    return false;
+  }
+
+  async loadState(): Promise<void> {
+    try {
+      const data = await fs.readFile(this._stateFilePath, "utf-8");
+      const state = JSON.parse(data);
+      if (state.lastCompletedStage) {
+        this._lastCompletedStage = state.lastCompletedStage;
+        this.log("info", `Loaded state: last completed stage was ${this._lastCompletedStage}`);
+      }
+    } catch {
+      // No state file or invalid, which is fine for a fresh run
+    }
+  }
+
+  async saveState(): Promise<void> {
+    if (this.dryRun) return;
+    try {
+      await fs.mkdir(path.dirname(this._stateFilePath), { recursive: true });
+      const doneStages = this.getStages().filter(s => s.status === "done");
+      if (doneStages.length > 0) {
+        const last = doneStages[doneStages.length - 1]!.name;
+        await fs.writeFile(this._stateFilePath, JSON.stringify({ lastCompletedStage: last }, null, 2), "utf-8");
+      }
+    } catch {
+      // Non-fatal
+    }
   }
 
   // ─── Logging ───────────────────────────────────────────────────────────────

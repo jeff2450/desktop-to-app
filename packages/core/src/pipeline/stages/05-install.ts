@@ -33,6 +33,12 @@ export async function runInstallStage(ctx: PipelineContext): Promise<void> {
     await writeOutputPackageJson(ctx);
 
     // ── Run npm install ────────────────────────────────────────────
+    if (ctx.dryRun) {
+      ctx.log("info", "[DRY-RUN] Would run npm install", STAGE);
+      ctx.completeStage(STAGE);
+      return;
+    }
+
     ctx.log("info", "Running npm install in output project...", STAGE);
 
     // Use --legacy-peer-deps to handle peer dependency conflicts in the

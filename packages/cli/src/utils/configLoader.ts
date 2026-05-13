@@ -1,6 +1,9 @@
 import path from "node:path";
 import fs from "node:fs/promises";
 import type { ConversionConfig } from "@webtoapp/core";
+import Ajv from "ajv";
+import addErrors from "ajv-errors";
+import { configSchema } from "./configSchema.js";
 
 const CONFIG_FILENAME = "webtoapp.config.json";
 
@@ -69,42 +72,53 @@ function validateConfig(
   raw: Record<string, unknown>,
   configPath: string
 ): ConversionConfig {
+  const ajv = new Ajv({ allErrors: true });
+  addErrors(ajv);
+
+  const validate = ajv.compile(configSchema);
+  const valid = validate(raw);
+
+  if (!valid && validate.errors) {
+    const error = validate.errors[0]!;
+    const fieldPath = error.instancePath || "/";
+    throw new ConfigError(
+      `Validation error at ${fieldPath}: ${error.message}`,
+      fieldPath
+    );
+  }
+
   const configDir = path.dirname(configPath);
-
-  // Required fields
-  requireString(raw, "name");
-  requireString(raw, "version");
-  requireString(raw, "source");
-  requireString(raw, "appId");
-
-  // Resolve source path relative to config file
   const source = path.resolve(configDir, raw["source"] as string);
   const output = raw["output"]
     ? path.resolve(configDir, raw["output"] as string)
     : undefined;
 
-  // Targets
-  const targets = validateTargets(raw["targets"]);
-
-  // Backend config
-  const backend = validateBackend(raw["backend"]);
-
-  // Auth config
-  const auth = validateAuth(raw["auth"]);
-
-  // Database config
-  const database = validateDatabase(raw["database"]);
-
-  // Mode
-  const rawMode = raw["mode"] ?? "offline";
-  const validModes = ["offline", "online", "hybrid"];
-  if (!validModes.includes(rawMode as string)) {
-    throw new ConfigError(
-      `Invalid mode "${rawMode}". Must be one of: ${validModes.join(", ")}`,
-      "mode"
-    );
+  let targets = raw["targets"] as Array<"windows" | "linux" | "mac" | "android" | "ios"> | undefined;
+  if (!targets || targets.length === 0) {
+    const platform = process.platform;
+    if (platform === "win32") targets = ["windows"];
+    else if (platform === "darwin") targets = ["mac"];
+    else targets = ["linux"];
   }
-  const mode = rawMode as "offline" | "online" | "hybrid";
+
+  const mode = (raw["mode"] as "offline" | "online" | "hybrid" | undefined) ?? "offline";
+  const backendRaw = raw["backend"] as Record<string, unknown> | undefined;
+  const backend = {
+    type: (backendRaw?.["type"] as "auto" | "express" | "none" | undefined) ?? "auto",
+    port: (backendRaw?.["port"] as number | undefined) ?? 3001,
+  };
+
+  const authRaw = raw["auth"] as Record<string, unknown> | undefined;
+  const auth = {
+    type: (authRaw?.["type"] as "local" | "none" | undefined) ?? "local",
+    defaultAdmin: authRaw?.["defaultAdmin"] as string | undefined,
+  };
+
+  const databaseRaw = raw["database"] as Record<string, unknown> | undefined;
+  const database = {
+    type: (databaseRaw?.["type"] as "sqlite" | "none" | undefined) ?? "sqlite",
+    migrations: databaseRaw?.["migrations"] as string | undefined,
+  };
 
   return {
     name: raw["name"] as string,
@@ -120,89 +134,9 @@ function validateConfig(
     database,
     devTools: raw["devTools"] as boolean | undefined,
     verbose: raw["verbose"] as boolean | undefined,
-  };
-}
-
-function requireString(obj: Record<string, unknown>, field: string): void {
-  if (typeof obj[field] !== "string" || !(obj[field] as string).trim()) {
-    throw new ConfigError(`Missing required field: "${field}"`, field);
-  }
-}
-
-function validateTargets(
-  raw: unknown
-): Array<"windows" | "linux" | "mac"> {
-  const valid = ["windows", "linux", "mac"] as const;
-  if (!Array.isArray(raw) || raw.length === 0) {
-    // Default to current platform
-    const platform = process.platform;
-    if (platform === "win32") return ["windows"];
-    if (platform === "darwin") return ["mac"];
-    return ["linux"];
-  }
-  return raw.map((t) => {
-    if (!valid.includes(t as (typeof valid)[number])) {
-      throw new ConfigError(
-        `Invalid target "${t}". Must be one of: ${valid.join(", ")}`,
-        "targets"
-      );
-    }
-    return t as (typeof valid)[number];
-  });
-}
-
-function validateBackend(
-  raw: unknown
-): ConversionConfig["backend"] {
-  if (!raw || typeof raw !== "object") {
-    return { type: "auto", port: 3001 };
-  }
-  const obj = raw as Record<string, unknown>;
-  const type = obj["type"] ?? "auto";
-  if (!["auto", "express", "none"].includes(type as string)) {
-    throw new ConfigError(
-      `Invalid backend.type "${type}". Must be "auto", "express", or "none"`,
-      "backend.type"
-    );
-  }
-  return {
-    type: type as ConversionConfig["backend"]["type"],
-    port: typeof obj["port"] === "number" ? obj["port"] : 3001,
-  };
-}
-
-function validateAuth(raw: unknown): ConversionConfig["auth"] {
-  if (!raw || typeof raw !== "object") {
-    return { type: "local" };
-  }
-  const obj = raw as Record<string, unknown>;
-  const type = obj["type"] ?? "local";
-  if (!["local", "none"].includes(type as string)) {
-    throw new ConfigError(
-      `Invalid auth.type "${type}". Must be "local" or "none"`,
-      "auth.type"
-    );
-  }
-  return {
-    type: type as ConversionConfig["auth"]["type"],
-    defaultAdmin: obj["defaultAdmin"] as string | undefined,
-  };
-}
-
-function validateDatabase(raw: unknown): ConversionConfig["database"] {
-  if (!raw || typeof raw !== "object") {
-    return { type: "sqlite" };
-  }
-  const obj = raw as Record<string, unknown>;
-  const type = obj["type"] ?? "sqlite";
-  if (!["sqlite", "none"].includes(type as string)) {
-    throw new ConfigError(
-      `Invalid database.type "${type}". Must be "sqlite" or "none"`,
-      "database.type"
-    );
-  }
-  return {
-    type: type as ConversionConfig["database"]["type"],
-    migrations: obj["migrations"] as string | undefined,
+    dryRun: raw["dryRun"] as boolean | undefined,
+    author: raw["author"] as string | undefined,
+    resumeFromStage: raw["resumeFromStage"] as string | undefined,
+    cleanLogs: raw["cleanLogs"] as boolean | undefined,
   };
 }

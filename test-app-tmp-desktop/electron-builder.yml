@@ -18,23 +18,23 @@ extraResources:
     filter:
       - "**/*"
 
-  win:
-    target:
-      - target: nsis
-        arch: [x64]
-    icon: assets/icon.png
-  nsis:
-    oneClick: false
-    allowToChangeInstallationDirectory: true
-    createDesktopShortcut: true
-  linux:
-    target:
-      - target: AppImage
-        arch: [x64]
-      - target: deb
-        arch: [x64]
-    icon: assets/icon.png
-    category: Utility
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: assets/icon.png
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+  icon: assets/icon.png
+  category: Utility
 
 publish:
   provider: generic

@@ -126,207 +126,69 @@ async function ensureIndexHtml(ctx: PipelineContext): Promise<void> {
 // ─── Main vite config patcher ─────────────────────────────────────────────────
 
 async function patchViteConfig(ctx: PipelineContext): Promise<void> {
+  // We completely overwrite the vite config with a clean, generated one.
+  const isESM = await isESMProject(ctx.outputDir);
+  const configName = isESM ? "vite.config.ts" : "vite.config.ts"; // Always use .ts
+  const configPath = path.join(ctx.outputDir, configName);
+
+  // Clean up any old config files
   const candidates = [
-    path.join(ctx.outputDir, "vite.config.ts"),
     path.join(ctx.outputDir, "vite.config.js"),
     path.join(ctx.outputDir, "vite.config.mts"),
     path.join(ctx.outputDir, "vite.config.mjs"),
+    path.join(ctx.outputDir, "vite.config.cjs"),
+    path.join(ctx.outputDir, "vite.config.ts"),
   ];
-
-  let configPath: string | null = null;
-  let content = "";
-
   for (const candidate of candidates) {
-    try {
-      content = await fs.readFile(candidate, "utf-8");
-      configPath = candidate;
-      break;
-    } catch { /* try next */ }
+    try { await fs.unlink(candidate); } catch {}
   }
 
-  // Copy from source if not in output
-  if (!configPath) {
-    const sourceCandidates = [
-      path.join(ctx.sourceDir, "vite.config.ts"),
-      path.join(ctx.sourceDir, "vite.config.js"),
-      path.join(ctx.sourceDir, "vite.config.mts"),
-    ];
-    for (const src of sourceCandidates) {
-      try {
-        content = await fs.readFile(src, "utf-8");
-        const destName = path.basename(src);
-        configPath = path.join(ctx.outputDir, destName);
-        await fs.copyFile(src, configPath);
-        ctx.log("info", `Copied ${destName} from source`, STAGE);
-        break;
-      } catch { /* try next */ }
-    }
-  }
-
-  if (!configPath) {
-    ctx.log("warn", "No vite.config found — creating minimal one", STAGE);
-    const minimal = buildMinimalViteConfig();
-    configPath = path.join(ctx.outputDir, "vite.config.js");
-    await fs.writeFile(configPath, minimal, "utf-8");
-    return;
-  }
-
-  let changed = false;
-
-  // ── Fix #1: Add base: './' if missing ────────────────────────────────────
-  if (!content.includes("base:") && !content.includes("base :")) {
-    content = content.replace(
-      /(defineConfig\s*\(\s*\{|=>\s*\(\s*\{)/,
-      (m) => m.replace("{", "{\n  base: './',")
-    );
-    changed = true;
-    ctx.log("info", "Added base: './' to vite config", STAGE);
-  }
-
-  // ── Fix #12: Ensure build.outDir: 'dist' is set ──────────────────────────
-  if (!content.includes("outDir:") && !content.includes("outDir :")) {
-    // Inject inside existing build: {} block if present
-    if (content.includes("build:")) {
-      content = content.replace(
-        /build\s*:\s*\{/,
-        "build: {\n    outDir: 'dist',"
-      );
-    } else {
-      // Inject a build block
-      content = content.replace(
-        /(defineConfig\s*\(\s*\{|=>\s*\(\s*\{)/,
-        (m) => m.replace("{", "{\n  build: { outDir: 'dist' },")
-      );
-    }
-    changed = true;
-    ctx.log("info", "Set build.outDir: 'dist' in vite config", STAGE);
-  }
-
-  // ── Fix #2: Remove lovable-tagger ────────────────────────────────────────
-  if (content.includes("lovable-tagger")) {
-    content = content.replace(
-      /^.*import[^'"]*from\s*['"]lovable-tagger['"]\s*;?\s*\n?/gm,
-      "// lovable-tagger removed by WebToApp\n"
-    );
-
-    // Single-line: mode === 'development' && componentTagger()
-    content = content.replace(
-      /\bmode\s*===?\s*['"]development['"]\s*&&\s*(?:componentTagger|lovableTagger)\s*\(\s*\)\s*,?[\t ]*\n?/g,
-      ""
-    );
-
-    // Multi-line: mode === 'development' &&\n    componentTagger()
-    content = content.replace(
-      /[\t ]*\bmode\s*===?\s*['"]development['"]\s*&&[\t ]*\n[\t ]*(?:componentTagger|lovableTagger)\s*\(\s*\)\s*,?[\t ]*\n?/g,
-      ""
-    );
-
-    // Bare tagger() call
-    content = content.replace(/[\t ]*(?:componentTagger|lovableTagger)\s*\(\s*\)\s*,?[\t ]*\n?/g, "");
-
-    // Remove now-redundant .filter(Boolean)
-    content = content.replace(/\]\.filter\(Boolean\)/g, "]");
-
-    changed = true;
-    ctx.log("info", "Removed lovable-tagger from vite config", STAGE);
-  }
-
-  // ── Fix #3: Remove vite-plugin-pwa import ────────────────────────────────
-  if (content.includes("vite-plugin-pwa")) {
-    content = content.replace(
-      /^.*import.*VitePWA.*from.*vite-plugin-pwa.*\n?/gm,
-      "// vite-plugin-pwa removed by WebToApp (not supported in Electron)\n"
-    );
-    changed = true;
-    ctx.log("info", "Removed vite-plugin-pwa import from vite config", STAGE);
-  }
-
-  // ── Fix #3b: Remove VitePWA(...) plugin call ─────────────────────────────
-  if (content.includes("VitePWA(")) {
-    content = removePluginBlock(content, "VitePWA");
-    changed = true;
-    ctx.log("info", "Removed VitePWA plugin from vite config", STAGE);
-  }
-
-  // ── Fix #8 & #9: Remove vite-plugin-checker (causes TS errors at build) ──
-  if (content.includes("vite-plugin-checker")) {
-    content = content.replace(
-      /^.*import[^'"]*from\s*['"]vite-plugin-checker['"]\s*;?\s*\n?/gm,
-      "// vite-plugin-checker removed by WebToApp\n"
-    );
-    // Remove checker({...}) plugin call
-    content = removePluginBlock(content, "checker");
-    changed = true;
-    ctx.log("info", "Removed vite-plugin-checker from vite config (can block Electron builds)", STAGE);
-  }
-
-  // ── Fix #10: Clean up double/trailing commas left by plugin removals ──────
-  content = cleanupPluginsArray(content);
-
-  // ── Fix #4 & #5: Inject path aliases with proper 'path' import ───────────
   const aliases = ctx.detection?.pathAliases ?? {};
-  if (Object.keys(aliases).length > 0) {
-    // Fix #4: Check for 'alias:' specifically, not just 'resolve:'
-    if (!content.includes("alias:") && !content.includes("alias :")) {
-      // Fix #5: Ensure 'path' is imported
-      content = ensurePathImport(content);
+  const aliasEntries = Object.entries(aliases)
+    .map(([k, v]) => `      '${k}': path.resolve(__dirname, '${v.replace(/\\/g, "/")}')`)
+    .join(",\n");
 
-      // Fix #13: Normalise to forward slashes
-      const aliasEntries = Object.entries(aliases)
-        .map(([k, v]) => `      '${k}': path.resolve(__dirname, '${v.replace(/\\/g, "/")}'),`);
+  const framework = ctx.detection?.framework ?? "react";
+  let pluginImport = "";
+  let pluginUse = "";
 
-      if (content.includes("resolve:")) {
-        // resolve block exists but no alias: — inject inside it
-        content = content.replace(
-          /resolve\s*:\s*\{/,
-          `resolve: {\n    alias: {\n${aliasEntries.join("\n")}\n    },`
-        );
-      } else {
-        // Inject a complete resolve.alias block
-        const aliasBlock = `  resolve: {\n    alias: {\n${aliasEntries.join("\n")}\n    },\n  },`;
-        content = content.replace(
-          /(defineConfig\s*\(\s*\{|=>\s*\(\s*\{)/,
-          (m) => m + "\n" + aliasBlock
-        );
-      }
-      changed = true;
-      ctx.log("info", `Injected path aliases: ${Object.keys(aliases).join(", ")}`, STAGE);
-    } else {
-      ctx.log("debug", "alias already present in vite config — skipping injection", STAGE);
+  if (framework === "react") {
+    pluginImport = "import react from '@vitejs/plugin-react';";
+    pluginUse = "react()";
+  } else if (framework === "vue") {
+    pluginImport = "import vue from '@vitejs/plugin-vue';";
+    pluginUse = "vue()";
+  } else if (framework === "svelte") {
+    pluginImport = "import { svelte } from '@sveltejs/vite-plugin-svelte';";
+    pluginUse = "svelte()";
+  }
+
+  const dirnamePolyfill = isESM 
+    ? `import { fileURLToPath } from 'node:url';\nconst __filename = fileURLToPath(import.meta.url);\nconst __dirname = path.dirname(__filename);\n`
+    : ``;
+
+  const content = `import { defineConfig } from 'vite';
+import path from 'node:path';
+${pluginImport}
+${dirnamePolyfill}
+export default defineConfig({
+  base: './',
+  build: {
+    outDir: 'dist',
+  },
+  plugins: [
+    ${pluginUse}
+  ],
+  resolve: {
+    alias: {
+${aliasEntries}
     }
   }
+});
+`;
 
-  // ── Fix #1: Ensure __dirname is available for ESM vite configs ───────────
-  //    When vite.config.ts is loaded as ESM (package.json "type":"module"),
-  //    __dirname is not defined. Inject a polyfill at the top if needed.
-  if (
-    content.includes("__dirname") &&
-    !content.includes("fileURLToPath") &&
-    !content.includes("const __dirname")
-  ) {
-    const isESM =
-      content.includes("import ") || // has ES import statements
-      (await isESMProject(ctx.outputDir));
-
-    if (isESM) {
-      const polyfill =
-        `import { fileURLToPath } from 'node:url';\n` +
-        `const __filename = fileURLToPath(import.meta.url);\n` +
-        `const __dirname = path.dirname(__filename);\n`;
-
-      // Insert after the last top-level import line
-      content = content.replace(
-        /^((?:import[^\n]*\n)+)/m,
-        (m) => m + polyfill
-      );
-      changed = true;
-      ctx.log("info", "Injected __dirname ESM polyfill into vite config", STAGE);
-    }
-  }
-
-  if (changed) {
-    await fs.writeFile(configPath, content, "utf-8");
-  }
+  await fs.writeFile(configPath, content, "utf-8");
+  ctx.log("info", "Generated clean vite.config.ts from scratch", STAGE);
 }
 
 // ─── Fix #2: PostCSS ESM/CJS fix (now actually called) ───────────────────────
@@ -480,69 +342,7 @@ async function fixTailwindConfig(ctx: PipelineContext): Promise<void> {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/**
- * Removes a plugin function call (e.g. VitePWA({...}) or checker({...}))
- * from a vite config string, handling arbitrarily nested braces/parens.
- */
-function removePluginBlock(content: string, pluginName: string): string {
-  const startMarker = `${pluginName}(`;
-  const startIdx = content.indexOf(startMarker);
-  if (startIdx === -1) return content;
 
-  let depth = 0;
-  let i = startIdx + startMarker.length - 1; // position of opening (
-
-  for (; i < content.length; i++) {
-    const ch = content[i];
-    if (ch === "(" || ch === "{") depth++;
-    else if (ch === ")" || ch === "}") {
-      depth--;
-      if (depth === 0) break;
-    }
-  }
-
-  let endIdx = i + 1;
-  if (content[endIdx] === ",") endIdx++;
-  if (content[endIdx] === "\n") endIdx++;
-
-  return (
-    content.slice(0, startIdx) +
-    `// ${pluginName} removed by WebToApp\n` +
-    content.slice(endIdx)
-  );
-}
-
-/**
- * After removing plugins, the array may have double commas (`, ,`) or
- * a trailing comma before the closing bracket (`,[whitespace]]`).
- * This cleans both up.
- */
-function cleanupPluginsArray(content: string): string {
-  // Collapse sequences of comma + optional whitespace/newline + comma → single comma
-  let cleaned = content.replace(/,(\s*,)+/g, ",");
-
-  // Remove trailing comma before closing bracket: ,\n  ] or , ]
-  cleaned = cleaned.replace(/,(\s*)\]/g, "$1]");
-
-  return cleaned;
-}
-
-/**
- * Ensures `import path from 'node:path'` (or `'path'`) exists in the file.
- * Only adds it when the config uses ES import syntax.
- * If the file uses require() it means it's CJS and path is available via require.
- */
-function ensurePathImport(content: string): string {
-  const hasPathImport =
-    /import\s+path\s+from/.test(content) ||
-    /const\s+path\s*=\s*require\s*\(/.test(content);
-
-  if (hasPathImport) return content;
-
-  // Prepend to the file, before the first import
-  const pathImport = `import path from 'node:path';\n`;
-  return pathImport + content;
-}
 
 /**
  * Returns true if the output project has `"type": "module"` in package.json,
@@ -559,16 +359,4 @@ async function isESMProject(outputDir: string): Promise<boolean> {
   }
 }
 
-/** Generates a safe minimal vite.config.js that always works in Electron. */
-function buildMinimalViteConfig(): string {
-  return `import { defineConfig } from 'vite';
-import path from 'node:path';
 
-export default defineConfig({
-  base: './',
-  build: {
-    outDir: 'dist',
-  },
-});
-`;
-}

@@ -20,6 +20,12 @@ export async function runMobileStage(ctx: PipelineContext): Promise<void> {
   ctx.startStage(STAGE);
 
   try {
+    if (ctx.dryRun) {
+      ctx.log("info", "[DRY-RUN] Would build mobile targets with Capacitor", STAGE);
+      ctx.completeStage(STAGE);
+      return;
+    }
+
     // Dynamically import to avoid loading Capacitor deps when not needed
     const { CapacitorBuilder } = await import("@webtoapp/builder");
 

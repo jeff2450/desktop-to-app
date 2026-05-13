@@ -22,6 +22,12 @@ export async function runPackageStage(ctx: PipelineContext): Promise<void> {
   try {
     const log = (line: string) => ctx.log("info", line, STAGE);
 
+    if (ctx.dryRun) {
+      ctx.log("info", "[DRY-RUN] Would rebuild native modules and package the desktop app", STAGE);
+      ctx.completeStage(STAGE);
+      return;
+    }
+
     // ── Step 1: Rebuild native Node modules for Electron ──────────
     ctx.log("info", "Rebuilding native modules for Electron...", STAGE);
 

@@ -1,0 +1,49 @@
+export const configSchema = {
+  type: "object",
+  required: ["name", "version", "source", "appId"],
+  properties: {
+    name: { type: "string", minLength: 1 },
+    version: { type: "string", minLength: 1 },
+    source: { type: "string", minLength: 1 },
+    output: { type: "string" },
+    targets: {
+      type: "array",
+      items: { type: "string", enum: ["windows", "linux", "mac", "android", "ios"] },
+      minItems: 1
+    },
+    mode: { type: "string", enum: ["offline", "online", "hybrid"] },
+    appId: { type: "string", minLength: 1 },
+    icon: { type: "string" },
+    backend: {
+      type: "object",
+      properties: {
+        type: { type: "string", enum: ["auto", "express", "none"] },
+        port: { type: "number" }
+      },
+      additionalProperties: false
+    },
+    auth: {
+      type: "object",
+      properties: {
+        type: { type: "string", enum: ["local", "none"] },
+        defaultAdmin: { type: "string" }
+      },
+      additionalProperties: false
+    },
+    database: {
+      type: "object",
+      properties: {
+        type: { type: "string", enum: ["sqlite", "none"] },
+        migrations: { type: "string" }
+      },
+      additionalProperties: false
+    },
+    devTools: { type: "boolean" },
+    verbose: { type: "boolean" },
+    dryRun: { type: "boolean" },
+    author: { type: "string" },
+    resumeFromStage: { type: "string" },
+    cleanLogs: { type: "boolean" }
+  },
+  additionalProperties: false
+};

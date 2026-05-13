@@ -1,0 +1,128 @@
+{"ts":"2026-05-13T06:27:15.990Z","level":"info","stage":"pipeline","msg":"WebToApp conversion started"}
+{"ts":"2026-05-13T06:27:15.990Z","level":"info","stage":"pipeline","msg":"Source:  C:\\Users\\JEFF-PC\\Documents\\desktop-to-app\\test-app-tmp"}
+{"ts":"2026-05-13T06:27:15.990Z","level":"info","stage":"pipeline","msg":"Output:  C:\\Users\\JEFF-PC\\Documents\\desktop-to-app\\test-app-tmp-desktop"}
+{"ts":"2026-05-13T06:27:15.990Z","level":"info","stage":"pipeline","msg":"Targets: windows, linux"}
+{"ts":"2026-05-13T06:27:15.990Z","level":"info","stage":"pipeline","msg":"Mode:    offline"}
+{"ts":"2026-05-13T06:27:16.041Z","level":"info","stage":"pipeline","msg":"Backup created: C:\\Users\\JEFF-PC\\Documents\\desktop-to-app\\test-app-tmp-desktop.backup"}
+{"ts":"2026-05-13T06:27:16.042Z","level":"info","stage":"00-preflight","msg":"Starting stage: 00-preflight"}
+{"ts":"2026-05-13T06:27:16.046Z","level":"info","stage":"00-preflight","msg":"✅ Pre-flight checks passed"}
+{"ts":"2026-05-13T06:27:16.046Z","level":"info","stage":"00-preflight","msg":"Stage complete: 00-preflight (4ms)"}
+{"ts":"2026-05-13T06:27:16.047Z","level":"info","stage":"01-detect","msg":"Starting stage: 01-detect"}
+{"ts":"2026-05-13T06:27:16.067Z","level":"info","stage":"01-detect","msg":"Path aliases: @"}
+{"ts":"2026-05-13T06:27:16.068Z","level":"info","stage":"01-detect","msg":"Framework:  react"}
+{"ts":"2026-05-13T06:27:16.068Z","level":"info","stage":"01-detect","msg":"Bundler:    vite"}
+{"ts":"2026-05-13T06:27:16.068Z","level":"info","stage":"01-detect","msg":"Backend:    supabase"}
+{"ts":"2026-05-13T06:27:16.069Z","level":"info","stage":"01-detect","msg":"Auth:       supabase"}
+{"ts":"2026-05-13T06:27:16.069Z","level":"info","stage":"01-detect","msg":"Tables:     none detected"}
+{"ts":"2026-05-13T06:27:16.069Z","level":"info","stage":"01-detect","msg":"Confidence: 100%"}
+{"ts":"2026-05-13T06:27:16.069Z","level":"info","stage":"01-detect","msg":"Stage complete: 01-detect (22ms)"}
+{"ts":"2026-05-13T06:27:16.070Z","level":"info","stage":"02-plan","msg":"Starting stage: 02-plan"}
+{"ts":"2026-05-13T06:27:16.070Z","level":"info","stage":"02-plan","msg":"Conversion mode: offline"}
+{"ts":"2026-05-13T06:27:16.075Z","level":"info","stage":"02-plan","msg":"Files to transform: 2"}
+{"ts":"2026-05-13T06:27:16.075Z","level":"info","stage":"02-plan","msg":"Files to copy:      1"}
+{"ts":"2026-05-13T06:27:16.075Z","level":"info","stage":"02-plan","msg":"Files to generate:  7"}
+{"ts":"2026-05-13T06:27:16.075Z","level":"info","stage":"02-plan","msg":"Deps to add:        electron, better-sqlite3, express, cors, bcryptjs, jsonwebtoken, electron-updater"}
+{"ts":"2026-05-13T06:27:16.075Z","level":"info","stage":"02-plan","msg":"Deps to remove:     @supabase/supabase-js, @supabase/ssr"}
+{"ts":"2026-05-13T06:27:16.076Z","level":"info","stage":"02-plan","msg":"Offline mode — fully local SQLite, no internet required. 2 files transformed (0 via AI fallback), 7 files generated, 0 tables detected."}
+{"ts":"2026-05-13T06:27:16.076Z","level":"info","stage":"02-plan","msg":"Stage complete: 02-plan (6ms)"}
+{"ts":"2026-05-13T06:27:16.077Z","level":"info","stage":"03-transform","msg":"Starting stage: 03-transform"}
+{"ts":"2026-05-13T06:27:16.078Z","level":"info","stage":"03-transform","msg":"Transforming: src\\App.tsx (supabase-query)"}
+{"ts":"2026-05-13T06:27:16.186Z","level":"debug","stage":"03-transform","msg":"  ✓ Replaced @supabase/supabase-js import with localApi"}
+{"ts":"2026-05-13T06:27:16.187Z","level":"debug","stage":"03-transform","msg":"  ✓ Rewrote SELECT on 'medicines'"}
+{"ts":"2026-05-13T06:27:16.187Z","level":"debug","stage":"03-transform","msg":"  ✓ Rewrote INSERT on 'medicines'"}
+{"ts":"2026-05-13T06:27:16.187Z","level":"debug","stage":"03-transform","msg":"  ✓ Rewrote DELETE on 'medicines'"}
+{"ts":"2026-05-13T06:27:16.188Z","level":"info","stage":"03-transform","msg":"Transforming: src\\lib\\supabase.ts (supabase-query)"}
+{"ts":"2026-05-13T06:27:16.218Z","level":"debug","stage":"03-transform","msg":"  ✓ Replaced @supabase/supabase-js import with localApi"}
+{"ts":"2026-05-13T06:27:16.218Z","level":"debug","stage":"03-transform","msg":"  ✓ Removed Supabase createClient() call"}
+{"ts":"2026-05-13T06:27:16.218Z","level":"debug","stage":"03-transform","msg":"  ✓ Removed 2 Supabase env var reference(s)"}
+{"ts":"2026-05-13T06:27:16.233Z","level":"info","stage":"03-transform","msg":"Copied src/ assets and config files"}
+{"ts":"2026-05-13T06:27:16.246Z","level":"info","stage":"03-transform","msg":"Transformed: 2 files"}
+{"ts":"2026-05-13T06:27:16.246Z","level":"info","stage":"03-transform","msg":"Copied:      1 files"}
+{"ts":"2026-05-13T06:27:16.246Z","level":"info","stage":"03-transform","msg":"Stage complete: 03-transform (169ms)"}
+{"ts":"2026-05-13T06:27:16.247Z","level":"info","stage":"04-scaffold","msg":"Starting stage: 04-scaffold"}
+{"ts":"2026-05-13T06:27:16.251Z","level":"info","stage":"04-scaffold","msg":"Generated: electron/main.cjs"}
+{"ts":"2026-05-13T06:27:16.254Z","level":"info","stage":"04-scaffold","msg":"Generated: electron/preload.cjs"}
+{"ts":"2026-05-13T06:27:16.257Z","level":"info","stage":"04-scaffold","msg":"Generated: electron-builder.yml"}
+{"ts":"2026-05-13T06:27:16.261Z","level":"info","stage":"04-scaffold","msg":"Generated: backend/server.cjs"}
+{"ts":"2026-05-13T06:27:16.265Z","level":"info","stage":"04-scaffold","msg":"Generated: backend/database.cjs"}
+{"ts":"2026-05-13T06:27:16.269Z","level":"info","stage":"04-scaffold","msg":"Generated: backend/auth.cjs"}
+{"ts":"2026-05-13T06:27:16.272Z","level":"info","stage":"04-scaffold","msg":"Generated: src/lib/localApi.ts"}
+{"ts":"2026-05-13T06:27:16.275Z","level":"info","stage":"04-scaffold","msg":"Moved electron from dependencies → devDependencies"}
+{"ts":"2026-05-13T06:27:16.275Z","level":"info","stage":"04-scaffold","msg":"Added missing author field to package.json"}
+{"ts":"2026-05-13T06:27:16.277Z","level":"info","stage":"04-scaffold","msg":"Patched package.json using migration plan"}
+{"ts":"2026-05-13T06:27:16.281Z","level":"info","stage":"04-scaffold","msg":"Generated clean .env (cloud credentials commented out)"}
+{"ts":"2026-05-13T06:27:16.281Z","level":"info","stage":"04-scaffold","msg":"No valid PNG app icon auto-detected. electron-builder will use the default blank icon."}
+{"ts":"2026-05-13T06:27:16.281Z","level":"info","stage":"04-scaffold","msg":"Scaffolded 7 files"}
+{"ts":"2026-05-13T06:27:16.282Z","level":"info","stage":"04-scaffold","msg":"Stage complete: 04-scaffold (34ms)"}
+{"ts":"2026-05-13T06:27:16.282Z","level":"info","stage":"05-install","msg":"Starting stage: 05-install"}
+{"ts":"2026-05-13T06:27:16.284Z","level":"info","stage":"05-install","msg":"Moved electron from dependencies → devDependencies"}
+{"ts":"2026-05-13T06:27:16.286Z","level":"info","stage":"05-install","msg":"Wrote output package.json"}
+{"ts":"2026-05-13T06:27:16.286Z","level":"info","stage":"05-install","msg":"Running npm install in output project..."}
+{"ts":"2026-05-13T06:28:37.620Z","level":"debug","stage":"05-install","msg":"added 502 packages, and audited 503 packages in 1m"}
+{"ts":"2026-05-13T06:28:37.620Z","level":"debug","stage":"05-install","msg":"84 packages are looking for funding"}
+{"ts":"2026-05-13T06:28:37.620Z","level":"debug","stage":"05-install","msg":"  run `npm fund` for details"}
+{"ts":"2026-05-13T06:28:37.621Z","level":"debug","stage":"05-install","msg":"15 vulnerabilities (4 low, 2 moderate, 9 high)"}
+{"ts":"2026-05-13T06:28:37.621Z","level":"debug","stage":"05-install","msg":"To address issues that do not require attention, run:"}
+{"ts":"2026-05-13T06:28:37.621Z","level":"debug","stage":"05-install","msg":"  npm audit fix"}
+{"ts":"2026-05-13T06:28:37.621Z","level":"debug","stage":"05-install","msg":"To address all issues (including breaking changes), run:"}
+{"ts":"2026-05-13T06:28:37.621Z","level":"debug","stage":"05-install","msg":"  npm audit fix --force"}
+{"ts":"2026-05-13T06:28:37.621Z","level":"debug","stage":"05-install","msg":"Run `npm audit` for details."}
+{"ts":"2026-05-13T06:28:37.621Z","level":"warn","stage":"05-install","msg":"npm warn skipping integrity check for git dependency ssh://git@github.com/electron/node-gyp.git"}
+{"ts":"2026-05-13T06:28:37.622Z","level":"info","stage":"05-install","msg":"npm install complete"}
+{"ts":"2026-05-13T06:28:37.622Z","level":"info","stage":"05-install","msg":"Stage complete: 05-install (81340ms)"}
+{"ts":"2026-05-13T06:28:37.623Z","level":"info","stage":"06-build","msg":"Starting stage: 06-build"}
+{"ts":"2026-05-13T06:28:37.628Z","level":"info","stage":"06-build","msg":"Added base: './' to vite config"}
+{"ts":"2026-05-13T06:28:37.629Z","level":"info","stage":"06-build","msg":"Set build.outDir: 'dist' in vite config"}
+{"ts":"2026-05-13T06:28:37.630Z","level":"info","stage":"06-build","msg":"Injected path aliases: @"}
+{"ts":"2026-05-13T06:28:37.630Z","level":"info","stage":"06-build","msg":"Injected __dirname ESM polyfill into vite config"}
+{"ts":"2026-05-13T06:28:37.641Z","level":"info","stage":"06-build","msg":"Running vite build..."}
+{"ts":"2026-05-13T06:28:45.498Z","level":"info","stage":"06-build","msg":"\u001b[36mvite v5.4.21 \u001b[32mbuilding for production...\u001b[36m\u001b[39m"}
+{"ts":"2026-05-13T06:28:45.499Z","level":"info","stage":"06-build","msg":"transforming..."}
+{"ts":"2026-05-13T06:28:45.499Z","level":"info","stage":"06-build","msg":"\u001b[32m✓\u001b[39m 31 modules transformed."}
+{"ts":"2026-05-13T06:28:45.499Z","level":"info","stage":"06-build","msg":"rendering chunks..."}
+{"ts":"2026-05-13T06:28:45.499Z","level":"info","stage":"06-build","msg":"computing gzip size..."}
+{"ts":"2026-05-13T06:28:45.499Z","level":"info","stage":"06-build","msg":"\u001b[2mdist/\u001b[22m\u001b[32mindex.html                \u001b[39m\u001b[1m\u001b[2m  0.32 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip:  0.24 kB\u001b[22m"}
+{"ts":"2026-05-13T06:28:45.499Z","level":"info","stage":"06-build","msg":"\u001b[2mdist/\u001b[22m\u001b[36massets/index-DFDDIkep.js  \u001b[39m\u001b[1m\u001b[2m147.28 kB\u001b[22m\u001b[1m\u001b[22m\u001b[2m │ gzip: 47.54 kB\u001b[22m"}
+{"ts":"2026-05-13T06:28:45.499Z","level":"info","stage":"06-build","msg":"\u001b[32m✓ built in 2.50s\u001b[39m"}
+{"ts":"2026-05-13T06:28:45.500Z","level":"info","stage":"06-build","msg":"Vite build complete — dist/ ready"}
+{"ts":"2026-05-13T06:28:45.500Z","level":"info","stage":"06-build","msg":"Stage complete: 06-build (7877ms)"}
+{"ts":"2026-05-13T06:28:45.501Z","level":"info","stage":"07-package","msg":"Starting stage: 07-package"}
+{"ts":"2026-05-13T06:28:45.501Z","level":"info","stage":"07-package","msg":"Rebuilding native modules for Electron..."}
+{"ts":"2026-05-13T06:28:45.503Z","level":"info","stage":"07-package","msg":"Electron version: 31.0.0"}
+{"ts":"2026-05-13T06:28:45.506Z","level":"info","stage":"07-package","msg":"[native-deps] No native modules found — skipping rebuild"}
+{"ts":"2026-05-13T06:28:45.506Z","level":"info","stage":"07-package","msg":"Packaging with electron-builder..."}
+{"ts":"2026-05-13T06:28:45.506Z","level":"info","stage":"07-package","msg":"[packager] Starting electron-builder for Pharmacy Tracker v1.0.0"}
+{"ts":"2026-05-13T06:28:45.507Z","level":"info","stage":"07-package","msg":"[packager] Targets: windows, linux"}
+{"ts":"2026-05-13T06:28:45.507Z","level":"info","stage":"07-package","msg":"[packager] Running electron-builder for target --win..."}
+{"ts":"2026-05-13T06:29:59.876Z","level":"info","stage":"07-package","msg":"  • electron-builder  version=24.13.3 os=10.0.26200"}
+{"ts":"2026-05-13T06:29:59.876Z","level":"info","stage":"07-package","msg":"  • loaded configuration  file=C:\\Users\\JEFF-PC\\Documents\\desktop-to-app\\test-app-tmp-desktop\\electron-builder.yml"}
+{"ts":"2026-05-13T06:29:59.876Z","level":"info","stage":"07-package","msg":"  • @electron/rebuild not required if you use electron-builder, please consider to remove excess dependency from devDependencies"}
+{"ts":"2026-05-13T06:29:59.876Z","level":"info","stage":"07-package","msg":""}
+{"ts":"2026-05-13T06:29:59.876Z","level":"info","stage":"07-package","msg":"To ensure your native dependencies are always matched electron version, simply add script `\"postinstall\": \"electron-builder install-app-deps\" to your `package.json`"}
+{"ts":"2026-05-13T06:29:59.876Z","level":"info","stage":"07-package","msg":"  • rebuilding native dependencies  dependencies=better-sqlite3@11.10.0 platform=win32 arch=x64"}
+{"ts":"2026-05-13T06:29:59.877Z","level":"info","stage":"07-package","msg":"  • install prebuilt binary  name=better-sqlite3 version=11.10.0 platform=win32 arch=x64 napi="}
+{"ts":"2026-05-13T06:29:59.877Z","level":"info","stage":"07-package","msg":"  • packaging       platform=win32 arch=x64 electron=31.0.0 appOutDir=release\\win-unpacked"}
+{"ts":"2026-05-13T06:29:59.877Z","level":"info","stage":"07-package","msg":"  • default Electron icon is used  reason=application icon is not set"}
+{"ts":"2026-05-13T06:29:59.877Z","level":"info","stage":"07-package","msg":"  • building        target=nsis file=release\\Pharmacy Tracker Setup 1.0.0.exe archs=x64 oneClick=false perMachine=false"}
+{"ts":"2026-05-13T06:29:59.877Z","level":"info","stage":"07-package","msg":"  • building block map  blockMapFile=release\\Pharmacy Tracker Setup 1.0.0.exe.blockmap"}
+{"ts":"2026-05-13T06:29:59.877Z","level":"info","stage":"07-package","msg":""}
+{"ts":"2026-05-13T06:29:59.877Z","level":"info","stage":"07-package","msg":"[packager] Running electron-builder for target --linux..."}
+{"ts":"2026-05-13T06:30:14.266Z","level":"info","stage":"07-package","msg":"[packager] ERROR on target --linux: Command failed: cmd /c npx electron-builder --linux\n"}
+{"ts":"2026-05-13T06:30:14.266Z","level":"info","stage":"07-package","msg":"[packager] Full build log written to: C:\\Users\\JEFF-PC\\Documents\\desktop-to-app\\test-app-tmp-desktop\\build-error-linux.log"}
+{"ts":"2026-05-13T06:30:14.266Z","level":"info","stage":"07-package","msg":"[packager] [stdout]   • electron-builder  version=24.13.3 os=10.0.26200"}
+{"ts":"2026-05-13T06:30:14.266Z","level":"info","stage":"07-package","msg":"[packager] [stdout]   • loaded configuration  file=C:\\Users\\JEFF-PC\\Documents\\desktop-to-app\\test-app-tmp-desktop\\electron-builder.yml"}
+{"ts":"2026-05-13T06:30:14.266Z","level":"info","stage":"07-package","msg":"[packager] [stdout]   • @electron/rebuild not required if you use electron-builder, please consider to remove excess dependency from devDependencies"}
+{"ts":"2026-05-13T06:30:14.266Z","level":"info","stage":"07-package","msg":"[packager] [stdout] To ensure your native dependencies are always matched electron version, simply add script `\"postinstall\": \"electron-builder install-app-deps\" to your `package.json`"}
+{"ts":"2026-05-13T06:30:14.266Z","level":"info","stage":"07-package","msg":"[packager] [stdout]   • rebuilding native dependencies  dependencies=better-sqlite3@11.10.0 platform=linux arch=x64"}
+{"ts":"2026-05-13T06:30:14.267Z","level":"info","stage":"07-package","msg":"[packager] [stdout]   • install prebuilt binary  name=better-sqlite3 version=11.10.0 platform=linux arch=x64 napi="}
+{"ts":"2026-05-13T06:30:14.267Z","level":"info","stage":"07-package","msg":"[packager] [stdout]   • packaging       platform=linux arch=x64 electron=31.0.0 appOutDir=release\\linux-unpacked"}
+{"ts":"2026-05-13T06:30:14.267Z","level":"info","stage":"07-package","msg":"[packager] [stdout]   • building        target=AppImage arch=x64 file=release\\Pharmacy Tracker-1.0.0.AppImage"}
+{"ts":"2026-05-13T06:30:14.267Z","level":"info","stage":"07-package","msg":"[packager] [stdout]   • default Electron icon is used  reason=application icon is not set"}
+{"ts":"2026-05-13T06:30:14.267Z","level":"info","stage":"07-package","msg":"[packager] [stdout]   ⨯ cannot execute  cause=exec: \"C:\\\\Users\\\\JEFF-PC\\\\AppData\\\\Local\\\\electron-builder\\\\Cache\\\\appimage\\\\appimage-12.0.1\\\\linux-x64\\\\mksquashfs\": file does not exist"}
+{"ts":"2026-05-13T06:30:14.267Z","level":"info","stage":"07-package","msg":"[packager] [stdout]                     command='C:\\Users\\JEFF-PC\\AppData\\Local\\electron-builder\\Cache\\appimage\\appimage-12.0.1\\linux-x64\\mksquashfs' 'C:\\Users\\JEFF-PC\\Documents\\desktop-to-app\\test-app-tmp-desktop\\release\\__appImage-x64' 'C:\\Users\\JEFF-PC\\Documents\\desktop-to-app\\test-app-tmp-desktop\\release\\Pharmacy Tracker-1.0.0.AppImage' -offset 188392 -all-root -noappend -no-progress -quiet -no-xattrs -no-fragments"}
+{"ts":"2026-05-13T06:30:14.267Z","level":"info","stage":"07-package","msg":"[packager] [stdout]                     workingDir=C:\\Users\\JEFF-PC\\Documents\\desktop-to-app\\test-app-tmp-desktop\\release\\__appImage-x64"}
+{"ts":"2026-05-13T06:30:14.268Z","level":"info","stage":"07-package","msg":"[packager] Done. 1 installer(s) produced."}
+{"ts":"2026-05-13T06:30:14.268Z","level":"info","stage":"07-package","msg":"  → C:\\Users\\JEFF-PC\\Documents\\desktop-to-app\\test-app-tmp-desktop\\release\\Pharmacy Tracker Setup 1.0.0.exe"}
+{"ts":"2026-05-13T06:30:14.268Z","level":"info","stage":"07-package","msg":"Installer ready: C:\\Users\\JEFF-PC\\Documents\\desktop-to-app\\test-app-tmp-desktop\\release\\Pharmacy Tracker Setup 1.0.0.exe"}
+{"ts":"2026-05-13T06:30:14.269Z","level":"info","stage":"07-package","msg":"Stage complete: 07-package (88768ms)"}
+{"ts":"2026-05-13T06:30:14.269Z","level":"info","stage":"07b-mobile","msg":"Stage skipped: 07b-mobile — No mobile targets requested"}

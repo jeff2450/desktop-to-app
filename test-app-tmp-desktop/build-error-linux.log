@@ -1,0 +1,25 @@
+electron-builder failed at 2026-05-13T06:30:14.264Z
+Target: --linux
+Command exit code: 1
+
+=== STDOUT ===
+  • electron-builder  version=24.13.3 os=10.0.26200
+  • loaded configuration  file=C:\Users\JEFF-PC\Documents\desktop-to-app\test-app-tmp-desktop\electron-builder.yml
+  • @electron/rebuild not required if you use electron-builder, please consider to remove excess dependency from devDependencies
+
+To ensure your native dependencies are always matched electron version, simply add script `"postinstall": "electron-builder install-app-deps" to your `package.json`
+  • rebuilding native dependencies  dependencies=better-sqlite3@11.10.0 platform=linux arch=x64
+  • install prebuilt binary  name=better-sqlite3 version=11.10.0 platform=linux arch=x64 napi=
+  • packaging       platform=linux arch=x64 electron=31.0.0 appOutDir=release\linux-unpacked
+  • building        target=AppImage arch=x64 file=release\Pharmacy Tracker-1.0.0.AppImage
+  • default Electron icon is used  reason=application icon is not set
+  ⨯ cannot execute  cause=exec: "C:\\Users\\JEFF-PC\\AppData\\Local\\electron-builder\\Cache\\appimage\\appimage-12.0.1\\linux-x64\\mksquashfs": file does not exist
+                    command='C:\Users\JEFF-PC\AppData\Local\electron-builder\Cache\appimage\appimage-12.0.1\linux-x64\mksquashfs' 'C:\Users\JEFF-PC\Documents\desktop-to-app\test-app-tmp-desktop\release\__appImage-x64' 'C:\Users\JEFF-PC\Documents\desktop-to-app\test-app-tmp-desktop\release\Pharmacy Tracker-1.0.0.AppImage' -offset 188392 -all-root -noappend -no-progress -quiet -no-xattrs -no-fragments
+                    workingDir=C:\Users\JEFF-PC\Documents\desktop-to-app\test-app-tmp-desktop\release\__appImage-x64
+
+
+=== STDERR ===
+(empty)
+
+=== ERROR MESSAGE ===
+Command failed: cmd /c npx electron-builder --linux
