@@ -280,15 +280,33 @@ async function extractTableNames(sourceDir: string): Promise<string[]> {
     }
   }
 
-  // Strategy 2: parse supabase/types.ts for Database interface
+  // Strategy 2: parse supabase/types.ts — scoped to the Tables block only
+  // (avoids picking up internal TS type keys like Row, Functions, Enums, etc.)
   const typesPath = path.join(sourceDir, "src", "integrations", "supabase", "types.ts");
   const altTypesPath = path.join(sourceDir, "supabase", "types.ts");
 
   for (const tp of [typesPath, altTypesPath]) {
     if (!(await fileExists(tp))) continue;
     const content = await fs.readFile(tp, "utf-8").catch(() => "");
-    const matches = content.matchAll(/["'](\w+)["']\s*:/g);
-    for (const m of matches) {
+
+    // Match table names only from inside the Tables: { tableName: { Row: ... } } block
+    const tablesBlockRe = /Tables\s*:\s*\{/;
+    const startIdx = tablesBlockRe.exec(content)?.index;
+    if (startIdx === undefined) continue;
+
+    let depth = 0;
+    let i = content.indexOf("{", startIdx + 6); // opening brace of Tables value
+    const blockStart = i + 1;
+    for (; i < content.length; i++) {
+      if (content[i] === "{") depth++;
+      else if (content[i] === "}") { depth--; if (depth === 0) break; }
+    }
+    const tablesBlock = content.slice(blockStart, i);
+
+    // First-level keys only: "table_name": {
+    const tableKeyRe = /^\s*["']([\w]+)["']\s*:/gm;
+    let m: RegExpExecArray | null;
+    while ((m = tableKeyRe.exec(tablesBlock)) !== null) {
       if (m[1] && !["Row", "Insert", "Update", "Relationships"].includes(m[1])) {
         tables.add(m[1]);
       }

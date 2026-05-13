@@ -66,7 +66,11 @@ export async function transformFile(params: {
     | SupabaseQueryTransformer
     | SupabaseAuthTransformer
     | SupabaseRealtimeTransformer
-    | SupabaseStorageTransformer;
+    | SupabaseStorageTransformer
+    | FirestoreTransformer
+    | FirebaseAuthTransformer
+    | ClerkTransformer
+    | AiFallbackTransformer;
 
   switch (transformerType) {
     case "supabase-query":
@@ -83,27 +87,19 @@ export async function transformFile(params: {
       break;
 
     case 'firebase-firestore':
+      transformer = new FirestoreTransformer();
+      break;
     case "firebase-auth":
+      transformer = new FirebaseAuthTransformer();
+      break;
     case "clerk-auth":
     case "auth0":
-      // Implemented in Session 3 (packages/transformers/src/firebase/, auth/)
-      return {
-        success: false,
-        changes: [],
-        warnings: [`Transformer '${transformerType}' is not yet implemented (Session 3).`],
-        confidence: 0,
-        error: `Transformer '${transformerType}' not yet available.`,
-      };
+      transformer = new ClerkTransformer();
+      break;
 
     case "ai":
-      // AiFallbackTransformer implemented in Session 3
-      return {
-        success: false,
-        changes: [],
-        warnings: ["AI fallback transformer is not yet implemented (Session 3)."],
-        confidence: 0,
-        error: "AiFallbackTransformer not yet available.",
-      };
+      transformer = new AiFallbackTransformer();
+      break;
 
     default:
       return {

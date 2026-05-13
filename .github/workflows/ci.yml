@@ -10,9 +10,12 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   ci:
-    name: Lint · Typecheck · Test
+    name: Lint · Typecheck · Test · Build
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -46,11 +49,15 @@ jobs:
       REDIS_URL: redis://localhost:6379
       JWT_SECRET: ci-test-secret
       NODE_ENV: test
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v4
         with:
           version: 9
 
@@ -59,20 +66,49 @@ jobs:
           node-version: 20
           cache: pnpm
 
+      - name: Get pnpm store path
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Typecheck all packages
-        run: pnpm typecheck
+        run: pnpm turbo typecheck
 
       - name: Lint
-        run: pnpm lint --if-present
+        run: pnpm turbo lint --if-present
 
       - name: Run migrations
         run: psql $DATABASE_URL < apps/api/src/db/migrations/001_init.sql
 
       - name: Run tests
-        run: pnpm test
+        run: pnpm turbo test
 
       - name: Build all packages
-        run: pnpm build
+        run: pnpm turbo build
+
+      - name: Upload test coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: '**/coverage/'
+          retention-days: 7
+          if-no-files-found: ignore

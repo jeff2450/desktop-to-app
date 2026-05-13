@@ -6,22 +6,30 @@ on:
     paths:
       - "apps/web/**"
       - ".github/workflows/deploy-web.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/web/**"
 
 concurrency:
-  group: deploy-web
+  group: deploy-web-${{ github.ref }}
   cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: write  # needed to post preview URL as PR comment
 
 jobs:
   deploy:
-    name: Deploy to Vercel
+    name: ${{ github.event_name == 'pull_request' && 'Preview Deploy' || 'Deploy to Vercel' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: production
+    environment: ${{ github.event_name == 'pull_request' && 'preview' || 'production' }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v4
         with:
           version: 9
 
@@ -30,22 +38,74 @@ jobs:
           node-version: 20
           cache: pnpm
 
+      - name: Get pnpm store path
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Build web app
         env:
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
-        run: pnpm --filter @webtoapp/web build
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+        run: pnpm turbo --filter @webtoapp/web build
 
-      - name: Deploy to Vercel
+      - name: Deploy to Vercel (production)
+        if: github.event_name == 'push'
+        id: deploy-prod
         env:
-          VERCEL_TOKEN:   ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID:  ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
         run: |
-          npx vercel deploy \
+          DEPLOY_URL=$(npx vercel deploy \
             --prod \
             --token $VERCEL_TOKEN \
             --cwd apps/web \
-            --yes
+            --yes)
+          echo "url=$DEPLOY_URL" >> $GITHUB_OUTPUT
+          echo "Deployed to: $DEPLOY_URL"
+
+      - name: Deploy to Vercel (preview)
+        if: github.event_name == 'pull_request'
+        id: deploy-preview
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          DEPLOY_URL=$(npx vercel deploy \
+            --token $VERCEL_TOKEN \
+            --cwd apps/web \
+            --yes)
+          echo "url=$DEPLOY_URL" >> $GITHUB_OUTPUT
+
+      - name: Comment preview URL on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 **Preview deployed:** ${{ steps.deploy-preview.outputs.url }}`
+            })

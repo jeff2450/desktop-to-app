@@ -12,6 +12,10 @@ concurrency:
   group: deploy-api
   cancel-in-progress: false
 
+permissions:
+  contents: read
+  id-token: write  # needed for OIDC auth (recommended over long-lived keys)
+
 jobs:
   deploy:
     name: Build & Deploy API
@@ -25,37 +29,49 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ secrets.AWS_REGION }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: ecr-login
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build and push Docker image
-        env:
-          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          docker build \
-            -f apps/api/Dockerfile \
-            -t $ECR_REGISTRY/webtoapp-api:$IMAGE_TAG \
-            -t $ECR_REGISTRY/webtoapp-api:latest \
-            .
-          docker push $ECR_REGISTRY/webtoapp-api:$IMAGE_TAG
-          docker push $ECR_REGISTRY/webtoapp-api:latest
-          echo "image=$ECR_REGISTRY/webtoapp-api:$IMAGE_TAG" >> $GITHUB_OUTPUT
+        id: build-image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.ecr-login.outputs.registry }}/webtoapp-api:${{ github.sha }}
+            ${{ steps.ecr-login.outputs.registry }}/webtoapp-api:latest
+          cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/webtoapp-api:buildcache
+          cache-to: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/webtoapp-api:buildcache,mode=max
 
       - name: Run database migrations
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: psql $DATABASE_URL < apps/api/src/db/migrations/001_init.sql
+        run: |
+          # Idempotent: psql exits 0 even if objects already exist when using IF NOT EXISTS
+          psql $DATABASE_URL < apps/api/src/db/migrations/001_init.sql
+
+      - name: Record previous task definition (for rollback)
+        id: previous-task
+        run: |
+          PREV=$(aws ecs describe-services \
+            --cluster webtoapp-prod \
+            --services webtoapp-api \
+            --region ${{ secrets.AWS_REGION }} \
+            --query 'services[0].taskDefinition' \
+            --output text)
+          echo "arn=$PREV" >> $GITHUB_OUTPUT
 
       - name: Update ECS service
-        env:
-          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
         run: |
           aws ecs update-service \
             --cluster webtoapp-prod \
@@ -71,9 +87,24 @@ jobs:
             --region ${{ secrets.AWS_REGION }}
 
       - name: Health check
+        id: health-check
         run: |
           sleep 10
           curl -f ${{ secrets.API_URL }}/api/health || exit 1
+
+      - name: Rollback on failure
+        if: failure() && steps.health-check.outcome == 'failure'
+        run: |
+          echo "::warning::Health check failed — rolling back to ${{ steps.previous-task.outputs.arn }}"
+          aws ecs update-service \
+            --cluster webtoapp-prod \
+            --service webtoapp-api \
+            --task-definition ${{ steps.previous-task.outputs.arn }} \
+            --region ${{ secrets.AWS_REGION }}
+          aws ecs wait services-stable \
+            --cluster webtoapp-prod \
+            --services webtoapp-api \
+            --region ${{ secrets.AWS_REGION }}
 
       - name: Notify on failure
         if: failure()

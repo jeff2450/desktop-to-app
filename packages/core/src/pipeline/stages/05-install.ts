@@ -119,7 +119,7 @@ async function writeOutputPackageJson(ctx: PipelineContext): Promise<void> {
   const dayPickerVersion = deps["react-day-picker"] as string | undefined;
   const dateFnsVersion = deps["date-fns"] as string | undefined;
   if (
-    dayPickerVersion?.startsWith("^8") || dayPickerVersion?.startsWith("8") &&
+    (dayPickerVersion?.startsWith("^8") || dayPickerVersion?.startsWith("8")) &&
     dateFnsVersion && (dateFnsVersion.startsWith("^4") || dateFnsVersion.startsWith("4"))
   ) {
     deps["date-fns"] = "^3.6.0";

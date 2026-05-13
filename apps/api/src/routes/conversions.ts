@@ -75,6 +75,13 @@ conversionsRouter.post("/", requireAuth, apiLimiter, checkUsageLimit, async (req
     return res.status(400).json({ error: "sourceUrl is required" });
   }
 
+  // GitHub cloning is not yet implemented — block it before creating a queue job
+  if (sourceType === "github") {
+    return res.status(501).json({
+      error: "GitHub source type is not yet supported. Please upload a ZIP archive instead (sourceType: 'upload').",
+    });
+  }
+
   try {
     // Create conversion record
     const [conversion] = await db
