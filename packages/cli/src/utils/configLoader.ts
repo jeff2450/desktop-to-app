@@ -1,8 +1,11 @@
 import path from "node:path";
 import fs from "node:fs/promises";
 import type { ConversionConfig } from "@webtoapp/core";
-import Ajv from "ajv";
-import addErrors from "ajv-errors";
+import _Ajv from "ajv";
+import _addErrors from "ajv-errors";
+
+const Ajv: any = ((_Ajv as any).default || _Ajv);
+const addErrors: any = ((_addErrors as any).default || _addErrors);
 import { configSchema } from "./configSchema.js";
 
 const CONFIG_FILENAME = "webtoapp.config.json";

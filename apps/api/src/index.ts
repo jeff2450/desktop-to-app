@@ -1,108 +1,58 @@
-import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
-
-import { healthRouter } from "./routes/health.js";
-import { conversionsRouter } from "./routes/conversions.js";
-import { downloadsRouter } from "./routes/downloads.js";
-import { usersRouter } from "./routes/users.js";
-import { startQueueEvents } from "./queue/queueEvents.js";
-import { startWorker } from "./workers/conversionWorker.js";
-import { closeDb } from "./db/client.js";
-import { webhooksRouter } from "./routes/webhooks.js";
-import { billingRouter } from "./routes/billing.js";
-
-const PORT = parseInt(process.env["PORT"] ?? "3000");
-const HOST = process.env["HOST"] ?? "0.0.0.0";
-
-const ALLOWED_ORIGINS = (process.env["CORS_ORIGINS"] ?? "http://localhost:3001")
-  .split(",")
-  .map((o) => o.trim());
-
-// ── App setup ─────────────────────────────────────────────────────────────────
+import { env } from "./config/env.js";
+import { prisma } from "./db/prisma.js";
+import { authRouter } from "./routes/auth.routes.js";
+import { billingRouter } from "./routes/billing.routes.js";
+import { downloadsRouter } from "./routes/downloads.routes.js";
+import { jobsRouter } from "./routes/jobs.routes.js";
+import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
+import { globalRateLimiter } from "./middleware/rateLimiter.js";
+import { closeQueueResources } from "./services/queue.service.js";
 
 const app = express();
 
-app.use(helmet({
-  crossOriginEmbedderPolicy: false, // allow SSE
-}));
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error(`CORS: origin ${origin} not allowed`));
-    }
-  },
-  credentials: true,
-}));
+app.use(helmet());
+app.use(
+  cors({
+    origin: true,
+    credentials: true
+  })
+);
 app.use(compression());
-
-// Webhooks must be mounted before express.json() to receive raw body
-app.use("/api", webhooksRouter);
+app.use(globalRateLimiter);
+app.use("/billing/webhooks", billingRouter);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// Trust proxy (for correct IP behind load balancer)
-app.set("trust proxy", 1);
-
-// ── Routes ────────────────────────────────────────────────────────────────────
-
-app.use("/api", healthRouter);
-app.use("/api", usersRouter);
-app.use("/api", billingRouter);
-app.use("/api/conversions", conversionsRouter);
-app.use("/api/downloads", downloadsRouter);
-
-// ── 404 ───────────────────────────────────────────────────────────────────────
-
-app.use((_req, res) => {
-  res.status(404).json({ error: "Not found" });
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok" });
 });
 
-// ── Error handler ─────────────────────────────────────────────────────────────
+app.use("/auth", authRouter);
+app.use("/jobs", jobsRouter);
+app.use("/downloads", downloadsRouter);
+app.use("/billing", billingRouter);
 
-app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error("[api] Unhandled error:", err);
-  res.status(500).json({ error: "Internal server error" });
+app.use(notFoundHandler);
+app.use(errorHandler);
+
+const server = app.listen(env.PORT, () => {
+  console.log(`[api] listening on port ${env.PORT}`);
 });
-
-// ── Start ─────────────────────────────────────────────────────────────────────
-
-const server = app.listen(PORT, HOST, () => {
-  console.log(`[api] WebToApp API listening on http://${HOST}:${PORT}`);
-  console.log(`[api] Environment: ${process.env["NODE_ENV"] ?? "development"}`);
-});
-
-// Start queue event listener (syncs job progress → DB + SSE)
-startQueueEvents();
-
-// Start BullMQ worker in same process (for simple deploys)
-// In production, run the worker in a separate container/process
-if (process.env["RUN_WORKER"] !== "false") {
-  startWorker();
-}
-
-// ── Graceful shutdown ─────────────────────────────────────────────────────────
 
 async function shutdown(signal: string): Promise<void> {
-  console.log(`[api] ${signal} received — shutting down gracefully`);
-
+  console.log(`[api] received ${signal}, shutting down`);
   server.close(async () => {
-    await closeDb();
-    console.log("[api] Server closed");
+    await closeQueueResources();
+    await prisma.$disconnect();
     process.exit(0);
   });
 
-  // Force exit after 30s
-  setTimeout(() => {
-    console.error("[api] Forced shutdown after timeout");
-    process.exit(1);
-  }, 30_000);
+  setTimeout(() => process.exit(1), 10_000).unref();
 }
 
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT",  () => shutdown("SIGINT"));
-
+process.on("SIGINT", () => void shutdown("SIGINT"));
+process.on("SIGTERM", () => void shutdown("SIGTERM"));

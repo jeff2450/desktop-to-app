@@ -317,7 +317,7 @@ async function scrubOrphanedImports(ctx: PipelineContext): Promise<void> {
                 call.replaceWithText("undefined");
               }
             } else if (parent?.getKind() === SyntaxKind.ExpressionStatement) {
-              parent.remove();
+              parent.asKind(SyntaxKind.ExpressionStatement)?.remove();
             } else {
               call.replaceWithText("undefined");
             }

@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_DB=webtoapp
+      - POSTGRES_USER=webtoapp
+      - POSTGRES_PASSWORD=secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  api:
+    build: ./apps/api
+    depends_on:
+      - postgres
+      - redis
+    env_file: .env
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./apps/api/src:/app/src   # hot reload in dev
+
+  worker:
+    build: ./apps/api
+    command: node dist/workers/conversion.worker.js
+    depends_on:
+      - postgres
+      - redis
+    env_file: .env
+
+  web:
+    build: ./apps/web
+    depends_on:
+      - api
+    env_file: .env.web
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:

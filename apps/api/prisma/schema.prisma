@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String    @id @default(cuid())
+  email            String    @unique
+  passwordHash     String
+  plan             Plan      @default(FREE)
+  stripeCustomerId String?   @unique
+  createdAt        DateTime  @default(now())
+  jobs             Job[]
+  sessions         Session[]
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  refreshToken String   @unique
+  expiresAt    DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Job {
+  id          String      @id @default(cuid())
+  userId      String
+  status      JobStatus   @default(QUEUED)
+  sourceRepo  String
+  config      Json
+  platforms   String[]
+  logs        String?
+  artifacts   Artifact[]
+  createdAt   DateTime    @default(now())
+  completedAt DateTime?
+  user        User        @relation(fields: [userId], references: [id])
+}
+
+model Artifact {
+  id        String   @id @default(cuid())
+  jobId     String
+  platform  String
+  s3Key     String
+  sizeBytes Int
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+}
+
+enum Plan {
+  FREE
+  STARTER
+  PRO
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELLED
+}

@@ -7,29 +7,19 @@
    Creating an optimized production build ...
  ✓ Compiled successfully
    Linting and checking validity of types ...
-   Collecting page data ...
-   Generating static pages (0/10) ...
-   Generating static pages (2/10) 
-   Generating static pages (4/10) 
-   Generating static pages (7/10) 
- ✓ Generating static pages (10/10)
-   Finalizing page optimization ...
-   Collecting build traces ...
+Failed to compile.
 
-Route (app)                              Size     First Load JS
-┌ ○ /_not-found                          872 B          88.1 kB
-├ ○ /auth/login                          1.86 kB        97.9 kB
-├ ○ /dashboard                           3.2 kB         99.2 kB
-├ ○ /dashboard/billing                   2.84 kB        98.9 kB
-├ ○ /dashboard/conversions               2.71 kB        98.8 kB
-├ ○ /dashboard/conversions/id            4.29 kB         100 kB
-├ ○ /dashboard/conversions/new           3.15 kB        99.2 kB
-└ ○ /dashboard/settings                  2.87 kB        98.9 kB
-+ First Load JS shared by all            87.3 kB
-  ├ chunks/5b8f0dd8-e7ec6d33186a94db.js  53.6 kB
-  ├ chunks/749-7d79d30d36e06bd8.js       31.7 kB
-  └ other shared chunks (total)          1.89 kB
+./src/app/(dashboard)/billing/page.tsx:172:27
+Type error: Type 'UsageChartData[] | { name: string; jobs: number; }[]' is not assignable to type 'ChartData<UsageChartData> | undefined'.
+  Type '{ name: string; jobs: number; }[]' is not assignable to type 'readonly UsageChartData[]'.
+    Property 'date' is missing in type '{ name: string; jobs: number; }' but required in type 'UsageChartData'.
 
-
-○  (Static)  prerendered as static content
-
+[0m [90m 170 |[39m             [33m<[39m[33mCardContent[39m className[33m=[39m[32m"h-[200px] w-full pt-4"[39m[33m>[39m[0m
+[0m [90m 171 |[39m               [33m<[39m[33mResponsiveContainer[39m width[33m=[39m[32m"100%"[39m height[33m=[39m[32m"100%"[39m[33m>[39m[0m
+[0m[31m[1m>[22m[39m[90m 172 |[39m                 [33m<[39m[33mBarChart[39m data[33m=[39m{usageChart[33m.[39mlength [33m>[39m [35m0[39m [33m?[39m usageChart [33m:[39m [33mFAKE_CHART_DATA[39m}[33m>[39m[0m
+[0m [90m     |[39m                           [31m[1m^[22m[39m[0m
+[0m [90m 173 |[39m                   [33m<[39m[33mCartesianGrid[39m strokeDasharray[33m=[39m[32m"3 3"[39m vertical[33m=[39m{[36mfalse[39m} stroke[33m=[39m[32m"#27272a"[39m [33m/[39m[33m>[39m[0m
+[0m [90m 174 |[39m                   [33m<[39m[33mXAxis[39m dataKey[33m=[39m{usageChart[33m.[39mlength [33m>[39m [35m0[39m [33m?[39m [32m"date"[39m [33m:[39m [32m"name"[39m} stroke[33m=[39m[32m"#52525b"[39m fontSize[33m=[39m{[35m10[39m} tickLine[33m=[39m{[36mfalse[39m} axisLine[33m=[39m{[36mfalse[39m} [33m/[39m[33m>[39m[0m
+[0m [90m 175 |[39m                   [33m<[39m[33mYAxis[39m stroke[33m=[39m[32m"#52525b"[39m fontSize[33m=[39m{[35m10[39m} tickLine[33m=[39m{[36mfalse[39m} axisLine[33m=[39m{[36mfalse[39m} [33m/[39m[33m>[39m[0m
+Next.js build worker exited with code: 1 and signal: null
+ ELIFECYCLE  Command failed with exit code 1.

@@ -10,11 +10,15 @@ export const metadata: Metadata = {
   icons: { icon: "/favicon.ico" },
 };
 
+import { Providers } from "@/components/providers";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="h-full">
-      <body className={`${inter.className} h-full bg-gray-950 text-gray-100 antialiased`}>
-        {children}
+    <html lang="en" className="h-full" suppressHydrationWarning>
+      <body className={`${inter.className} h-full bg-zinc-950 text-zinc-100 antialiased`}>
+        <Providers attribute="class" defaultTheme="dark" enableSystem={false}>
+          {children}
+        </Providers>
       </body>
     </html>
   );

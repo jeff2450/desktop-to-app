@@ -10,7 +10,7 @@ export type ConversionStatus =
 export interface User {
   id: string;
   email: string;
-  name?: string;
+  name?: string | null;
   plan: Plan;
   monthlyUsage: number;
   createdAt: string;
@@ -55,6 +55,20 @@ export interface UsageStats {
   limit: number;
   resetsAt: string;
   percentUsed: number;
+}
+
+export interface SubscriptionInfo {
+  plan: Plan;
+  jobsUsedThisMonth: number;
+  jobsLimitThisMonth: number | null;
+  renewsAt: string | null;
+  cancelAtPeriodEnd: boolean;
+  stripePortalUrl: string | null;
+}
+
+export interface UsageChartData {
+  date: string;
+  jobs: number;
 }
 
 export interface BillingPlan {

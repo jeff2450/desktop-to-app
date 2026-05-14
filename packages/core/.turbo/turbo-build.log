@@ -2,5 +2,3 @@
 > @webtoapp/core@1.0.0 build C:\Users\JEFF-PC\Documents\desktop-to-app\packages\core
 > tsc
 
-src/pipeline/stages/03-transform.ts(320,22): error TS2339: Property 'remove' does not exist on type 'Node<Node>'.
- ELIFECYCLE  Command failed with exit code 2.

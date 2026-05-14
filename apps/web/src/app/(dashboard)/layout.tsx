@@ -1,0 +1,44 @@
+"use client";
+
+import { Sidebar } from "@/components/layout/Sidebar";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuthStore } from "@/stores/auth";
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const { user, isLoading, hydrate } = useAuthStore();
+  const router = useRouter();
+
+  useEffect(() => {
+    hydrate();
+  }, [hydrate]);
+
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.push("/login");
+    }
+  }, [user, isLoading, router]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) return null;
+
+  return (
+    <div className="flex min-h-screen bg-zinc-950 text-zinc-50">
+      <Sidebar />
+      <main className="flex-1 pl-64 transition-all duration-300">
+        {children}
+      </main>
+    </div>
+  );
+}
