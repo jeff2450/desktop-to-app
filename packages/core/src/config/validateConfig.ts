@@ -1,5 +1,10 @@
-import Ajv, { type ValidateFunction } from "ajv";
+import AjvModule from "ajv";
 import addFormats from "ajv-formats";
+
+const Ajv = (AjvModule as any).default || AjvModule;
+const addFormatsFn = (addFormats as any).default || addFormats;
+
+import { type ValidateFunction } from "ajv";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -16,7 +21,7 @@ function getValidator(): ValidateFunction {
   if (_validate) return _validate;
 
   const ajv = new Ajv({ allErrors: true, strict: false });
-  addFormats(ajv);
+  addFormatsFn(ajv);
 
   // Load the schema from the repo root (relative to this compiled file)
   // Handles both ts-node and compiled JS layouts
@@ -32,7 +37,7 @@ function getValidator(): ValidateFunction {
   }
 
   _validate = ajv.compile(schema);
-  return _validate;
+  return _validate!;
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────

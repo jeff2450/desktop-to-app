@@ -37,11 +37,9 @@ function buildHtml(result: BuildResult, outputDir: string): string {
   // ── Stage rows ──────────────────────────────────────────────────
   const stageRows = (result.stages ?? []).map((s) => {
     const icon = s.status === "done"      ? "✔" :
-                 s.status === "completed" ? "✔" :
                  s.status === "failed"    ? "✖" :
                  s.status === "skipped"   ? "⊘" : "○";
     const color = s.status === "done"      ? "#22c55e" :
-                  s.status === "completed" ? "#22c55e" :
                   s.status === "failed"    ? "#ef4444" :
                   s.status === "skipped"   ? "#6b7280" : "#f59e0b";
     const dur = s.durationMs != null ? `${(s.durationMs / 1000).toFixed(1)}s` : "—";

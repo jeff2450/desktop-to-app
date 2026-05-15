@@ -314,7 +314,7 @@ async function planFile(
     return { type: "copy" };
   }
 
-  const { backend, auth, confidence } = ctx.detection!;
+  const { backend, auth, framework, confidence } = ctx.detection!;
 
   if (backend === "supabase") {
     if (content.includes("@supabase/supabase-js") || content.includes("supabase.from(")) {

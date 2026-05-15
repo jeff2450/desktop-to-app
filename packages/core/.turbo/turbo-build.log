@@ -2,14 +2,3 @@
 > @webtoapp/core@1.0.0 build C:\Users\JEFF-PC\Documents\desktop-to-app\packages\core
 > tsc
 
-src/config/validateConfig.ts(18,19): error TS2351: This expression is not constructable.
-  Type 'typeof import("C:/Users/JEFF-PC/Documents/desktop-to-app/node_modules/.pnpm/ajv@8.20.0/node_modules/ajv/dist/ajv")' has no construct signatures.
-src/config/validateConfig.ts(19,3): error TS2349: This expression is not callable.
-  Type 'typeof import("C:/Users/JEFF-PC/Documents/desktop-to-app/node_modules/.pnpm/ajv-formats@3.0.1_ajv@8.20.0/node_modules/ajv-formats/dist/index")' has no call signatures.
-src/config/validateConfig.ts(35,3): error TS2322: Type 'ValidateFunction<unknown> | null' is not assignable to type 'ValidateFunction<unknown>'.
-  Type 'null' is not assignable to type 'ValidateFunction<unknown>'.
-src/pipeline/stages/02-plan.ts(398,7): error TS2304: Cannot find name 'framework'.
-src/pipeline/stages/02-plan.ts(417,11): error TS2322: Type '"vue"' is not assignable to type '"auth0" | "supabase-query" | "supabase-auth" | "supabase-realtime" | "supabase-storage" | "firebase-firestore" | "firebase-auth" | "clerk-auth" | "ai"'.
-src/report/generateReport.ts(40,18): error TS2367: This comparison appears to be unintentional because the types '"pending" | "running" | "failed" | "skipped"' and '"completed"' have no overlap.
-src/report/generateReport.ts(44,19): error TS2367: This comparison appears to be unintentional because the types '"pending" | "running" | "failed" | "skipped"' and '"completed"' have no overlap.
- ELIFECYCLE  Command failed with exit code 2.

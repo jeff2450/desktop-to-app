@@ -48,6 +48,7 @@ export interface FileTransformPlan {
     | "firebase-auth"
     | "clerk-auth"
     | "auth0"
+    | "vue"
     | "ai";
 
   /** Estimated confidence the transformer can handle this file (0–1) */
