@@ -42,8 +42,11 @@ export async function runBuildStage(ctx: PipelineContext): Promise<void> {
 
     ctx.log("info", "Running vite build...", STAGE);
 
+    const buildCommand = await resolveBuildCommand(ctx.outputDir);
+    ctx.log("info", `Running: ${buildCommand}`, STAGE);
+
     const { stdout, stderr } = await execAsync(
-      cmd("npx vite build"),
+      cmd(buildCommand),
       {
         cwd: ctx.outputDir,
         env: {
@@ -104,6 +107,33 @@ async function ensureNodeModules(ctx: PipelineContext): Promise<void> {
       maxBuffer: 50 * 1024 * 1024,
     });
     ctx.log("info", "vite installed", STAGE);
+  }
+
+  // ── Fix: ensure the framework plugin for the generated vite.config.ts ─────
+  // The pipeline generates a vite.config.ts that imports a framework plugin
+  // (e.g. @vitejs/plugin-react). If that plugin isn't in node_modules the
+  // build fails with ERR_MODULE_NOT_FOUND. Detect which one is needed and install.
+  const framework = ctx.detection?.framework ?? "react";
+  const pluginMap: Record<string, string> = {
+    react:  "@vitejs/plugin-react",
+    vue:    "@vitejs/plugin-vue",
+    svelte: "@sveltejs/vite-plugin-svelte",
+  };
+  const pluginPkg = pluginMap[framework];
+
+  if (pluginPkg) {
+    const pluginDir = path.join(ctx.outputDir, "node_modules", pluginPkg);
+    const pluginExists = await fs.stat(pluginDir).then((s) => s.isDirectory()).catch(() => false);
+
+    if (!pluginExists) {
+      ctx.log("warn", `${pluginPkg} not found in node_modules — installing it`, STAGE);
+      await execAsync(cmd(`npm install --save-dev ${pluginPkg} --legacy-peer-deps`), {
+        cwd: ctx.outputDir,
+        env: { ...process.env, NODE_ENV: "development" },
+        maxBuffer: 100 * 1024 * 1024,
+      });
+      ctx.log("info", `${pluginPkg} installed`, STAGE);
+    }
   }
 }
 
@@ -359,4 +389,35 @@ async function isESMProject(outputDir: string): Promise<boolean> {
   }
 }
 
+/**
+ * Resolve the best build command to use:
+ * 1. Use ./node_modules/.bin/vite if it exists (avoids npx downloading a fresh vite
+ *    that can't find the project-local vite in its config file).
+ * 2. Fall back to `npm run build` if a build script is defined in package.json.
+ * 3. Last resort: `npx --no vite build` (--no prevents installing, forces local).
+ */
+async function resolveBuildCommand(outputDir: string): Promise<string> {
+  // 1. Prefer local binary
+  const localVite = path.join(outputDir, "node_modules", ".bin", "vite");
+  const localViteExists = await fs.stat(localVite).then(() => true).catch(() => false);
+  if (localViteExists) {
+    // On Windows the binary is node_modules/.bin/vite.cmd
+    const isWin = process.platform === "win32";
+    return isWin
+      ? `"${path.join(outputDir, "node_modules", ".bin", "vite.cmd")}" build`
+      : `"${localVite}" build`;
+  }
 
+  // 2. npm run build if package.json has it
+  try {
+    const pkg = JSON.parse(
+      await fs.readFile(path.join(outputDir, "package.json"), "utf-8")
+    ) as { scripts?: Record<string, string> };
+    if (pkg.scripts?.build) {
+      return "npm run build";
+    }
+  } catch {}
+
+  // 3. Fallback — use npx but prevent it from auto-installing a mismatched version
+  return "npx --no vite build";
+}

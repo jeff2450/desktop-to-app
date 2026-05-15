@@ -8,12 +8,12 @@ datasource db {
 }
 
 model User {
-  id               String    @id @default(cuid())
-  email            String    @unique
+  id               String     @id @default(cuid())
+  email            String     @unique
   passwordHash     String
-  plan             Plan      @default(FREE)
-  stripeCustomerId String?   @unique
-  createdAt        DateTime  @default(now())
+  plan             Plan       @default(FREE)
+  stripeCustomerId String?    @unique
+  createdAt        DateTime   @default(now())
   jobs             Job[]
   sessions         Session[]
 }
@@ -27,26 +27,32 @@ model Session {
 }
 
 model Job {
-  id          String      @id @default(cuid())
+  id          String     @id @default(cuid())
   userId      String
-  status      JobStatus   @default(QUEUED)
+  status      JobStatus  @default(QUEUED)
+  /// Original zip filename or git URL
+  inputName   String     @default("")
+  /// Git repo URL or "upload:<filename>" for zip uploads
   sourceRepo  String
   config      Json
   platforms   String[]
   logs        String?
+  outputPath  String?    // deprecated: use Artifact.s3Key
+  errorMsg    String?
   artifacts   Artifact[]
-  createdAt   DateTime    @default(now())
+  createdAt   DateTime   @default(now())
   completedAt DateTime?
-  user        User        @relation(fields: [userId], references: [id])
+  updatedAt   DateTime   @updatedAt
+  user        User       @relation(fields: [userId], references: [id])
 }
 
 model Artifact {
-  id        String   @id @default(cuid())
+  id        String  @id @default(cuid())
   jobId     String
   platform  String
   s3Key     String
   sizeBytes Int
-  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job       Job     @relation(fields: [jobId], references: [id], onDelete: Cascade)
 }
 
 enum Plan {

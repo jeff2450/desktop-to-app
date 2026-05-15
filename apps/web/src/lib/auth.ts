@@ -1,5 +1,3 @@
-"use client";
-
 // We now use Zustand store for memory-only access token.
 // The refresh token is stored in an httpOnly cookie via /api/auth/cookie.
 

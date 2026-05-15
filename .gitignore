@@ -15,3 +15,8 @@ coverage/
 *.db-wal
 .DS_Store
 Thumbs.db
+
+# Local upload and output dirs
+apps/api/uploads/
+apps/api/outputs/
+.env

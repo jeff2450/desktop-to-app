@@ -27,7 +27,7 @@ async function request<T>(
       headers,
     });
 
-    const json = (await res.json()) as { data?: T; error?: string };
+    const json = await res.json();
     
     if (res.status === 401 && path !== "/api/auth/login") {
        // Handle token refresh logic here or in the caller
@@ -35,7 +35,8 @@ async function request<T>(
     }
 
     if (!res.ok) return { error: json.error ?? `HTTP ${res.status}` };
-    return { data: json.data as T };
+    // Backend returns data at the root level (not wrapped in { data: ... })
+    return { data: json as T };
   } catch (err) {
     return { error: (err as Error).message };
   }
@@ -45,19 +46,19 @@ async function request<T>(
 
 export const authApi = {
   login: (email: string, password: string) =>
-    request<{ token: string; user: User }>("/api/auth/login", {
+    request<{ accessToken: string; refreshToken: string; user: User }>("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
-  register: (email: string, password: string, name?: string) =>
-    request<{ token: string; user: User }>("/api/auth/register", {
+  register: (email: string, password: string, name?: string, plan?: string) =>
+    request<{ accessToken: string; refreshToken: string; user: User }>("/api/auth/register", {
       method: "POST",
-      body: JSON.stringify({ email, password, name }),
+      body: JSON.stringify({ email, password, name, plan }),
     }),
-  me: () => request<User>("/api/users/me"),
+  me: () => request<User>("/api/auth/me"),
   logout: () => request<{ success: boolean }>("/api/auth/logout", { method: "POST" }),
   refresh: (refreshToken: string) => 
-    request<{ token: string }>("/api/auth/refresh", { 
+    request<{ accessToken: string }>("/api/auth/refresh", { 
       method: "POST", 
       body: JSON.stringify({ refreshToken }) 
     }),

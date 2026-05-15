@@ -20,7 +20,7 @@ export default function PricingPage() {
             <Link href="/" className="hover:text-white transition-colors">Home</Link>
             <Link href="/#how-it-works" className="hover:text-white transition-colors">How it works</Link>
             <Link href="/pricing" className="text-white">Pricing</Link>
-            <Link href="https://docs.webtoapp.dev" className="hover:text-white transition-colors">Docs</Link>
+            <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>
           </nav>
           <div className="flex items-center gap-4">
             <Link href="/login" className="text-sm font-medium hover:text-indigo-400 transition-colors">

@@ -15,8 +15,8 @@ export default function LandingPage() {
           </div>
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-zinc-400">
             <Link href="#how-it-works" className="hover:text-white transition-colors">How it works</Link>
-            <Link href="#pricing" className="hover:text-white transition-colors">Pricing</Link>
-            <Link href="https://docs.webtoapp.dev" className="hover:text-white transition-colors">Docs</Link>
+            <Link href="/pricing" className="hover:text-white transition-colors">Pricing</Link>
+            <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>
           </nav>
           <div className="flex items-center gap-4">
             <Link href="/login" className="text-sm font-medium hover:text-indigo-400 transition-colors">
@@ -45,7 +45,7 @@ export default function LandingPage() {
               <Link href="/register" className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-4 rounded-xl font-medium transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:shadow-[0_0_30px_rgba(99,102,241,0.5)]">
                 Start for free <ArrowRight className="w-4 h-4" />
               </Link>
-              <Link href="https://docs.webtoapp.dev" className="flex items-center justify-center gap-2 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-white px-8 py-4 rounded-xl font-medium transition-colors">
+              <Link href="/docs" className="flex items-center justify-center gap-2 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-white px-8 py-4 rounded-xl font-medium transition-colors">
                 View documentation
               </Link>
             </div>
@@ -164,7 +164,7 @@ export default function LandingPage() {
           </div>
           <div className="flex items-center gap-6 text-sm text-zinc-500">
             <Link href="https://github.com/jeff2450/desktop-to-app" className="hover:text-white transition-colors">GitHub</Link>
-            <Link href="https://docs.webtoapp.dev" className="hover:text-white transition-colors">Docs</Link>
+            <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>
             <Link href="https://twitter.com/webtoapp" className="hover:text-white transition-colors">Twitter</Link>
           </div>
         </div>

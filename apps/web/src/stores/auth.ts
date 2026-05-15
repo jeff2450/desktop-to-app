@@ -13,7 +13,7 @@ interface AuthState {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ error?: string }>;
-  register: (email: string, password: string, name?: string) => Promise<{ error?: string }>;
+  register: (email: string, password: string, name?: string, plan?: string) => Promise<{ error?: string }>;
   logout: () => Promise<void>;
   hydrate: () => Promise<void>;
 }
@@ -30,42 +30,37 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     
     if (result.error) return { error: result.error };
     
-    if (result.data?.token && result.data?.user) {
-      const { token, user } = result.data;
-      setClientToken(token);
-      set({ accessToken: token, user });
+    if (result.data?.accessToken && result.data?.user) {
+      const { accessToken, refreshToken, user } = result.data;
+      setClientToken(accessToken);
+      set({ accessToken, user });
       
-      // Save refresh token in cookie via Next.js API
-      // Note: We assume the backend returns a refreshToken in this response 
-      // based on the prompt's Session 4 spec.
-      const anyData = result.data as any;
-      if (anyData.refreshToken) {
+      if (refreshToken) {
         await fetch("/api/auth/cookie", {
           method: "POST",
-          body: JSON.stringify({ refreshToken: anyData.refreshToken }),
+          body: JSON.stringify({ refreshToken }),
         });
       }
     }
     return {};
   },
 
-  register: async (email, password, name) => {
+  register: async (email, password, name, plan) => {
     set({ isLoading: true });
-    const result = await authApi.register(email, password, name);
+    const result = await authApi.register(email, password, name, plan);
     set({ isLoading: false });
     
     if (result.error) return { error: result.error };
     
-    if (result.data?.token && result.data?.user) {
-      const { token, user } = result.data;
-      setClientToken(token);
-      set({ accessToken: token, user });
+    if (result.data?.accessToken && result.data?.user) {
+      const { accessToken, refreshToken, user } = result.data;
+      setClientToken(accessToken);
+      set({ accessToken, user });
 
-      const anyData = result.data as any;
-      if (anyData.refreshToken) {
+      if (refreshToken) {
         await fetch("/api/auth/cookie", {
           method: "POST",
-          body: JSON.stringify({ refreshToken: anyData.refreshToken }),
+          body: JSON.stringify({ refreshToken }),
         });
       }
     }
@@ -95,9 +90,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (refreshToken) {
         // 2. Try to get a new access token
         const refreshRes = await authApi.refresh(refreshToken);
-        if (refreshRes.data?.token) {
-          setClientToken(refreshRes.data.token);
-          set({ accessToken: refreshRes.data.token });
+        if (refreshRes.data?.accessToken) {
+          setClientToken(refreshRes.data.accessToken);
+          set({ accessToken: refreshRes.data.accessToken });
           
           // 3. Fetch user data
           const userRes = await authApi.me();

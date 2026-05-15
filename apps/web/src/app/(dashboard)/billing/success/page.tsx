@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { 
@@ -21,6 +21,18 @@ import {
 import Link from "next/link";
 
 export default function BillingSuccessPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <div className="w-full max-w-lg h-96 bg-zinc-900 border border-zinc-800 rounded-2xl animate-pulse" />
+      </div>
+    }>
+      <BillingSuccessContent />
+    </Suspense>
+  );
+}
+
+function BillingSuccessContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const plan = searchParams.get("plan");

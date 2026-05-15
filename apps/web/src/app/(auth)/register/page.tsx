@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/stores/auth";
 import { 
   Card, 
@@ -25,6 +26,19 @@ import {
 } from "lucide-react";
 
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={
+      <div className="w-full max-w-md h-96 bg-zinc-900/50 border border-zinc-800 rounded-2xl animate-pulse" />
+    }>
+      <RegisterForm />
+    </Suspense>
+  );
+}
+
+function RegisterForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const plan = searchParams.get("plan") || "free";
   const { register } = useAuthStore();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -38,9 +52,11 @@ export default function RegisterPage() {
     setError(null);
     
     try {
-      const res = await register(email, password, name);
+      const res = await register(email, password, name, plan);
       if (res.error) {
         setError(res.error);
+      } else {
+        router.push("/dashboard");
       }
     } catch (err) {
       setError("An unexpected error occurred. Please try again.");
