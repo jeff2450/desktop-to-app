@@ -3,6 +3,7 @@ import chalk from "chalk";
 import { convertCommand } from "./commands/convert.js";
 import { initCommand } from "./commands/init.js";
 import { loginCommand, logoutCommand } from "./commands/login.js";
+import { devCommand } from "./commands/dev.js";
 
 const VERSION = "1.0.0";
 
@@ -44,6 +45,19 @@ program
   .option("-y, --yes", "Skip prompts and use defaults")
   .action(async (opts) => {
     await initCommand({ yes: opts.yes });
+  });
+
+// ── dev ────────────────────────────────────────────────────────────────────────
+program
+  .command("dev")
+  .description("Start hot-reload dev mode: Vite + backend + Electron together")
+  .option("-c, --config <path>", "Path to webtoapp.config.json")
+  .option("-p, --port <number>", "Vite dev server port (default: 5173)", parseInt)
+  .action(async (opts) => {
+    await devCommand({
+      config: opts.config,
+      port:   opts.port,
+    });
   });
 
 // ── login ──────────────────────────────────────────────────────────────────────

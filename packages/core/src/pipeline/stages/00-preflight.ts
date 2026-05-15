@@ -2,6 +2,7 @@ import path from "node:path";
 import fs from "node:fs/promises";
 
 import type { PipelineContext } from "../PipelineContext.js";
+import { assertValidConfig } from "../../config/validateConfig.js";
 
 const STAGE = "00-preflight";
 
@@ -25,6 +26,16 @@ const STAGE = "00-preflight";
  */
 export async function runPreflightStage(ctx: PipelineContext): Promise<void> {
   ctx.startStage(STAGE);
+
+  // ── Config schema validation (fail-fast before touching anything) ──
+  try {
+    assertValidConfig(ctx.config);
+    ctx.log("info", "✅ Config schema valid", STAGE);
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    ctx.failStage(STAGE, error);
+    throw error;
+  }
 
   const failures: string[] = [];
   const warnings: string[] = [];

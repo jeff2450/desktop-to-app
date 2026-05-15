@@ -5,6 +5,7 @@ import os from "node:os";
 import type { ConversionConfig } from "../types/ConversionConfig.js";
 import type { BuildResult } from "../types/BuildResult.js";
 import { PipelineContext } from "./PipelineContext.js";
+import { generateReport } from "../report/generateReport.js";
 
 import { runDetectStage } from "./stages/01-detect.js";
 import { runPlanStage } from "./stages/02-plan.js";
@@ -121,7 +122,13 @@ export class ConversionPipeline {
 
       ctx.log("info", "Conversion complete — backup removed");
 
-      return this.buildResult(ctx, "success");
+      const successResult = this.buildResult(ctx, "success");
+
+      // Generate migration health report
+      await generateReport(successResult, outputDir).catch(() => {});
+      ctx.log("info", "📄 Migration report: webtoapp-report.html");
+
+      return successResult;
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       ctx.log("error", `Pipeline failed: ${error.message}`);
@@ -130,7 +137,12 @@ export class ConversionPipeline {
       await this.rollback(outputDir, backupDir, ctx);
       await ctx.flushLogs();
 
-      return this.buildResult(ctx, "failed", error);
+      const failedResult = this.buildResult(ctx, "failed", error);
+
+      // Generate report even on failure so users can diagnose what went wrong
+      await generateReport(failedResult, outputDir).catch(() => {});
+
+      return failedResult;
     } finally {
       // Clean up temp dir
       await fs.rm(workDir, { recursive: true, force: true }).catch(() => {});

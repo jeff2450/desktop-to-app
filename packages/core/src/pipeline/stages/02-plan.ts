@@ -373,6 +373,55 @@ async function planFile(
     }
   }
 
+  if (auth === "auth0") {
+    if (
+      content.includes("@auth0/") ||
+      content.includes("useAuth0") ||
+      content.includes("Auth0Provider") ||
+      content.includes("withAuthenticationRequired") ||
+      content.includes("loginWithRedirect") ||
+      content.includes("getAccessTokenSilently")
+    ) {
+      return {
+        type: "transform",
+        transform: {
+          sourcePath: relativePath,
+          outputPath: relativePath,
+          transformerType: "auth0",
+          confidence: 0.82,
+          reason: "Contains Auth0 hooks/components",
+        },
+      };
+    }
+  }
+
+  if (framework === "vue") {
+    const hasCloudCalls =
+      content.includes("supabase.from(") ||
+      content.includes("@supabase/supabase-js") ||
+      content.includes("supabase.auth") ||
+      content.includes("getFirestore") ||
+      content.includes("collection(") ||
+      content.includes("getDocs(") ||
+      content.includes("getDoc(") ||
+      content.includes("addDoc(") ||
+      content.includes("deleteDoc(") ||
+      content.includes("signInWithEmailAndPassword");
+
+    if (hasCloudCalls) {
+      return {
+        type: "transform",
+        transform: {
+          sourcePath: relativePath,
+          outputPath: relativePath,
+          transformerType: "vue",
+          confidence: 0.78,
+          reason: "Vue file with cloud backend calls",
+        },
+      };
+    }
+  }
+
   return { type: "copy" };
 }
 

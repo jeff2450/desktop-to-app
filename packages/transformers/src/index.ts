@@ -9,6 +9,8 @@ import { SupabaseStorageTransformer } from "./supabase/SupabaseStorageTransforme
 import { FirestoreTransformer } from "./firebase/FirestoreTransformer.js";
 import { FirebaseAuthTransformer } from "./firebase/FirebaseAuthTransformer.js";
 import { ClerkTransformer } from "./auth/ClerkTransformer.js";
+import { Auth0Transformer } from "./auth/Auth0Transformer.js";
+import { VueTransformer } from "./vue/VueTransformer.js";
 import { AiFallbackTransformer } from "./ai/AiFallbackTransformer.js";
 import type { TransformResult } from "./base/BaseTransformer.js";
 
@@ -16,6 +18,8 @@ export { SupabaseQueryTransformer } from "./supabase/SupabaseQueryTransformer.js
 export { SupabaseAuthTransformer } from "./supabase/SupabaseAuthTransformer.js";
 export { SupabaseRealtimeTransformer } from "./supabase/SupabaseRealtimeTransformer.js";
 export { SupabaseStorageTransformer } from "./supabase/SupabaseStorageTransformer.js";
+export { Auth0Transformer } from "./auth/Auth0Transformer.js";
+export { VueTransformer } from "./vue/VueTransformer.js";
 export { BaseTransformer } from "./base/BaseTransformer.js";
 export type { TransformResult, TransformContext } from "./base/BaseTransformer.js";
 
@@ -28,6 +32,7 @@ export type TransformerType =
   | "firebase-auth"
   | "clerk-auth"
   | "auth0"
+  | "vue"
   | "ai";
 
 /**
@@ -70,6 +75,8 @@ export async function transformFile(params: {
     | FirestoreTransformer
     | FirebaseAuthTransformer
     | ClerkTransformer
+    | Auth0Transformer
+    | VueTransformer
     | AiFallbackTransformer;
 
   switch (transformerType) {
@@ -93,8 +100,13 @@ export async function transformFile(params: {
       transformer = new FirebaseAuthTransformer();
       break;
     case "clerk-auth":
-    case "auth0":
       transformer = new ClerkTransformer();
+      break;
+    case "auth0":
+      transformer = new Auth0Transformer();
+      break;
+    case "vue":
+      transformer = new VueTransformer();
       break;
 
     case "ai":
