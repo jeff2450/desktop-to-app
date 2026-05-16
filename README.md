@@ -25,6 +25,7 @@ npx webtoapp doctor
 Source project (React + Supabase)
           │
           ▼
+  00-preflight→  Validates config + project structure (fail-fast)
   01-detect   →  Identifies framework, backend, auth, tables
   02-plan     →  Decides what to transform, copy, generate
   03-transform→  Rewrites cloud SDK calls → local API (AST-based)
@@ -44,15 +45,15 @@ Source project (React + Supabase)
 ```
 webtoapp/
 ├── apps/
-│   ├── web/          Next.js SaaS dashboard      (Session 6)
-│   └── api/          Node.js + BullMQ backend     (Sessions 4–5)
+│   ├── web/          Next.js SaaS dashboard      ✅
+│   └── api/          Node.js + BullMQ backend     ✅
 ├── packages/
-│   ├── core/         Pipeline orchestrator        (Sessions 1–3) ✔
-│   ├── detectors/    Stack detection modules      (Session 2)    ✔
-│   ├── transformers/ AST code transformers        (Session 2)    ✔
-│   ├── templates/    Handlebars file templates    (Session 3)    ✔
-│   ├── builder/      Vite + electron-builder      (Session 3)    ✔
-│   └── cli/          npx webtoapp CLI             (Session 3)    ✔
+│   ├── core/         Pipeline orchestrator        ✅
+│   ├── detectors/    Stack detection modules      ✅
+│   ├── transformers/ AST code transformers        ✅
+│   ├── templates/    Handlebars file templates    ✅
+│   ├── builder/      Vite + electron-builder      ✅
+│   └── cli/          npx webtoapp CLI             ✅
 ```
 
 ---
@@ -97,6 +98,22 @@ pnpm test           # run all tests
 
 ---
 
+## Running the full stack (Docker)
+
+```bash
+cp .env.example .env   # fill in your secrets
+docker compose up -d
+```
+
+Services started:
+- **postgres** — PostgreSQL 16 on port 5432
+- **redis** — Redis 7 on port 6379
+- **api** — Express + BullMQ API on port 3001
+- **worker** — BullMQ conversion worker
+- **web** — Next.js SaaS dashboard on port 3000
+
+---
+
 ## Sessions completed
 
 | Session | What was built | Status |
@@ -104,8 +121,12 @@ pnpm test           # run all tests
 | 1 | Monorepo root + `packages/core` pipeline skeleton | ✅ |
 | 2 | Detectors + Supabase transformers + stages 03–04 | ✅ |
 | 3 | Templates + Builder + CLI + stages 05–07 | ✅ |
-| 4 | API backend (Express + BullMQ) | 🔜 |
-| 5 | API services (GitHub, S3, Stripe) | 🔜 |
-| 6 | Next.js SaaS dashboard | 🔜 |
-| 7 | Firebase, Clerk, Vue + AI fallback | 🔜 |
-| 8 | DevOps, CI/CD, Capacitor | 🔜 |
+| 4 | API backend (Express + BullMQ + Prisma) | ✅ |
+| 5 | API services (billing, downloads, auth, jobs) | ✅ |
+| 6 | Next.js SaaS dashboard (shadcn/ui + protected routes) | ✅ |
+| 7 | Firebase, Clerk, Auth0, Vue transformers + AI fallback | ✅ ⚠ partial |
+| 8 | DevOps: Docker Compose, multi-stage Dockerfiles, Capacitor | ✅ |
+
+> ⚠ **Session 7 note:** Firebase Firestore, Auth0, and Vue transformers are implemented but partially tested.
+> Complex query patterns may require manual review after conversion.
+> Use `--mode online` for full cloud fidelity.

@@ -17,9 +17,10 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB:       webtoapp
-      POSTGRES_USER:     webtoapp
-      POSTGRES_PASSWORD: secret
+      POSTGRES_DB:       ${POSTGRES_DB:-webtoapp}
+      POSTGRES_USER:     ${POSTGRES_USER:-webtoapp}
+      # Set POSTGRES_PASSWORD in .env for production (default is for local dev only)
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret_change_me_in_prod}
     ports:
       - "5432:5432"
     volumes:

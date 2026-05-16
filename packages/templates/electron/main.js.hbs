@@ -1,7 +1,25 @@
-const { app, BrowserWindow, shell, ipcMain, nativeTheme } = require('electron');
+const { app, BrowserWindow, shell, ipcMain, nativeTheme, protocol, net } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { spawn } = require('child_process');
 const { autoUpdater } = require('electron-updater');
+
+// ─── Custom protocol ──────────────────────────────────────────────────────────
+// Serve dist/ over app:// instead of file:// so the renderer is treated as a
+// secure http-like origin. This allows fetch() calls to http://127.0.0.1
+// (the local Express backend) without Electron blocking them as mixed content.
+// Without this, every localApi call silently fails and the screen stays blank.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'app',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+    },
+  },
+]);
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 let mainWindow;
@@ -14,6 +32,9 @@ function startBackend() {
     ? path.join(__dirname, '../backend/server.cjs')
     : path.join(process.resourcesPath, 'backend', 'server.cjs');
 
+  // Use process.execPath (Electron's own bundled Node binary) so the backend
+  // works on machines where Node.js is NOT installed.
+  // ELECTRON_RUN_AS_NODE=1 makes the Electron binary behave as plain Node.
   backendProcess = spawn(process.execPath, [serverPath], {
     env: {
       ...process.env,
@@ -31,6 +52,23 @@ function startBackend() {
   if (!isDev && backendProcess.stdout) {
     backendProcess.stdout.on('data', (d) => console.log('[backend]', d.toString().trim()));
   }
+}
+
+// Poll /api/health until Express is listening (or timeout after maxWaitMs).
+// This replaces the brittle setTimeout — backend startup time varies per machine.
+async function waitForBackend(maxWaitMs = 10000, intervalMs = 200) {
+  const deadline = Date.now() + maxWaitMs;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch('http://127.0.0.1:{{backendPort}}/api/health');
+      if (res.ok) return; // backend is ready
+    } catch (_) {
+      // still starting — keep polling
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  // Timed out — open window anyway so user sees an error rather than a frozen splash
+  console.error('[WebToApp] Backend did not become ready within', maxWaitMs, 'ms');
 }
 
 // ─── Window ───────────────────────────────────────────────────────────────────
@@ -53,7 +91,7 @@ function createWindow() {
   });
 
   const devUrl = 'http://localhost:{{devPort}}';
-  const prodUrl = `file://${path.join(__dirname, '../dist/index.html')}`;
+  const prodUrl = 'app://./index.html'; // custom protocol — avoids file:// fetch restrictions
 
   mainWindow.loadURL(isDev ? devUrl : prodUrl);
 
@@ -93,13 +131,29 @@ function setupAutoUpdater() {
 
 // ─── App lifecycle ────────────────────────────────────────────────────────────
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // Register app:// to serve dist/ files — must happen before any window loads.
+  protocol.handle('app', (request) => {
+    const url = new URL(request.url);
+    const pathname = url.pathname === '/' ? '/index.html' : url.pathname;
+
+    // SPA fallback rule: paths with no file extension are React Router routes,
+    // not real files — always serve index.html so the router can hydrate them.
+    // Also fall back if the file simply doesn't exist on disk (e.g. dynamic segments).
+    const hasExtension = /\.\w+$/.test(pathname);
+    let filePath = path.join(__dirname, '../dist', pathname);
+
+    if (!hasExtension || !fs.existsSync(filePath)) {
+      filePath = path.join(__dirname, '../dist/index.html');
+    }
+
+    return net.fetch(`file://${filePath}`);
+  });
+
   startBackend();
-  // Wait for backend to initialise before showing window
-  setTimeout(() => {
-    createWindow();
-    setupAutoUpdater();
-  }, 600);
+  await waitForBackend(); // wait for Express before opening the window
+  createWindow();
+  setupAutoUpdater();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

@@ -8,6 +8,20 @@ import type {
   FileGeneratePlan,
 } from "../../types/MigrationPlan.js";
 import type { DetectionResult } from "../../types/DetectionResult.js";
+import {
+  ELECTRON_VERSION,
+  ELECTRON_UPDATER_VERSION,
+  BETTER_SQLITE3_VERSION,
+  EXPRESS_VERSION,
+  CORS_VERSION,
+  BCRYPTJS_VERSION,
+  JSONWEBTOKEN_VERSION,
+  MULTER_VERSION,
+  CONCURRENTLY_VERSION,
+  WAIT_ON_VERSION,
+  SUPABASE_JS_VERSION,
+  FIREBASE_VERSION,
+} from "../../config/versions.js";
 
 const STAGE = "02-plan";
 
@@ -77,8 +91,8 @@ async function buildMigrationPlan(
 
     // Only add Electron — keep all cloud deps, don't touch any source files
     Object.assign(dependenciesToAdd, {
-      electron: "31.0.0",
-      "electron-updater": "^6.1.0",
+      electron: ELECTRON_VERSION,
+      "electron-updater": ELECTRON_UPDATER_VERSION,
     });
 
     filesToGenerate.push(
@@ -149,15 +163,57 @@ async function buildMigrationPlan(
     dependenciesToRemove.push("@auth0/auth0-react");
   }
 
+  // ── Partial-implementation warnings ──────────────────────────────────
+  // Emit clear, actionable warnings rather than silently falling back to
+  // file-copy mode when a stack is not yet fully supported.
+  if (backend === "firebase") {
+    ctx.log(
+      "warn",
+      "⚠  Firebase backend detected. The Firebase→local transformer is partially " +
+      "implemented. Real-time listeners and complex queries may require manual " +
+      "review. Consider using 'online' mode if you need full Firebase functionality.",
+      STAGE
+    );
+  }
+  if (backend === "pocketbase") {
+    ctx.log(
+      "warn",
+      "⚠  PocketBase backend detected. Automatic transformation is not yet " +
+      "supported — files will be copied verbatim. Use 'online' mode or migrate " +
+      "your API calls manually after conversion.",
+      STAGE
+    );
+  }
+  if (framework === "vue") {
+    ctx.log(
+      "warn",
+      "⚠  Vue framework detected. The Vue transformer is partially implemented. " +
+      "Component-level cloud calls should be reviewed after conversion.",
+      STAGE
+    );
+  }
+  if (framework === "angular") {
+    ctx.log(
+      "warn",
+      "⚠  Angular framework detected. Angular transformation is not yet " +
+      "supported — source files will be copied verbatim. Manual refactoring " +
+      "of HTTP clients and services will be needed after conversion.",
+      STAGE
+    );
+  }
+
   // ── Deps to add ────────────────────────────────────────────────────
   Object.assign(dependenciesToAdd, {
-    electron: "31.0.0",
-    "better-sqlite3": "^11.0.0",
-    express: "^4.19.0",
-    cors: "^2.8.5",
-    bcryptjs: "^2.4.3",
-    jsonwebtoken: "^9.0.0",
-    "electron-updater": "^6.1.0",
+    electron:           ELECTRON_VERSION,
+    "better-sqlite3":   BETTER_SQLITE3_VERSION,
+    express:            EXPRESS_VERSION,
+    cors:               CORS_VERSION,
+    bcryptjs:           BCRYPTJS_VERSION,
+    jsonwebtoken:       JSONWEBTOKEN_VERSION,
+    multer:             MULTER_VERSION,         // file uploads in server.js.hbs
+    "electron-updater": ELECTRON_UPDATER_VERSION,
+    concurrently:       CONCURRENTLY_VERSION,
+    "wait-on":          WAIT_ON_VERSION,
   });
 
   // Hybrid mode additionally needs the original cloud SDK for syncing
@@ -166,13 +222,11 @@ async function buildMigrationPlan(
       // Keep supabase for sync — don't remove it, override the removal above
       const idx = dependenciesToRemove.indexOf("@supabase/supabase-js");
       if (idx !== -1) dependenciesToRemove.splice(idx, 1);
-      Object.assign(dependenciesToAdd, {
-        "@supabase/supabase-js": "^2.43.0",
-      });
+      Object.assign(dependenciesToAdd, { "@supabase/supabase-js": SUPABASE_JS_VERSION });
     } else if (backend === "firebase") {
       const idx = dependenciesToRemove.indexOf("firebase");
       if (idx !== -1) dependenciesToRemove.splice(idx, 1);
-      Object.assign(dependenciesToAdd, { firebase: "^10.12.0" });
+      Object.assign(dependenciesToAdd, { firebase: FIREBASE_VERSION });
     }
   }
 

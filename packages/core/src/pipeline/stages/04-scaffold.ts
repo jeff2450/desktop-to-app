@@ -117,13 +117,26 @@ export async function runScaffoldStage(ctx: PipelineContext): Promise<void> {
  *  #3 — author field is required by electron-builder
  *  #4 — vite-plugin-pwa is web-only and breaks in Electron environments
  */
+/** Minimal shape of a package.json we read from the output project */
+interface PackageJson {
+  name?: string;
+  version?: string;
+  type?: string;
+  private?: boolean;
+  main?: string;
+  author?: string;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  scripts?: Record<string, string>;
+}
+
 async function patchPackageJson(ctx: PipelineContext): Promise<void> {
   const pkgPath = path.join(ctx.outputDir, "package.json");
-  let pkg: any = {};
+  let pkg: PackageJson = {};
 
   try {
     const raw = await fs.readFile(pkgPath, "utf-8");
-    pkg = JSON.parse(raw);
+    pkg = JSON.parse(raw) as PackageJson;
   } catch {
     ctx.log("warn", "Could not read output package.json — creating new one", STAGE);
     pkg = {
@@ -177,7 +190,7 @@ async function patchPackageJson(ctx: PipelineContext): Promise<void> {
 
   // ── Error #3 Fix: electron-builder requires an author field ───
   if (!pkg.author) {
-    pkg.author = (ctx.config as any).author ?? "WebToApp Conversion";
+    pkg.author = ctx.config.author ?? "WebToApp Conversion";
     ctx.log("info", "Added missing author field to package.json", STAGE);
   }
 
@@ -277,10 +290,88 @@ function generateElectronMain(vars: Record<string, unknown>): string {
   const appName = vars["appName"] as string ?? "App";
   const devPort = vars["devPort"] as number ?? 5173;
   const backendPort = vars["backendPort"] as number ?? 3001;
+  const isOnlineMode = !backendPort || backendPort === 0;
 
-  return `const { app, BrowserWindow, shell } = require('electron');
+  if (isOnlineMode) {
+    // ── Online mode: no local backend — load app directly, no waitForBackend() freeze
+    return `const { app, BrowserWindow, shell, protocol, net } = require('electron');
 const path = require('path');
+const fs = require('fs');
+
+// Register app:// as a privileged scheme BEFORE app is ready.
+// This lets the renderer make fetch() calls without mixed-content blocking.
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } },
+]);
+
+const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+let mainWindow;
+
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1280,
+    height: 800,
+    minWidth: 800,
+    minHeight: 600,
+    title: '${appName}',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  if (isDev) {
+    mainWindow.loadURL('http://localhost:${devPort}');
+    mainWindow.webContents.openDevTools();
+  } else {
+    mainWindow.loadURL('app://./index.html');
+  }
+
+  mainWindow.once('ready-to-show', () => mainWindow.show());
+
+  mainWindow.webContents.setWindowOpenHandler(({ url: u }) => {
+    if (u.startsWith('http')) shell.openExternal(u);
+    return { action: 'deny' };
+  });
+
+  mainWindow.on('closed', () => { mainWindow = null; });
+}
+
+app.whenReady().then(() => {
+  // Serve dist/ via app:// — enables fetch() to cloud APIs without CORS issues
+  protocol.handle('app', (request) => {
+    const url = new URL(request.url);
+    let filePath = path.join(__dirname, '../dist', url.pathname === '/' ? 'index.html' : url.pathname);
+    if (!fs.existsSync(filePath)) filePath = path.join(__dirname, '../dist/index.html');
+    return net.fetch('file://' + filePath);
+  });
+
+  createWindow();
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+});
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
+});
+`;
+  }
+
+  // ── Offline / hybrid mode: start local Express backend, wait for it, then open window
+  return `const { app, BrowserWindow, shell, protocol, net } = require('electron');
+const path = require('path');
+const fs = require('fs');
 const { spawn } = require('child_process');
+
+// Register app:// as a privileged scheme BEFORE app is ready.
+// This lets the renderer fetch http://127.0.0.1 without being blocked
+// as mixed content — the root cause of the blank white screen.
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } },
+]);
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 let mainWindow;
@@ -291,12 +382,35 @@ function startBackend() {
     ? path.join(__dirname, '../backend/server.cjs')
     : path.join(process.resourcesPath, 'backend/server.cjs');
 
-  backendProcess = spawn('node', [serverPath], {
-    env: { ...process.env, PORT: '${backendPort}' },
-    stdio: isDev ? 'inherit' : 'ignore',
+  // Use process.execPath so the backend runs on machines without Node.js installed.
+  // ELECTRON_RUN_AS_NODE=1 makes the Electron binary act as a plain Node process.
+  backendProcess = spawn(process.execPath, [serverPath], {
+    env: {
+      ...process.env,
+      PORT: '${backendPort}',
+      NODE_ENV: isDev ? 'development' : 'production',
+      ELECTRON_RUN_AS_NODE: '1',
+    },
+    stdio: isDev ? 'inherit' : 'pipe',
   });
 
-  backendProcess.on('error', (err) => console.error('Backend error:', err));
+  backendProcess.on('error', (err) => console.error('[WebToApp] Backend failed to start:', err));
+  if (!isDev && backendProcess.stdout) {
+    backendProcess.stdout.on('data', (d) => console.log('[backend]', d.toString().trim()));
+  }
+}
+
+// Poll /api/health until Express is ready, instead of using a blind setTimeout.
+async function waitForBackend(maxWaitMs = 10000, intervalMs = 200) {
+  const deadline = Date.now() + maxWaitMs;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch('http://127.0.0.1:${backendPort}/api/health');
+      if (res.ok) return;
+    } catch (_) {}
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  console.error('[WebToApp] Backend did not become ready within', maxWaitMs, 'ms');
 }
 
 function createWindow() {
@@ -317,21 +431,143 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:${devPort}');
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    mainWindow.loadURL('app://./index.html'); // use app:// not file:// to allow backend fetch
   }
 
-  // Open external links in the browser, not Electron
+  mainWindow.once('ready-to-show', () => mainWindow.show());
+
+  // Open external links in the OS browser, not Electron
   mainWindow.webContents.setWindowOpenHandler(({ url: u }) => {
-    shell.openExternal(u);
+    if (u.startsWith('http')) shell.openExternal(u);
+    return { action: 'deny' };
+  });
+
+  mainWindow.on('closed', () => { mainWindow = null; });
+}
+
+app.whenReady().then(async () => {
+  // Serve dist/ via app:// protocol — must be registered before any window loads
+  protocol.handle('app', (request) => {
+    const url = new URL(request.url);
+    let filePath = path.join(__dirname, '../dist', url.pathname === '/' ? 'index.html' : url.pathname);
+    if (!fs.existsSync(filePath)) filePath = path.join(__dirname, '../dist/index.html');
+    return net.fetch('file://' + filePath);
+  });
+
+  startBackend();
+  await waitForBackend(); // wait for Express before opening the window
+
+  createWindow();
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+});
+
+app.on('window-all-closed', () => {
+  if (backendProcess) backendProcess.kill();
+  if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('before-quit', () => {
+  if (backendProcess) backendProcess.kill();
+});
+`;
+}
+
+  return `const { app, BrowserWindow, shell, protocol, net } = require('electron');
+const path = require('path');
+const fs = require('fs');
+const { spawn } = require('child_process');
+
+// Register app:// as a privileged scheme BEFORE app is ready.
+// This lets the renderer fetch http://127.0.0.1 without being blocked
+// as mixed content — the root cause of the blank white screen.
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } },
+]);
+
+const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+let mainWindow;
+let backendProcess;
+
+function startBackend() {
+  const serverPath = isDev
+    ? path.join(__dirname, '../backend/server.cjs')
+    : path.join(process.resourcesPath, 'backend/server.cjs');
+
+  // Use process.execPath so the backend runs on machines without Node.js installed.
+  // ELECTRON_RUN_AS_NODE=1 makes the Electron binary act as a plain Node process.
+  backendProcess = spawn(process.execPath, [serverPath], {
+    env: {
+      ...process.env,
+      PORT: '${backendPort}',
+      NODE_ENV: isDev ? 'development' : 'production',
+      ELECTRON_RUN_AS_NODE: '1',
+    },
+    stdio: isDev ? 'inherit' : 'pipe',
+  });
+
+  backendProcess.on('error', (err) => console.error('[WebToApp] Backend failed to start:', err));
+  if (!isDev && backendProcess.stdout) {
+    backendProcess.stdout.on('data', (d) => console.log('[backend]', d.toString().trim()));
+  }
+}
+
+// Poll /api/health until Express is ready, instead of using a blind setTimeout.
+async function waitForBackend(maxWaitMs = 10000, intervalMs = 200) {
+  const deadline = Date.now() + maxWaitMs;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch('http://127.0.0.1:${backendPort}/api/health');
+      if (res.ok) return;
+    } catch (_) {}
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  console.error('[WebToApp] Backend did not become ready within', maxWaitMs, 'ms');
+}
+
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1280,
+    height: 800,
+    minWidth: 800,
+    minHeight: 600,
+    title: '${appName}',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  if (isDev) {
+    mainWindow.loadURL('http://localhost:${devPort}');
+    mainWindow.webContents.openDevTools();
+  } else {
+    mainWindow.loadURL('app://./index.html'); // use app:// not file:// to allow backend fetch
+  }
+
+  // Open external links in the OS browser, not Electron
+  mainWindow.webContents.setWindowOpenHandler(({ url: u }) => {
+    if (u.startsWith('http')) shell.openExternal(u);
     return { action: 'deny' };
   });
 }
 
-app.whenReady().then(() => {
-  startBackend();
+app.whenReady().then(async () => {
+  // Serve dist/ via app:// protocol — must be registered before any window loads
+  protocol.handle('app', (request) => {
+    const url = new URL(request.url);
+    let filePath = path.join(__dirname, '../dist', url.pathname === '/' ? 'index.html' : url.pathname);
+    if (!fs.existsSync(filePath)) filePath = path.join(__dirname, '../dist/index.html');
+    return net.fetch('file://' + filePath);
+  });
 
-  // Give backend a moment to start before loading the window
-  setTimeout(createWindow, 500);
+  startBackend();
+  await waitForBackend(); // wait for Express before opening the window
+
+  createWindow();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -541,15 +777,21 @@ ${colDefs}
   \`);`;
     }
 
-    // Generic fallback (no schema info detected)
+    // Generic fallback — proper base schema with id, timestamps, and auto-update trigger
     return `
   db.exec(\`
     CREATE TABLE IF NOT EXISTS ${t} (
-      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      data TEXT NOT NULL DEFAULT '{}',
+      id         TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     )
+  \`);
+  db.exec(\`
+    CREATE TRIGGER IF NOT EXISTS ${t}_updated_at
+      AFTER UPDATE ON ${t}
+      BEGIN
+        UPDATE ${t} SET updated_at = datetime('now') WHERE id = NEW.id;
+      END
   \`);`;
   }).join("\n");
 
@@ -1484,6 +1726,8 @@ function formatRelative(date: Date): string {
  * reach the packaged desktop app. Local API vars are injected instead.
  */
 async function generateCleanEnv(ctx: PipelineContext): Promise<void> {
+  const isOnline = ctx.config.mode === "online";
+
   const cloudKeyPatterns = [
     /SUPABASE/i, /FIREBASE/i, /CLERK/i, /AUTH0/i, /STRIPE/i,
     /SENDGRID/i, /TWILIO/i, /AWS_/i, /SENTRY/i,
@@ -1500,27 +1744,56 @@ async function generateCleanEnv(ctx: PipelineContext): Promise<void> {
   }
 
   const lines = sourceContent ? sourceContent.split("\n") : [];
-  const outputLines: string[] = [
-    "# Generated by WebToApp — desktop app environment",
-    "# Cloud credentials have been commented out (not needed in offline mode)",
-    "",
-    "VITE_LOCAL_API=true",
-    `VITE_API_PORT=${ctx.config.backend?.port ?? 3001}`,
-    "",
-    "# Original cloud variables (kept for reference, commented out):",
-  ];
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
+  if (isOnline) {
+    // ── Online mode: keep ALL credentials intact — the app connects directly to the cloud.
+    // Only add the desktop-specific vars; never strip cloud keys.
+    const outputLines: string[] = [
+      "# Generated by WebToApp — desktop app environment (online mode)",
+      "# Cloud credentials are kept intact — required for Supabase/Firebase connectivity.",
+      "",
+    ];
 
-    const isCloudKey = cloudKeyPatterns.some((re) => re.test(trimmed));
-    outputLines.push(isCloudKey ? `# ${line}` : line);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      outputLines.push(line);
+    }
+
+    // Add desktop-specific vars only if not already present
+    if (!sourceContent.includes("VITE_DESKTOP_MODE")) {
+      outputLines.push("");
+      outputLines.push("# Added by WebToApp — desktop-specific env");
+      outputLines.push("VITE_DESKTOP_MODE=true");
+    }
+
+    const destPath = path.join(ctx.outputDir, ".env");
+    await fs.writeFile(destPath, outputLines.join("\n") + "\n", "utf-8");
+    ctx.log("info", "Generated .env (online mode — cloud credentials preserved)", STAGE);
+  } else {
+    // ── Offline / hybrid mode: strip cloud credentials; inject local API vars.
+    const outputLines: string[] = [
+      "# Generated by WebToApp — desktop app environment",
+      "# Cloud credentials have been commented out (replaced by local SQLite backend)",
+      "",
+      "VITE_LOCAL_API=true",
+      `VITE_API_PORT=${ctx.config.backend?.port ?? 3001}`,
+      "",
+      "# Original cloud variables (kept for reference, commented out):",
+    ];
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+
+      const isCloudKey = cloudKeyPatterns.some((re) => re.test(trimmed));
+      outputLines.push(isCloudKey ? `# ${line}` : line);
+    }
+
+    const destPath = path.join(ctx.outputDir, ".env");
+    await fs.writeFile(destPath, outputLines.join("\n") + "\n", "utf-8");
+    ctx.log("info", "Generated clean .env (cloud credentials commented out)", STAGE);
   }
-
-  const destPath = path.join(ctx.outputDir, ".env");
-  await fs.writeFile(destPath, outputLines.join("\n") + "\n", "utf-8");
-  ctx.log("info", "Generated clean .env (cloud credentials commented out)", STAGE);
 }
 
 // ─── Improvement #6: Copy auto-detected app icon ──────────────────────────────

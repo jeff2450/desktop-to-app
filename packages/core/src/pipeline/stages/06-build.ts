@@ -52,8 +52,10 @@ export async function runBuildStage(ctx: PipelineContext): Promise<void> {
         env: {
           ...process.env,
           NODE_ENV: "production",
-          VITE_LOCAL_API: "true",
-          VITE_API_PORT: String(ctx.config.backend?.port ?? 3001),
+          ...(ctx.config.mode !== "online" ? {
+            VITE_LOCAL_API: "true",
+            VITE_API_PORT: String(ctx.config.backend?.port ?? 3001),
+          } : {}),
         },
         maxBuffer: 200 * 1024 * 1024,
       }
@@ -70,6 +72,12 @@ export async function runBuildStage(ctx: PipelineContext): Promise<void> {
     }
 
     ctx.log("info", "Vite build complete — dist/ ready", STAGE);
+
+    // ── Strip external CDN scripts from dist/index.html ──────────
+    // Lovable.dev and similar tools inject external <script src="https://..."> tags
+    // into index.html. These fail in offline Electron mode and can block rendering.
+    await stripExternalScriptsFromDistHtml(ctx);
+
     ctx.completeStage(STAGE);
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
@@ -420,4 +428,42 @@ async function resolveBuildCommand(outputDir: string): Promise<string> {
 
   // 3. Fallback — use npx but prevent it from auto-installing a mismatched version
   return "npx --no vite build";
+}
+
+/**
+ * Post-build: Strip external CDN <script> tags from dist/index.html.
+ *
+ * Tools like Lovable.dev inject <script src="https://cdn.gpteng.co/..."> tags
+ * into index.html. These fail in Electron's offline environment (mixed-content
+ * or network-not-available errors) and can prevent the React app from mounting.
+ *
+ * We remove any <script> tag whose src attribute starts with http:// or https://.
+ * This is safe because the Vite build bundles all local scripts into assets/.
+ */
+async function stripExternalScriptsFromDistHtml(ctx: PipelineContext): Promise<void> {
+  const htmlPath = path.join(ctx.outputDir, "dist", "index.html");
+  let html: string;
+
+  try {
+    html = await fs.readFile(htmlPath, "utf-8");
+  } catch {
+    return; // dist/index.html doesn't exist yet — nothing to strip
+  }
+
+  const before = html;
+
+  // Remove <script ...src="https://...">...</script> (possibly multiline)
+  html = html.replace(/<script[^>]+src=["']https?:\/\/[^"']+["'][^>]*>[\s\S]*?<\/script>/gi, "");
+
+  // Also remove self-closing / inline <script src="https://..."> variants
+  html = html.replace(/<script[^>]+src=["']https?:\/\/[^"']+["'][^>]*\/>/gi, "");
+
+  // Remove any comment lines that reference removed scripts
+  // (e.g. "<!-- IMPORTANT: DO NOT REMOVE THIS SCRIPT TAG -->")
+  html = html.replace(/<!--[^>]*(?:DO NOT REMOVE|script tag)[^>]*-->/gi, "");
+
+  if (html !== before) {
+    await fs.writeFile(htmlPath, html, "utf-8");
+    ctx.log("info", "Stripped external CDN scripts from dist/index.html", STAGE);
+  }
 }

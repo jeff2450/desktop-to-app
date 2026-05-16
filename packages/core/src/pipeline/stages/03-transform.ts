@@ -118,6 +118,11 @@ export async function runTransformStage(ctx: PipelineContext): Promise<void> {
     // BrowserRouter uses the HTML5 History API which fails on file://
     await fixReactRouterForElectron(ctx);
 
+    // ── Error #9 Fix: Supabase client.ts may still call createClient() ──
+    // The transformer removes the import but can leave the call expression,
+    // which throws ReferenceError at runtime — causing the blank white screen.
+    await fixOrphanedSupabaseClient(ctx);
+
     ctx.log("info", `Transformed: ${transformed} files`, STAGE);
     ctx.log("info", `Copied:      ${copied} files`, STAGE);
     if (failed > 0) ctx.log("warn", `Failed:      ${failed} files (originals preserved)`, STAGE);
@@ -336,6 +341,59 @@ async function scrubOrphanedImports(ctx: PipelineContext): Promise<void> {
     await project.save();
     ctx.log("info", `Removed orphaned imports from ${scrubbed} file(s) using AST`, STAGE);
   }
+}
+
+/**
+ * Error #9 Fix: Detect Supabase client files that still call createClient()
+ * after the transformer ran. The transformer correctly removes the import but
+ * can miss the actual call expression. We fully rewrite any such file to
+ * re-export localApi as "supabase" so all existing import sites work unchanged.
+ */
+async function fixOrphanedSupabaseClient(ctx: PipelineContext): Promise<void> {
+  const srcDir = path.join(ctx.outputDir, "src");
+  if (!(await dirExists(srcDir))) return;
+
+  async function walkAndFix(dir: string): Promise<void> {
+    const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await walkAndFix(fullPath);
+      } else if (/\.(ts|tsx)$/.test(entry.name)) {
+        let content = await fs.readFile(fullPath, "utf-8");
+
+        // Check if the file still calls createClient (sign the transformer left it broken)
+        const hasOrphanedCreateClient = /createClient\s*\(/.test(content) &&
+          !content.includes("from '@supabase/supabase-js'") &&
+          !content.includes('from "@supabase/supabase-js"');
+
+        if (hasOrphanedCreateClient) {
+          const rel = path.relative(ctx.outputDir, fullPath);
+          // Write a clean replacement that satisfies all import sites:
+          //   import { supabase } from '...'    → works
+          //   import type { Database } from '...'  → works
+          const replacement = [
+            "// Patched by WebToApp — replaces Supabase cloud client with local API",
+            "// Original Supabase credentials and createClient() have been removed.",
+            "",
+            `import { localApi } from "@/lib/localApi";`,
+            "",
+            "// Re-export localApi as \"supabase\" so all existing call sites work unchanged.",
+            "export const supabase = localApi;",
+          ].join("\n") + "\n";
+
+          // Preserve any type re-exports (e.g. Database) from the original file
+          const typeExportMatch = content.match(/export type \{[^}]+\} from ['"].*types['"];?/g);
+          const typeExports = typeExportMatch ? "\n" + typeExportMatch.join("\n") + "\n" : "";
+
+          await fs.writeFile(fullPath, replacement + typeExports, "utf-8");
+          ctx.log("warn", `Fixed orphaned createClient() in ${rel} — rewrote as localApi re-export`, STAGE);
+        }
+      }
+    }
+  }
+
+  await walkAndFix(srcDir);
 }
 
 /**

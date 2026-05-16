@@ -313,6 +313,45 @@ async function extractTableNames(sourceDir: string): Promise<string[]> {
     }
   }
 
+  // Strategy 3: scan source files for .from('tableName') / .from("tableName") patterns.
+  // This is the critical fallback when neither supabase/migrations nor types.ts exist.
+  // Covers Supabase (.from), Firebase (.collection), and generic ORMs.
+  if (tables.size === 0) {
+    const srcDir = path.join(sourceDir, "src");
+    const scanDir = (await fileExists(srcDir)) ? srcDir : sourceDir;
+
+    async function walkForTables(dir: string): Promise<void> {
+      let entries: import("node:fs").Dirent[];
+      try {
+        entries = await fs.readdir(dir, { withFileTypes: true }) as any;
+      } catch {
+        return;
+      }
+      for (const entry of entries) {
+        const full = path.join(dir, entry.name as string);
+        if (entry.isDirectory()) {
+          if (!["node_modules", ".git", "dist", ".next", "build"].includes(entry.name as string)) {
+            await walkForTables(full);
+          }
+        } else if (/\.(ts|tsx|js|jsx)$/.test(entry.name as string)) {
+          const content = await fs.readFile(full, "utf-8").catch(() => "");
+          // Match: .from('table_name') or .from("table_name") or .collection('name')
+          const fromRe = /\.(?:from|collection)\s*\(\s*['"`]([\w]+)['"`]\s*\)/g;
+          let m: RegExpExecArray | null;
+          while ((m = fromRe.exec(content)) !== null) {
+            const name = m[1]!;
+            // Skip common non-table names (RPC functions, storage buckets, channels)
+            if (!["auth", "storage", "realtime", "functions", "rpc"].includes(name)) {
+              tables.add(name);
+            }
+          }
+        }
+      }
+    }
+
+    await walkForTables(scanDir);
+  }
+
   return [...tables];
 }
 
