@@ -13,6 +13,7 @@ files:
   - package.json
   - "!node_modules/.cache"
   - "!**/*.map"
+  - "!**/*.ts"
 
 extraResources:
   - from: backend/
@@ -28,7 +29,9 @@ win:
       arch:
         - x64
         - arm64
+  {{#if icon}}
   icon: {{icon}}
+  {{/if}}
   requestedExecutionLevel: asInvoker
 
 nsis:
@@ -37,11 +40,15 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: {{appName}}
+  {{#if icon}}
   installerIcon: {{icon}}
   uninstallerIcon: {{icon}}
+  {{/if}}
 {{/if}}
 
 {{#if targets.linux}}
+# NOTE: Building Linux targets from Windows requires mksquashfs which is not
+# available on Windows. To build for Linux, use a Linux machine or GitHub Actions.
 linux:
   target:
     - target: AppImage
@@ -50,12 +57,10 @@ linux:
     - target: deb
       arch:
         - x64
-    - target: rpm
-      arch:
-        - x64
+  {{#if icon}}
   icon: {{icon}}
+  {{/if}}
   category: Utility
-  maintainer: {{appName}} Team
 {{/if}}
 
 {{#if targets.mac}}
@@ -68,7 +73,9 @@ mac:
     - target: zip
       arch:
         - arm64
+  {{#if icon}}
   icon: {{icon}}
+  {{/if}}
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist

@@ -60,10 +60,31 @@ export async function runPackageStage(ctx: PipelineContext): Promise<void> {
     ctx.log("info", "Packaging with electron-builder...", STAGE);
 
     // Filter out mobile targets — those are handled by stage 07b-mobile
-    const desktopTargets = ctx.config.targets.filter(
+    const allDesktopTargets = ctx.config.targets.filter(
       (t): t is "windows" | "linux" | "mac" =>
         t === "windows" || t === "linux" || t === "mac"
     );
+
+    // Cross-platform target guard: electron-builder cannot cross-compile without
+    // platform-specific tooling (mksquashfs for Linux AppImage, Xcode for macOS).
+    // Building Linux targets on Windows fails with: "mksquashfs: file does not exist".
+    // We filter down to the current platform's native target to avoid this.
+    const currentPlatform =
+      process.platform === "win32" ? "windows" :
+      process.platform === "darwin" ? "mac" : "linux";
+
+    const crossPlatformRequested = allDesktopTargets.some((t) => t !== currentPlatform);
+    if (crossPlatformRequested) {
+      ctx.log(
+        "warn",
+        `Cross-platform build detected. On ${currentPlatform}, only building for ${currentPlatform}. ` +
+        "To build other platforms, run on the target OS or use CI (e.g. GitHub Actions).",
+        STAGE
+      );
+    }
+
+    const desktopTargets = allDesktopTargets.filter((t) => t === currentPlatform);
+    if (desktopTargets.length === 0) desktopTargets.push(currentPlatform as "windows" | "linux" | "mac");
 
     const packager = new ElectronPackager();
     const packResult = await packager.package({

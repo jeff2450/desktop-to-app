@@ -133,7 +133,10 @@ async function buildMigrationPlan(
       dependenciesToRemove: [],
       scriptsToInject: {
         "electron:dev": "concurrently \"vite\" \"wait-on tcp:5173 && electron .\"",
-        "electron:build": "vite build && electron-builder",
+        // Use --win/--linux/--mac flag based on current platform to avoid
+        // mksquashfs errors when building Linux targets on Windows
+        "electron:build": `vite build && electron-builder --${process.platform === "win32" ? "win" : process.platform === "darwin" ? "mac" : "linux"}`,
+        "electron:build:all": "vite build && electron-builder",
       },
       summary: "Online mode — Electron wrapper only. Cloud backend (Supabase/Firebase) kept as-is. Internet required.",
     };
@@ -321,7 +324,8 @@ async function buildMigrationPlan(
   // ── npm scripts ────────────────────────────────────────────────────
   const scriptsToInject: Record<string, string> = {
     "electron:dev": "concurrently \"vite\" \"wait-on tcp:5173 && electron .\"",
-    "electron:build": "vite build && electron-builder",
+    "electron:build": `vite build && electron-builder --${process.platform === "win32" ? "win" : process.platform === "darwin" ? "mac" : "linux"}`,
+    "electron:build:all": "vite build && electron-builder",
     "backend:start": "node backend/server.cjs",
   };
 

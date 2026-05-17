@@ -403,6 +403,10 @@ async function fixOrphanedSupabaseClient(ctx: PipelineContext): Promise<void> {
  * We must use HashRouter instead.
  */
 async function fixReactRouterForElectron(ctx: PipelineContext): Promise<void> {
+  // Online mode uses app:// which acts as a secure http-like origin —
+  // BrowserRouter works fine there. Only offline/hybrid use file:// fallback
+  // paths where HashRouter is required to avoid blank page on navigation.
+  // We still apply it in online mode to be safe (HashRouter works everywhere).
   const srcDir = path.join(ctx.outputDir, "src");
   if (!(await dirExists(srcDir))) return;
 
@@ -418,9 +422,18 @@ async function fixReactRouterForElectron(ctx: PipelineContext): Promise<void> {
         let content = await fs.readFile(fullPath, "utf-8");
         const before = content;
 
-        // Replace imports
+        // Replace component and hook references
         content = content.replace(/\bBrowserRouter\b/g, "HashRouter");
         content = content.replace(/\bcreateBrowserRouter\b/g, "createHashRouter");
+
+        // Fix named imports: { BrowserRouter } → { HashRouter }
+        // and { createBrowserRouter } → { createHashRouter }
+        // (already covered by the replacements above, but also update import
+        //  specifier strings in case someone imports from a re-export barrel)
+        content = content.replace(
+          /from\s+['"]react-router-dom['"]/g,
+          "from 'react-router-dom'"  // no-op normalisation; imports are handled above
+        );
 
         if (content !== before) {
           await fs.writeFile(fullPath, content, "utf-8");

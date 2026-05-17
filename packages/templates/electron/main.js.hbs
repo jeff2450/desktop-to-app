@@ -1,14 +1,126 @@
+{{#if onlineMode}}
+{{!-- ═══════════════════════════════════════════════════════════════
+  ONLINE MODE — No local backend. App talks directly to cloud APIs.
+  Uses app:// protocol so fetch() to Supabase/Firebase isn't blocked.
+═══════════════════════════════════════════════════════════════════ --}}
+const { app, BrowserWindow, shell, ipcMain, nativeTheme, protocol, net } = require('electron');
+const path = require('path');
+const fs = require('fs');
+const { autoUpdater } = require('electron-updater');
+
+// Register app:// as a privileged secure scheme BEFORE app is ready.
+// This gives the renderer a proper http-like origin so fetch() calls to
+// Supabase/Firebase are not blocked by Electron's security model.
+// Without this, cloud API calls fail silently and the screen stays blank.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'app',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+    },
+  },
+]);
+
+const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+let mainWindow;
+
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1280,
+    height: 800,
+    minWidth: 800,
+    minHeight: 600,
+    title: '{{appName}}',
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0f0f0f' : '#ffffff',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+    show: false,
+  });
+
+  mainWindow.loadURL(isDev ? 'http://localhost:{{devPort}}' : 'app://./index.html');
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    if (isDev) mainWindow.webContents.openDevTools();
+  });
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('http')) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+
+  // Log load failures to console so users can debug blank screen
+  mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
+    console.error(`[WebToApp] Page failed to load: ${code} ${desc} — ${url}`);
+  });
+
+  mainWindow.on('closed', () => { mainWindow = null; });
+}
+
+ipcMain.handle('app:get-version', () => app.getVersion());
+ipcMain.on('app:minimize', () => mainWindow?.minimize());
+ipcMain.on('app:maximize', () => {
+  mainWindow?.isMaximized() ? mainWindow.unmaximize() : mainWindow?.maximize();
+});
+ipcMain.on('app:close', () => mainWindow?.close());
+
+function setupAutoUpdater() {
+  if (isDev) return;
+  autoUpdater.checkForUpdatesAndNotify();
+  autoUpdater.on('update-available', () => mainWindow?.webContents.send('app:update-available'));
+}
+
+app.whenReady().then(() => {
+  // Serve dist/ via app:// — must be registered before any window loads
+  protocol.handle('app', (request) => {
+    const url = new URL(request.url);
+    const pathname = url.pathname === '/' ? '/index.html' : url.pathname;
+
+    // SPA fallback: paths without an extension are React Router routes — serve index.html
+    const hasExtension = /\.\w+$/.test(pathname);
+    let filePath = path.join(__dirname, '../dist', pathname);
+    if (!hasExtension || !fs.existsSync(filePath)) {
+      filePath = path.join(__dirname, '../dist/index.html');
+    }
+
+    return net.fetch('file://' + filePath);
+  });
+
+  createWindow();
+  setupAutoUpdater();
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+});
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
+});
+
+{{else}}
+{{!-- ═══════════════════════════════════════════════════════════════
+  OFFLINE / HYBRID MODE — Local Express + SQLite backend.
+  Uses app:// protocol so the renderer can fetch http://127.0.0.1
+  without being blocked as mixed content.
+═══════════════════════════════════════════════════════════════════ --}}
 const { app, BrowserWindow, shell, ipcMain, nativeTheme, protocol, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const { autoUpdater } = require('electron-updater');
 
-// ─── Custom protocol ──────────────────────────────────────────────────────────
-// Serve dist/ over app:// instead of file:// so the renderer is treated as a
-// secure http-like origin. This allows fetch() calls to http://127.0.0.1
-// (the local Express backend) without Electron blocking them as mixed content.
-// Without this, every localApi call silently fails and the screen stays blank.
+// Register app:// as a privileged scheme BEFORE app is ready.
+// Without this the renderer is loaded from file:// which Electron treats as
+// an opaque (non-http) origin — fetch() calls to http://127.0.0.1 are then
+// blocked as mixed content, silently failing and leaving a blank white screen.
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'app',
@@ -32,9 +144,9 @@ function startBackend() {
     ? path.join(__dirname, '../backend/server.cjs')
     : path.join(process.resourcesPath, 'backend', 'server.cjs');
 
-  // Use process.execPath (Electron's own bundled Node binary) so the backend
-  // works on machines where Node.js is NOT installed.
-  // ELECTRON_RUN_AS_NODE=1 makes the Electron binary behave as plain Node.
+  // Use process.execPath (Electron's own bundled Node) so the backend works
+  // on machines where Node.js is NOT separately installed.
+  // ELECTRON_RUN_AS_NODE=1 switches the Electron binary into plain Node mode.
   backendProcess = spawn(process.execPath, [serverPath], {
     env: {
       ...process.env,
@@ -54,17 +166,14 @@ function startBackend() {
   }
 }
 
-// Poll /api/health until Express is listening (or timeout after maxWaitMs).
-// This replaces the brittle setTimeout — backend startup time varies per machine.
+// Poll /api/health until Express is listening (replaces brittle blind setTimeout).
 async function waitForBackend(maxWaitMs = 10000, intervalMs = 200) {
   const deadline = Date.now() + maxWaitMs;
   while (Date.now() < deadline) {
     try {
       const res = await fetch('http://127.0.0.1:{{backendPort}}/api/health');
       if (res.ok) return; // backend is ready
-    } catch (_) {
-      // still starting — keep polling
-    }
+    } catch (_) { /* still starting */ }
     await new Promise((r) => setTimeout(r, intervalMs));
   }
   // Timed out — open window anyway so user sees an error rather than a frozen splash
@@ -87,23 +196,25 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: true,
     },
-    show: false, // show once ready-to-show fires
+    show: false,
   });
 
-  const devUrl = 'http://localhost:{{devPort}}';
-  const prodUrl = 'app://./index.html'; // custom protocol — avoids file:// fetch restrictions
-
-  mainWindow.loadURL(isDev ? devUrl : prodUrl);
+  // Use app:// (not file://) so fetch() to http://127.0.0.1 is not blocked as mixed content
+  mainWindow.loadURL(isDev ? 'http://localhost:{{devPort}}' : 'app://./index.html');
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
     if (isDev) mainWindow.webContents.openDevTools();
   });
 
-  // Open external links in the OS browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http')) shell.openExternal(url);
     return { action: 'deny' };
+  });
+
+  // Log load failures to console so users can debug blank screen
+  mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
+    console.error(`[WebToApp] Page failed to load: ${code} ${desc} — ${url}`);
   });
 
   mainWindow.on('closed', () => { mainWindow = null; });
@@ -132,22 +243,19 @@ function setupAutoUpdater() {
 // ─── App lifecycle ────────────────────────────────────────────────────────────
 
 app.whenReady().then(async () => {
-  // Register app:// to serve dist/ files — must happen before any window loads.
+  // Serve dist/ via app:// — must be registered before any window loads
   protocol.handle('app', (request) => {
     const url = new URL(request.url);
     const pathname = url.pathname === '/' ? '/index.html' : url.pathname;
 
-    // SPA fallback rule: paths with no file extension are React Router routes,
-    // not real files — always serve index.html so the router can hydrate them.
-    // Also fall back if the file simply doesn't exist on disk (e.g. dynamic segments).
+    // SPA fallback: paths without extension are React Router routes — serve index.html
     const hasExtension = /\.\w+$/.test(pathname);
     let filePath = path.join(__dirname, '../dist', pathname);
-
     if (!hasExtension || !fs.existsSync(filePath)) {
       filePath = path.join(__dirname, '../dist/index.html');
     }
 
-    return net.fetch(`file://${filePath}`);
+    return net.fetch('file://' + filePath);
   });
 
   startBackend();
@@ -169,3 +277,4 @@ app.on('before-quit', () => {
     backendProcess.kill('SIGTERM');
   }
 });
+{{/if}}

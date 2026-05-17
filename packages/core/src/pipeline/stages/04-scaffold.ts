@@ -175,6 +175,14 @@ async function patchPackageJson(ctx: PipelineContext): Promise<void> {
     for (const [name, script] of Object.entries(ctx.plan.scriptsToInject)) {
       pkg.scripts[name] = script;
     }
+
+    // Always inject postinstall to rebuild better-sqlite3 for Electron.
+    // Without this, native modules are built for Node.js not Electron,
+    // causing runtime crashes that show as a blank white screen.
+    if (!pkg.scripts["postinstall"]) {
+      pkg.scripts["postinstall"] = "electron-builder install-app-deps";
+      ctx.log("info", "Injected postinstall script for native module rebuild", STAGE);
+    }
   }
 
   // ── Error #2 Fix: electron MUST be in devDependencies ─────────
@@ -290,7 +298,8 @@ function generateElectronMain(vars: Record<string, unknown>): string {
   const appName = vars["appName"] as string ?? "App";
   const devPort = vars["devPort"] as number ?? 5173;
   const backendPort = vars["backendPort"] as number ?? 3001;
-  const isOnlineMode = !backendPort || backendPort === 0;
+  // Support both explicit onlineMode flag and backendPort=0 sentinel
+  const isOnlineMode = vars["onlineMode"] === true || !backendPort || backendPort === 0;
 
   if (isOnlineMode) {
     // ── Online mode: no local backend — load app directly, no waitForBackend() freeze
@@ -475,115 +484,6 @@ app.on('before-quit', () => {
 `;
 }
 
-  return `const { app, BrowserWindow, shell, protocol, net } = require('electron');
-const path = require('path');
-const fs = require('fs');
-const { spawn } = require('child_process');
-
-// Register app:// as a privileged scheme BEFORE app is ready.
-// This lets the renderer fetch http://127.0.0.1 without being blocked
-// as mixed content — the root cause of the blank white screen.
-protocol.registerSchemesAsPrivileged([
-  { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } },
-]);
-
-const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
-let mainWindow;
-let backendProcess;
-
-function startBackend() {
-  const serverPath = isDev
-    ? path.join(__dirname, '../backend/server.cjs')
-    : path.join(process.resourcesPath, 'backend/server.cjs');
-
-  // Use process.execPath so the backend runs on machines without Node.js installed.
-  // ELECTRON_RUN_AS_NODE=1 makes the Electron binary act as a plain Node process.
-  backendProcess = spawn(process.execPath, [serverPath], {
-    env: {
-      ...process.env,
-      PORT: '${backendPort}',
-      NODE_ENV: isDev ? 'development' : 'production',
-      ELECTRON_RUN_AS_NODE: '1',
-    },
-    stdio: isDev ? 'inherit' : 'pipe',
-  });
-
-  backendProcess.on('error', (err) => console.error('[WebToApp] Backend failed to start:', err));
-  if (!isDev && backendProcess.stdout) {
-    backendProcess.stdout.on('data', (d) => console.log('[backend]', d.toString().trim()));
-  }
-}
-
-// Poll /api/health until Express is ready, instead of using a blind setTimeout.
-async function waitForBackend(maxWaitMs = 10000, intervalMs = 200) {
-  const deadline = Date.now() + maxWaitMs;
-  while (Date.now() < deadline) {
-    try {
-      const res = await fetch('http://127.0.0.1:${backendPort}/api/health');
-      if (res.ok) return;
-    } catch (_) {}
-    await new Promise((r) => setTimeout(r, intervalMs));
-  }
-  console.error('[WebToApp] Backend did not become ready within', maxWaitMs, 'ms');
-}
-
-function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 800,
-    minHeight: 600,
-    title: '${appName}',
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.cjs'),
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-  });
-
-  if (isDev) {
-    mainWindow.loadURL('http://localhost:${devPort}');
-    mainWindow.webContents.openDevTools();
-  } else {
-    mainWindow.loadURL('app://./index.html'); // use app:// not file:// to allow backend fetch
-  }
-
-  // Open external links in the OS browser, not Electron
-  mainWindow.webContents.setWindowOpenHandler(({ url: u }) => {
-    if (u.startsWith('http')) shell.openExternal(u);
-    return { action: 'deny' };
-  });
-}
-
-app.whenReady().then(async () => {
-  // Serve dist/ via app:// protocol — must be registered before any window loads
-  protocol.handle('app', (request) => {
-    const url = new URL(request.url);
-    let filePath = path.join(__dirname, '../dist', url.pathname === '/' ? 'index.html' : url.pathname);
-    if (!fs.existsSync(filePath)) filePath = path.join(__dirname, '../dist/index.html');
-    return net.fetch('file://' + filePath);
-  });
-
-  startBackend();
-  await waitForBackend(); // wait for Express before opening the window
-
-  createWindow();
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
-});
-
-app.on('window-all-closed', () => {
-  if (backendProcess) backendProcess.kill();
-  if (process.platform !== 'darwin') app.quit();
-});
-
-app.on('before-quit', () => {
-  if (backendProcess) backendProcess.kill();
-});
-`;
-}
 
 function generateElectronPreload(): string {
   return `const { contextBridge, ipcRenderer } = require('electron');
