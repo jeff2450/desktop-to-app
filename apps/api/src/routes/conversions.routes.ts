@@ -9,6 +9,7 @@
  */
 import { Router } from "express";
 import { z } from "zod";
+import type { Artifact } from "@prisma/client";
 import type { AuthenticatedRequest } from "../lib/types.js";
 import { requireAuth } from "../middleware/auth.js";
 import { handleUpload } from "../middleware/upload.js";
@@ -171,11 +172,11 @@ conversionsRouter.get("/:id/download", async (req: Request, res: Response, next)
       throw new ApiError(400, "Specify a 'platform' query param", "MISSING_PLATFORM");
     }
 
-    const artifact = job.artifacts.find((a) => a.platform === platform);
+    const artifact = job.artifacts.find((a: Artifact) => a.platform === platform);
     if (!artifact) {
       throw new ApiError(
         404,
-        `No artifact for platform '${platform}'. Available: ${job.artifacts.map((a) => a.platform).join(", ") || "none yet"}`,
+        `No artifact for platform '${platform}'. Available: ${job.artifacts.map((a: Artifact) => a.platform).join(", ") || "none yet"}`,
         "ARTIFACT_NOT_FOUND"
       );
     }

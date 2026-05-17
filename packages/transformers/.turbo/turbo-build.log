@@ -1,4 +1,4 @@
 
-> @webtoapp/transformers@1.0.0 build C:\Users\JEFF-PC\Documents\desktop-to-app\packages\transformers
-> tsc
+> @webtoapp/transformers@1.0.0 build /home/claude/desktop-to-app/packages/transformers
+> tsc --force
 

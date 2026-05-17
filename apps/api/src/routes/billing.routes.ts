@@ -140,7 +140,7 @@ billingRouter.get("/subscription", requireAuth, async (req, res, next) => {
       orderBy: { createdAt: "asc" }
     });
 
-    usageByDay = groupedUsage.map((entry) => ({
+    usageByDay = groupedUsage.map((entry: { createdAt: Date; _count: number }) => ({
       date: entry.createdAt.toISOString().slice(0, 10),
       count: entry._count
     }));

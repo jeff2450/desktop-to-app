@@ -1,4 +1,5 @@
 import { Router } from "express";
+import type { Artifact } from "@prisma/client";
 import type { AuthenticatedRequest } from "../lib/types.js";
 import { requireAuth } from "../middleware/auth.js";
 import { getJob } from "../services/jobs.service.js";
@@ -14,7 +15,7 @@ downloadsRouter.get("/:jobId/:platform", async (req, res, next) => {
     const authReq = req as unknown as AuthenticatedRequest;
     const job = await getJob(authReq.auth.userId, req.params["jobId"] ?? "");
     const platform = req.params["platform"] ?? "";
-    const artifact = job.artifacts.find((item) => item.platform === platform);
+    const artifact = job.artifacts.find((item: Artifact) => item.platform === platform);
 
     if (!artifact) {
       throw new ApiError(404, "Artifact not found", "ARTIFACT_NOT_FOUND");

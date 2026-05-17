@@ -69,12 +69,90 @@ export class SchemaExtractor {
       "No Supabase migrations or types file found. Table names will be inferred from query patterns."
     );
 
+    // ── Strategy 3: Infer from source query patterns ────────────────────────
+    const srcDir = path.join(sourceDir, "src");
+    const inferResult = await this.inferFromSourceFiles(
+      (await this.dirExists(srcDir)) ? srcDir : sourceDir,
+      warnings
+    );
+    if (inferResult.tables.length > 0) {
+      return { ...inferResult, source: "inference", warnings };
+    }
+
     return {
       tables: [],
       tableNames: [],
       source: "none",
       warnings,
     };
+  }
+
+  // ─── Strategy 3: infer table names from .from('x') call patterns ──────────
+
+  private async inferFromSourceFiles(
+    dir: string,
+    warnings: string[]
+  ): Promise<Omit<SchemaExtractionResult, "source" | "warnings">> {
+    const tableSet = new Set<string>();
+    // Matches: .from('tableName') or .from("tableName")
+    const fromPattern = /\.from\(\s*['"]([a-z_][a-z0-9_]*)['"]s*\)/g;
+
+    await this.walkTs(dir, async (filePath) => {
+      const content = await fs.readFile(filePath, "utf-8").catch(() => "");
+      let m: RegExpExecArray | null;
+      fromPattern.lastIndex = 0;
+      while ((m = fromPattern.exec(content)) !== null) {
+        const name = m[1];
+        // Skip common Supabase storage bucket calls (storage.from(...))
+        const before = content.slice(Math.max(0, m.index - 20), m.index);
+        if (!before.includes("storage")) {
+          tableSet.add(name);
+        }
+      }
+    });
+
+    if (tableSet.size === 0) {
+      return { tables: [], tableNames: [] };
+    }
+
+    warnings.push(
+      `Inferred ${tableSet.size} table(s) from query patterns: ${[...tableSet].join(", ")}. Column info unavailable — using generic schema.`
+    );
+
+    // Build minimal TableSchema stubs (no column info from inference)
+    const tables: TableSchema[] = [...tableSet].map((name) => ({
+      name,
+      columns: [
+        { name: "id",         sqlType: "text",     nullable: false, isPrimaryKey: true,  hasDefault: true },
+        { name: "data",       sqlType: "jsonb",    nullable: false, isPrimaryKey: false, hasDefault: true },
+        { name: "created_at", sqlType: "timestamptz", nullable: true,  isPrimaryKey: false, hasDefault: true },
+      ],
+      hasCreatedAt: true,
+      hasUpdatedAt: false,
+      hasUserId:    false,
+    }));
+
+    return { tables, tableNames: tables.map((t) => t.name) };
+  }
+
+  private async walkTs(
+    dir: string,
+    visitor: (filePath: string) => Promise<void>
+  ): Promise<void> {
+    let entries: import("node:fs").Dirent[];
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory() && entry.name !== "node_modules" && entry.name !== "dist") {
+        await this.walkTs(full, visitor);
+      } else if (entry.isFile() && (entry.name.endsWith(".ts") || entry.name.endsWith(".tsx"))) {
+        await visitor(full);
+      }
+    }
   }
 
   // ─── SQL migration parser ─────────────────────────────────────────────────
