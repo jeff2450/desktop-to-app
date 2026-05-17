@@ -1,5 +1,5 @@
 
-> @webtoapp/templates@1.0.0 build /home/claude/desktop-to-app/packages/templates
-> echo 'No build step — templates are used as-is' --force
+> @webtoapp/templates@1.0.0 build C:\Users\JEFF-PC\Documents\desktop-to-app\packages\templates
+> echo 'No build step — templates are used as-is'
 
-No build step — templates are used as-is --force
+'No build step - templates are used as-is'

@@ -1,6 +1,51 @@
 
-> @webtoapp/web@1.0.0 build /home/claude/desktop-to-app/apps/web
-> next build --force
+> @webtoapp/web@1.0.0 build C:\Users\JEFF-PC\Documents\desktop-to-app\apps\web
+> next build
 
-error: unknown option '--force'
- ELIFECYCLE  Command failed with exit code 1.
+  ▲ Next.js 14.2.35
+  - Environments: .env
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/15) ...
+   Generating static pages (3/15) 
+   Generating static pages (7/15) 
+   Generating static pages (11/15) 
+ ✓ Generating static pages (15/15)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                              Size     First Load JS
+┌ ○ /                                    860 B          97.1 kB
+├ ○ /_not-found                          876 B          88.4 kB
+├ ƒ /api/auth/cookie                     0 B                0 B
+├ ƒ /api/billing/checkout                0 B                0 B
+├ ƒ /api/billing/plans                   0 B                0 B
+├ ƒ /api/billing/portal                  0 B                0 B
+├ ƒ /api/billing/subscription            0 B                0 B
+├ ƒ /api/billing/usage                   0 B                0 B
+├ ƒ /api/billing/usage-chart             0 B                0 B
+├ ○ /billing                             111 kB          209 kB
+├ ○ /billing/success                     4.76 kB         111 kB
+├ ○ /dashboard                           4.59 kB         115 kB
+├ ○ /docs                                4.38 kB         111 kB
+├ ○ /jobs                                2.46 kB         112 kB
+├ ƒ /jobs/[id]                           3.73 kB         105 kB
+├ ○ /jobs/new                            13.6 kB         112 kB
+├ ○ /login                               4.65 kB         111 kB
+├ ○ /pricing                             860 B          97.1 kB
+├ ○ /register                            4.89 kB         112 kB
+└ ○ /settings                            5.1 kB          103 kB
++ First Load JS shared by all            87.5 kB
+  ├ chunks/5b8f0dd8-963e26f73fce6c0b.js  53.6 kB
+  ├ chunks/749-d322f1fd78f9c17f.js       31.9 kB
+  └ other shared chunks (total)          1.96 kB
+
+
+ƒ Middleware                             26.6 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
