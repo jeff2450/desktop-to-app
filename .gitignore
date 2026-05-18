@@ -19,4 +19,10 @@ Thumbs.db
 # Local upload and output dirs
 apps/api/uploads/
 apps/api/outputs/
-.env
+
+# Turbo cache — never commit build artifacts
+.turbo/cache/
+
+# IDE
+.idea/
+.vscode/settings.json
