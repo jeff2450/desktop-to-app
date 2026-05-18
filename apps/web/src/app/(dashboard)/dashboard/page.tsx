@@ -38,7 +38,10 @@ export default function DashboardPage() {
           conversionsApi.list(), 
           billingApi.usage()
         ]);
-        if (c.data) setConversions(c.data);
+        if (c.data) {
+          const jobsArray = Array.isArray(c.data) ? c.data : (c.data as any).data || [];
+          setConversions(jobsArray);
+        }
         if (u.data) setUsage(u.data);
       } catch (error) {
         console.error("Failed to fetch dashboard data:", error);

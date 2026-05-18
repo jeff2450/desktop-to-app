@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TopBar } from "@/components/layout/TopBar";
 import { 
   Card, 
@@ -30,9 +30,18 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false);
 
   const [profile, setProfile] = useState({
-    name: user?.name || "",
-    email: user?.email || ""
+    name: "",
+    email: ""
   });
+
+  useEffect(() => {
+    if (user) {
+      setProfile({
+        name: user.name || "",
+        email: user.email || ""
+      });
+    }
+  }, [user]);
 
   return (
     <div className="min-h-screen bg-zinc-950">

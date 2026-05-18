@@ -7,7 +7,7 @@ const authRoutes = ["/login", "/register"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const hasRefreshToken = request.cookies.has("refreshToken");
+  const hasRefreshToken = request.cookies.has("webtoapp_refresh_token");
 
   // Check if trying to access a protected route
   const isProtectedRoute = protectedRoutes.some((route) =>

@@ -86,11 +86,11 @@ export default function JobDetailPage() {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [job?.status]);
 
-  const handleDownload = async () => {
+  const handleDownload = async (platform: string) => {
     try {
-      const res = await downloadsApi.getUrl(id);
-      if (res.data?.downloadUrl) {
-        window.open(res.data.downloadUrl, "_blank");
+      const res = await conversionsApi.getDownloadUrl(id, platform);
+      if (res.data?.url) {
+        window.open(res.data.url, "_blank");
       }
     } catch (err) {
       alert("Failed to get download URL");
@@ -172,7 +172,7 @@ export default function JobDetailPage() {
                             <p className="text-[10px] text-zinc-500">Production Installer</p>
                           </div>
                         </div>
-                        <Button size="sm" onClick={handleDownload} className="bg-emerald-600 hover:bg-emerald-500 text-[10px] h-8 font-bold">
+                        <Button size="sm" onClick={() => handleDownload(target)} className="bg-emerald-600 hover:bg-emerald-500 text-[10px] h-8 font-bold">
                           <Download className="w-3 h-3 mr-1" /> Download
                         </Button>
                       </div>

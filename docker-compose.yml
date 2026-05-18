@@ -22,7 +22,7 @@ services:
       # Set POSTGRES_PASSWORD in .env for production (default is for local dev only)
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret_change_me_in_prod}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

@@ -33,7 +33,10 @@ export default function JobsPage() {
     async function fetchData() {
       try {
         const res = await conversionsApi.list();
-        if (res.data) setJobs(res.data);
+        if (res.data) {
+          const jobsArray = Array.isArray(res.data) ? res.data : (res.data as any).data || [];
+          setJobs(jobsArray);
+        }
       } catch (error) {
         console.error("Failed to fetch jobs:", error);
       } finally {

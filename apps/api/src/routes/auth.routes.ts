@@ -36,11 +36,21 @@ authRouter.post("/register", registerRateLimiter, async (req, res, next) => {
     }
 
     const passwordHash = await hashPassword(password);
+    
+    // Normalize lowercase plan values to match Prisma's Plan enum (FREE, STARTER, PRO)
+    const rawPlan = plan ? plan.toLowerCase() : "free";
+    let mappedPlan: "FREE" | "STARTER" | "PRO" = "FREE";
+    if (rawPlan === "pro" || rawPlan === "team" || rawPlan === "enterprise") {
+      mappedPlan = "PRO";
+    } else if (rawPlan === "starter") {
+      mappedPlan = "STARTER";
+    }
+
     const user = await prisma.user.create({
       data:   { 
         email, 
         passwordHash, 
-        plan: (plan as any) || "free" 
+        plan: mappedPlan 
       },
       select: { id: true, email: true, plan: true, createdAt: true },
     });

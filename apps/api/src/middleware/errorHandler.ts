@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { JsonWebTokenError, TokenExpiredError } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
 import { ZodError } from "zod";
 import { ApiError } from "../lib/errors.js";
 
@@ -21,7 +21,7 @@ export function errorHandler(
     return;
   }
 
-  if (error instanceof TokenExpiredError || error instanceof JsonWebTokenError) {
+  if (error instanceof jwt.TokenExpiredError || error instanceof jwt.JsonWebTokenError) {
     res.status(401).json({ error: "Invalid or expired token" });
     return;
   }

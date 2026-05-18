@@ -75,7 +75,8 @@ export default function NewJobPage() {
       });
       
       if (res.data) {
-        router.push(`/jobs/${res.data.id}`);
+        const jobId = (res.data as any).conversionId || res.data.id;
+        router.push(`/jobs/${jobId}`);
       }
     } catch (error) {
       console.error("Failed to create job:", error);

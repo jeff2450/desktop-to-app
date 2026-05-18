@@ -1,6 +1,6 @@
 import type { Conversion, User, UsageStats, BillingPlan, SubscriptionInfo, UsageChartData } from "../types";
 
-const API_BASE = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3000";
+const API_BASE = typeof window !== "undefined" ? "" : (process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001");
 
 let _accessToken: string | null = null;
 
@@ -72,6 +72,8 @@ export const conversionsApi = {
   create: (body: any) => request<Conversion>("/api/conversions", { method: "POST", body: JSON.stringify(body) }),
   cancel: (id: string) =>
     request<{ id: string; status: string }>(`/api/conversions/${id}`, { method: "DELETE" }),
+  getDownloadUrl: (id: string, platform: string) =>
+    request<{ url: string; platform: string; sizeBytes: number }>(`/api/conversions/${id}/download?platform=${platform}`),
 };
 
 // ── Downloads ─────────────────────────────────────────────────────────────────
