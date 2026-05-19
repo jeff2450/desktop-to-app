@@ -237,7 +237,7 @@ export default function DashboardPage() {
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 bg-zinc-800 rounded-lg flex items-center justify-center font-bold text-xs text-zinc-400 group-hover:bg-indigo-500/20 group-hover:text-indigo-400 transition-colors">
-                              {job.name[0]}
+                              {job?.name?.[0] || "?"}
                             </div>
                             <span className="text-sm font-medium text-white">{job.name}</span>
                           </div>

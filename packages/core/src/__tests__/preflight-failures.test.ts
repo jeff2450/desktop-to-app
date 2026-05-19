@@ -38,9 +38,9 @@ describe("Preflight — source directory does not exist", () => {
       baseConfig({ source: "/absolutely/does/not/exist" }) as any
     );
 
-    await expect(pipeline.run()).rejects.toThrow(
-      /source directory does not exist/i
-    );
+    const res = await pipeline.run();
+    expect(res.status).toBe("failed");
+    expect(res.error).toMatch(/source directory does not exist/i);
   });
 });
 
@@ -68,7 +68,9 @@ describe("Preflight — malformed package.json", () => {
     const { ConversionPipeline } = await import("../pipeline/ConversionPipeline.js");
     const pipeline = new ConversionPipeline(baseConfig({ source: tmpDir }) as any);
 
-    await expect(pipeline.run()).rejects.toThrow(/package\.json/i);
+    const res = await pipeline.run();
+    expect(res.status).toBe("failed");
+    expect(res.error).toMatch(/package\.json/i);
   });
 });
 
@@ -96,7 +98,9 @@ describe("Preflight — missing index.html", () => {
     const { ConversionPipeline } = await import("../pipeline/ConversionPipeline.js");
     const pipeline = new ConversionPipeline(baseConfig({ source: tmpDir }) as any);
 
-    await expect(pipeline.run()).rejects.toThrow(/index\.html/i);
+    const res = await pipeline.run();
+    expect(res.status).toBe("failed");
+    expect(res.error).toMatch(/index\.html/i);
   });
 });
 
@@ -124,7 +128,9 @@ describe("Preflight — missing src/ directory", () => {
     const { ConversionPipeline } = await import("../pipeline/ConversionPipeline.js");
     const pipeline = new ConversionPipeline(baseConfig({ source: tmpDir }) as any);
 
-    await expect(pipeline.run()).rejects.toThrow(/src\//i);
+    const res = await pipeline.run();
+    expect(res.status).toBe("failed");
+    expect(res.error).toMatch(/src\//i);
   });
 });
 
@@ -152,7 +158,9 @@ describe("Preflight — non-Vite project", () => {
     const { ConversionPipeline } = await import("../pipeline/ConversionPipeline.js");
     const pipeline = new ConversionPipeline(baseConfig({ source: tmpDir }) as any);
 
-    await expect(pipeline.run()).rejects.toThrow(/vite/i);
+    const res = await pipeline.run();
+    expect(res.status).toBe("failed");
+    expect(res.error).toMatch(/vite/i);
   });
 });
 
@@ -184,7 +192,9 @@ describe("Preflight — invalid config fields", () => {
     const pipeline = new ConversionPipeline(
       baseConfig({ source: tmpDir, appId: "myapp" }) as any   // missing dot
     );
-    await expect(pipeline.run()).rejects.toThrow(/appId/i);
+    const res = await pipeline.run();
+    expect(res.status).toBe("failed");
+    expect(res.error).toMatch(/appId/i);
   });
 
   it("throws when targets array is empty", async () => {
@@ -193,7 +203,9 @@ describe("Preflight — invalid config fields", () => {
     const pipeline = new ConversionPipeline(
       baseConfig({ source: tmpDir, targets: [] }) as any
     );
-    await expect(pipeline.run()).rejects.toThrow(/targets/i);
+    const res = await pipeline.run();
+    expect(res.status).toBe("failed");
+    expect(res.error).toMatch(/targets/i);
   });
 
   it("throws when name is an empty string", async () => {
@@ -202,7 +214,9 @@ describe("Preflight — invalid config fields", () => {
     const pipeline = new ConversionPipeline(
       baseConfig({ source: tmpDir, name: "" }) as any
     );
-    await expect(pipeline.run()).rejects.toThrow(/name/i);
+    const res = await pipeline.run();
+    expect(res.status).toBe("failed");
+    expect(res.error).toMatch(/name/i);
   });
 });
 

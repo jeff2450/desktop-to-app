@@ -119,7 +119,7 @@ function JobRow({ job }: { job: Conversion }) {
         <Link href={`/jobs/${job.id}`} className="flex flex-col md:flex-row md:items-center justify-between p-5 gap-4">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-zinc-800 border border-zinc-700 rounded-xl flex items-center justify-center text-zinc-400 group-hover:bg-indigo-500/10 group-hover:text-indigo-400 group-hover:border-indigo-500/20 transition-all">
-              {job.name[0].toUpperCase()}
+              {job?.name?.[0]?.toUpperCase()}
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -138,7 +138,7 @@ function JobRow({ job }: { job: Conversion }) {
             <div className="flex -space-x-2">
               {job.targets.map(t => (
                 <div key={t} className="w-8 h-8 rounded-full bg-zinc-800 border-2 border-zinc-950 flex items-center justify-center text-[10px] font-bold text-zinc-400 uppercase">
-                  {t[0]}
+                  {t?.[0]}
                 </div>
               ))}
             </div>

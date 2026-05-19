@@ -89,7 +89,7 @@ export function Sidebar() {
       <div className="p-4 border-t border-zinc-800 bg-zinc-950/50">
         <div className="flex items-center gap-3 px-2 py-3 mb-2">
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-cyan-500 flex items-center justify-center text-white text-xs font-bold">
-            {user?.email?.[0].toUpperCase() || "U"}
+            {user?.email?.[0]?.toUpperCase() || "U"}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-white truncate">{user?.email}</p>

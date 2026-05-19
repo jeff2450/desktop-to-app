@@ -48,10 +48,7 @@ export class ElectronPackager {
       try {
         const { stdout, stderr } = await execAsync(buildCmd, {
           cwd: opts.projectDir,
-          env: {
-            ...process.env,
-            CSC_IDENTITY_AUTO_DISCOVERY: "false",
-          },
+          env: process.env,
           maxBuffer: 200 * 1024 * 1024,
         });
 

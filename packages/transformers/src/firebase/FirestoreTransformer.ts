@@ -86,7 +86,7 @@ export class FirestoreTransformer extends BaseTransformer {
     // ── getDocs(query with where) ─────────────────────────────────
     // getDocs(query(collection(db, 'col'), where('field', '==', val)))
     text = text.replace(
-      /await\s+getDocs\s*\(\s*query\s*\(\s*collection\s*\(\s*\w+\s*,\s*['"`](\w+)['"`]\s*\)\s*,\s*where\s*\(\s*['"`](\w+)['"`]\s*,\s*['"`]===['"`]\s*,\s*([^)]+)\)\s*\)\s*\)/g,
+      /await\s+getDocs\s*\(\s*query\s*\(\s*collection\s*\(\s*\w+\s*,\s*['"`](\w+)['"`]\s*\)\s*,\s*where\s*\(\s*['"`](\w+)['"`]\s*,\s*['"`]==['"`]\s*,\s*([^)]+)\)\s*\)\s*\)/g,
       (_m, col: string, field: string, val: string) => {
         changes.push(`Rewrote getDocs(query(where())) on '${col}'`);
         return `await localApi.from('${col}').eq('${field}', ${val.trim()}).select()`;

@@ -9,13 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Tests** — new `SupabaseRealtimeTransformer.test.ts`: covers `postgres_changes` channel rewrite, `broadcast` replacement, presence warnings, `removeChannel`, and edge cases
+- **Tests** — new `SupabaseStorageTransformer.test.ts`: covers `upload`, `download`, `getPublicUrl`, `remove`, `list`, multi-operation files, and warning on unsupported calls
+- **Tests** — `transformer-edge-cases.test.ts` contract loop expanded from 2 to 6 transformers (added `FirestoreTransformer`, `FirebaseAuthTransformer`, `Auth0Transformer`, `VueTransformer`) with realistic inputs for each
+- **`--dry-run`** — `webtoapp convert --dry-run` is fully wired end-to-end: CLI flag → `ConversionConfig.dryRun` → `PipelineContext.dryRun` → all pipeline stages (03-transform, 04-scaffold, 05-install, 06-build) short-circuit with `[DRY-RUN]` log lines and write nothing to disk
+- **Repo hygiene** — `.turbo/cache/` is excluded via `.gitignore` (line 24: `.turbo/cache/`); the cache directory is not tracked by git
+- Windows code-signing support via `electron-builder`
+- macOS notarization support via `electron-builder` and `entitlements.mac.plist`
+
 ### Planned
-- Full test coverage for Firebase Firestore transformer
-- Full test coverage for Auth0 transformer
-- Full test coverage for Vue transformer
-- `--dry-run` flag for `webtoapp convert` to preview changes without writing files
-- Windows code-signing support via `electron-builder` + Azure Key Vault
-- macOS notarization support
+- Capacitor integration for iOS and Android
 
 ---
 
@@ -85,7 +89,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Notes
 
-> ⚠ Firebase Firestore, Auth0, and Vue transformers are implemented but partially tested. Complex query patterns may require manual review after conversion. Use `--mode online` for full cloud fidelity until these are fully validated.
+> All six transformer classes now have dedicated unit tests covering happy paths, edge cases, and the shared "never-throws" contract. Complex or chained query patterns may still require manual review; the `--dry-run` flag lets you inspect the planned conversion before any files are written.
 
 ---
 

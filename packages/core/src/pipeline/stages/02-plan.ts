@@ -124,6 +124,14 @@ async function buildMigrationPlan(
       }
     );
 
+    if (ctx.config.targets.includes("mac")) {
+      filesToGenerate.push({
+        outputPath: "build/entitlements.mac.plist",
+        generatorType: "mac-entitlements",
+        templateVars: {},
+      });
+    }
+
     return {
       filesToTransform: [],
       filesToCopy,
@@ -262,6 +270,14 @@ async function buildMigrationPlan(
       },
     }
   );
+
+  if (ctx.config.targets.includes("mac")) {
+    filesToGenerate.push({
+      outputPath: "build/entitlements.mac.plist",
+      generatorType: "mac-entitlements",
+      templateVars: {},
+    });
+  }
 
   // ── Generate: Local backend ────────────────────────────────────────
   if (ctx.config.backend.type !== "none") {

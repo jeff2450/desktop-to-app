@@ -73,7 +73,8 @@ export interface FileGeneratePlan {
     | "crud-routes"
     | "local-api-client"
     | "sync-engine"
-    | "online-status-hook";
+    | "online-status-hook"
+    | "mac-entitlements";
 
   /** Template variables to pass to the Handlebars template */
   templateVars: Record<string, unknown>;

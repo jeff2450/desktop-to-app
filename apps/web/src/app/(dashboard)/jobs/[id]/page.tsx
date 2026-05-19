@@ -165,7 +165,7 @@ export default function JobDetailPage() {
                       <div key={target} className="flex items-center justify-between p-3 bg-zinc-950 border border-zinc-800 rounded-xl group hover:border-indigo-500/50 transition-colors">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center font-bold text-[10px] text-zinc-500">
-                            {target[0].toUpperCase()}
+                            {target?.[0]?.toUpperCase()}
                           </div>
                           <div>
                             <p className="text-xs font-bold text-white uppercase">{target}</p>

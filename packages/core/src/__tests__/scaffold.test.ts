@@ -168,7 +168,7 @@ describe("runScaffoldStage — electron/main.cjs", () => {
 
     } finally {
       await Promise.all([sourceDir, outputDir, workDir].map((d) =>
-        fs.rm(d, { recursive: true, force: true })
+        fs.rm(d, { recursive: true, force: true, maxRetries: 3 })
       ));
     }
   });
@@ -205,7 +205,7 @@ describe("runScaffoldStage — backend/server.cjs", () => {
       expect(serverContent).toContain("products");
     } finally {
       await Promise.all([sourceDir, outputDir, workDir].map((d) =>
-        fs.rm(d, { recursive: true, force: true })
+        fs.rm(d, { recursive: true, force: true, maxRetries: 3 })
       ));
     }
   });
@@ -234,7 +234,7 @@ describe("runScaffoldStage — backend/database.cjs", () => {
       expect(dbContent).toContain("CREATE TABLE IF NOT EXISTS products");
     } finally {
       await Promise.all([sourceDir, outputDir, workDir].map((d) =>
-        fs.rm(d, { recursive: true, force: true })
+        fs.rm(d, { recursive: true, force: true, maxRetries: 3 })
       ));
     }
   });
@@ -265,7 +265,7 @@ describe("runScaffoldStage — backend/auth.cjs", () => {
       expect(authContent).not.toContain("hardcoded");
     } finally {
       await Promise.all([sourceDir, outputDir, workDir].map((d) =>
-        fs.rm(d, { recursive: true, force: true })
+        fs.rm(d, { recursive: true, force: true, maxRetries: 3 })
       ));
     }
   });
@@ -325,7 +325,7 @@ describe("runScaffoldStage — dry run", () => {
       expect(fileExists).toBe(false);
     } finally {
       await Promise.all([sourceDir, outputDir, workDir].map((d) =>
-        fs.rm(d, { recursive: true, force: true })
+        fs.rm(d, { recursive: true, force: true, maxRetries: 3 })
       ));
     }
   });

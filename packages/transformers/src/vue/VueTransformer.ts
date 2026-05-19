@@ -107,21 +107,21 @@ export class VueTransformer extends BaseTransformer {
 
     // ── Supabase query rewrites ───────────────────────────────────
 
-    // SELECT: await supabase.from('table').select() → await localApi.get('/api/table')
-    text = text.replace(
-      /await\s+\w+\.from\s*\(\s*['"](\w+)['"]\s*\)\.select\s*\(\s*(?:'[^']*'|"[^"]*"|`[^`]*`|\*|)\s*\)/g,
-      (_match, table: string) => {
-        changes.push(`Rewrote supabase.from('${table}').select() → localApi.get('/api/${table}')`);
-        return `await localApi.get('/api/${table}')`;
-      }
-    );
-
     // SELECT with eq filter: .select().eq('id', id)
     text = text.replace(
       /await\s+\w+\.from\s*\(\s*['"](\w+)['"]\s*\)\.select\s*\([^)]*\)\.eq\s*\(\s*['"](\w+)['"]\s*,\s*([^)]+)\)/g,
       (_match, table: string, col: string, val: string) => {
         changes.push(`Rewrote filtered select on '${table}' → localApi.get`);
         return `await localApi.get('/api/${table}?${col}='+${val.trim()})`;
+      }
+    );
+
+    // SELECT: await supabase.from('table').select() → await localApi.get('/api/table')
+    text = text.replace(
+      /await\s+\w+\.from\s*\(\s*['"](\w+)['"]\s*\)\.select\s*\(\s*(?:'[^']*'|"[^"]*"|`[^`]*`|\*|)\s*\)/g,
+      (_match, table: string) => {
+        changes.push(`Rewrote supabase.from('${table}').select() → localApi.get('/api/${table}')`);
+        return `await localApi.get('/api/${table}')`;
       }
     );
 

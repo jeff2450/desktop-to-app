@@ -48,7 +48,6 @@ jobs:
       DATABASE_URL: postgresql://webtoapp:webtoapp@localhost:5432/webtoapp
       REDIS_URL: redis://localhost:6379
       JWT_SECRET: ci-test-secret
-      NODE_ENV: test
       TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
       TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
@@ -100,6 +99,8 @@ jobs:
 
       - name: Run tests
         run: pnpm turbo test
+        env:
+          NODE_ENV: test
 
       - name: Build all packages
         run: pnpm turbo build

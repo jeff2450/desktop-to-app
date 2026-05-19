@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { SupabaseAuthTransformer } from "../supabase/SupabaseAuthTransformer.js";
 import { SupabaseQueryTransformer } from "../supabase/SupabaseQueryTransformer.js";
+import { FirestoreTransformer } from "../firebase/FirestoreTransformer.js";
+import { FirebaseAuthTransformer } from "../firebase/FirebaseAuthTransformer.js";
+import { Auth0Transformer } from "../auth/Auth0Transformer.js";
+import { VueTransformer } from "../vue/VueTransformer.js";
 
 // ─── Shared ctx ───────────────────────────────────────────────────────────────
 
@@ -167,14 +171,29 @@ describe("Transformer contract — all transformers return consistent shapes", (
   const transformers = [
     new SupabaseAuthTransformer(),
     new SupabaseQueryTransformer(),
+    new FirestoreTransformer(),
+    new FirebaseAuthTransformer(),
+    new Auth0Transformer(),
+    new VueTransformer(),
   ];
 
   const inputs = [
     "",
     "// empty file",
     `import React from 'react'; export default function App() { return null; }`,
+    // Supabase
     `const { data } = await supabase.from('users').select('*');`,
     `await supabase.auth.signInWithPassword({ email: 'a@b.com', password: 'secret' });`,
+    // Firestore
+    `import { getFirestore, getDoc, doc } from 'firebase/firestore'; const db = getFirestore(app);`,
+    `await getDoc(doc(db, 'users', userId));`,
+    // Firebase Auth
+    `import { getAuth, signInWithEmailAndPassword } from 'firebase/auth'; const auth = getAuth();`,
+    `await signInWithEmailAndPassword(auth, email, password);`,
+    // Auth0
+    `import { useAuth0 } from '@auth0/auth0-react'; const { user } = useAuth0();`,
+    // Vue
+    `<script setup>\nimport { supabase } from '../lib/supabase'\nconst { data } = await supabase.from('items').select()\n</script>`,
   ];
 
   for (const transformer of transformers) {

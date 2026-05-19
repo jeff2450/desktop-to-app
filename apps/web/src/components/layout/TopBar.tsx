@@ -41,7 +41,7 @@ export function TopBar({ title }: TopBarProps) {
             <span className="text-[10px] text-zinc-500">{user?.email}</span>
           </div>
           <div className="w-9 h-9 rounded-full bg-indigo-600/20 border border-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold text-sm">
-            {user?.email?.[0].toUpperCase() || "U"}
+            {user?.email?.[0]?.toUpperCase() || "U"}
           </div>
         </div>
       </div>

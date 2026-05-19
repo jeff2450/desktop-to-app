@@ -81,10 +81,12 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <div className="w-full md:w-48 flex flex-col items-center justify-center p-6 border border-zinc-800 rounded-2xl bg-zinc-950/50">
-                   <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-indigo-600 to-cyan-500 flex items-center justify-center text-white text-3xl font-black mb-4">
-                     {user?.email?.[0].toUpperCase()}
+                   <div className="w-16 h-16 rounded-full bg-indigo-500/20 border-2 border-indigo-500 flex items-center justify-center">
+                    <span className="text-2xl font-bold text-indigo-400">
+                     {user?.email?.[0]?.toUpperCase()}
+                    </span>
                    </div>
-                   <Button variant="outline" size="sm" className="w-full border-zinc-800 text-xs font-bold uppercase">Change Avatar</Button>
+                   <Button variant="outline" size="sm" className="w-full mt-4 border-zinc-800 text-xs font-bold uppercase">Change Avatar</Button>
                 </div>
               </div>
               <div className="flex justify-end">
