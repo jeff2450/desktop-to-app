@@ -44,11 +44,11 @@ app.get("/health", async (_req, res) => {
 });
 
 // ── Routes ───────────────────────────────────────────────────────────────────
-app.use("/auth",        authRouter);
-app.use("/jobs",        jobsRouter);         // legacy route (kept for backwards compat)
-app.use("/conversions", conversionsRouter);  // Session 4 spec route
-app.use("/downloads",   downloadsRouter);    // /downloads/:jobId/:platform
-app.use("/billing",     billingRouter);
+app.use("/api/auth",        authRouter);
+app.use("/api/jobs",        jobsRouter);         // legacy route (kept for backwards compat)
+app.use("/api/conversions", conversionsRouter);  // Session 4 spec route
+app.use("/api/downloads",   downloadsRouter);    // /downloads/:jobId/:platform
+app.use("/api/billing",     billingRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

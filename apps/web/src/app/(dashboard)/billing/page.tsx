@@ -68,6 +68,11 @@ export default function BillingPage() {
     setActionLoading(planId);
     try {
       const res = await billingApi.checkout(planId);
+      if (res.error) {
+        alert(res.error);
+        return;
+      }
+
       if (res.data?.url) {
         window.location.href = res.data.url;
       }
@@ -233,6 +238,7 @@ function PricingCard({ plan, currentPlan, onUpgrade, loading }: { plan: BillingP
   const isCurrent = currentPlan === plan.id;
   const isPro = plan.id === 'pro';
   const isTeam = plan.id === 'team';
+  const isFree = plan.id === 'free';
   const isEnterprise = plan.id === 'enterprise';
   const isHigherTier = currentPlan && getPlanTier(plan.id) > getPlanTier(currentPlan);
   const isLowerTier = currentPlan && getPlanTier(plan.id) < getPlanTier(currentPlan);
@@ -286,7 +292,7 @@ function PricingCard({ plan, currentPlan, onUpgrade, loading }: { plan: BillingP
       <CardFooter>
         <Button 
           onClick={onUpgrade}
-          disabled={isCurrent || loading || isEnterprise}
+          disabled={isCurrent || loading || isEnterprise || isFree}
           className={cn(
             "w-full rounded-xl py-6 font-bold transition-all",
             isCurrent ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 cursor-default" :
@@ -297,6 +303,7 @@ function PricingCard({ plan, currentPlan, onUpgrade, loading }: { plan: BillingP
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 
            isCurrent ? "Current Plan" : 
+           isFree ? "Included" :
            isEnterprise ? "Contact Sales" : 
            isHigherTier ? `Upgrade to ${plan.name}` :
            isLowerTier ? `Downgrade to ${plan.name}` :

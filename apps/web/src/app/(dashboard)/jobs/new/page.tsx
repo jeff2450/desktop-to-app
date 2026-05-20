@@ -39,6 +39,7 @@ export default function NewJobPage() {
   const { user } = useAuthStore();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
   // Form State
   const [formData, setFormData] = useState({
@@ -65,18 +66,47 @@ export default function NewJobPage() {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      const res = await conversionsApi.create({
-        name: formData.name,
-        sourceUrl: formData.sourceUrl,
-        sourceType: formData.sourceType,
-        targets: formData.targets,
-        appId: formData.appId,
+      let res;
+      const appName = formData.name.trim() || "Untitled App";
+      const appId = formData.appId.trim();
+      const config = {
+        name: appName,
+        appId,
         mode: formData.mode,
-      });
+        targets: formData.targets,
+      };
+
+      if (!/^[a-z][a-z0-9]*(\.[a-z0-9-]+)+$/i.test(appId)) {
+        alert("App ID must look like com.example.myapp.");
+        return;
+      }
+
+      if (formData.sourceType === "upload") {
+        if (!selectedFile) {
+          alert("Please select a ZIP file first.");
+          return;
+        }
+
+        const data = new FormData();
+        data.append("archive", selectedFile);
+        data.append("config", JSON.stringify(config));
+        data.append("platforms", JSON.stringify(formData.targets));
+
+        res = await conversionsApi.create(data);
+      } else {
+        res = await conversionsApi.create({
+          sourceRepo: formData.sourceUrl.trim(),
+          platforms: formData.targets,
+          config,
+        });
+      }
       
       if (res.data) {
         const jobId = (res.data as any).conversionId || res.data.id;
         router.push(`/jobs/${jobId}`);
+      } else if (res.error) {
+        console.error("Failed to create job:", res.error);
+        alert(`Failed to start conversion: ${res.error}`);
       }
     } catch (error) {
       console.error("Failed to create job:", error);
@@ -148,10 +178,49 @@ export default function NewJobPage() {
                   <p className="text-[10px] text-zinc-600 flex items-center gap-1"><Info className="w-3 h-3" /> Must be a valid GitHub URL</p>
                 </div>
               ) : (
-                <div className="border-2 border-dashed border-zinc-800 rounded-2xl p-12 text-center bg-zinc-900/10 hover:bg-zinc-900/20 transition-colors cursor-pointer group">
-                  <FileArchive className="w-12 h-12 text-zinc-700 mx-auto mb-4 group-hover:text-indigo-500 transition-colors" />
-                  <p className="text-zinc-400 font-medium">Click to select or drag and drop</p>
-                  <p className="text-zinc-600 text-xs mt-1">.zip files only</p>
+                <div 
+                  onClick={() => document.getElementById("zip-file-input")?.click()}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const file = e.dataTransfer.files?.[0];
+                    if (file && file.name.endsWith(".zip")) {
+                      setSelectedFile(file);
+                      if (!formData.name) {
+                        setFormData(prev => ({
+                          ...prev,
+                          name: file.name.replace(/\.[^/.]+$/, "").replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())
+                        }));
+                      }
+                    }
+                  }}
+                  className="border-2 border-dashed border-zinc-800 rounded-2xl p-12 text-center bg-zinc-900/10 hover:bg-zinc-900/20 transition-colors cursor-pointer group"
+                >
+                  <input 
+                    type="file" 
+                    id="zip-file-input" 
+                    accept=".zip" 
+                    className="hidden" 
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setSelectedFile(file);
+                        if (!formData.name) {
+                          setFormData(prev => ({
+                            ...prev,
+                            name: file.name.replace(/\.[^/.]+$/, "").replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())
+                          }));
+                        }
+                      }
+                    }}
+                  />
+                  <FileArchive className={cn("w-12 h-12 mx-auto mb-4 transition-colors", selectedFile ? "text-indigo-400" : "text-zinc-700 group-hover:text-indigo-500")} />
+                  <p className="text-zinc-400 font-medium">
+                    {selectedFile ? selectedFile.name : "Click to select or drag and drop"}
+                  </p>
+                  <p className="text-zinc-600 text-xs mt-1">
+                    {selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB` : ".zip files only"}
+                  </p>
                 </div>
               )}
             </div>
@@ -210,9 +279,9 @@ export default function NewJobPage() {
                     />
                     <TargetCheckbox 
                       label="macOS" 
-                      checked={formData.targets.includes("mac")} 
+                      checked={formData.targets.includes("macos")} 
                       disabled={user?.plan === "free"}
-                      onCheckedChange={() => toggleTarget("mac")} 
+                      onCheckedChange={() => toggleTarget("macos")} 
                     />
                   </div>
                   {user?.plan === "free" && (
@@ -273,7 +342,7 @@ export default function NewJobPage() {
             {step < STEPS.length - 1 ? (
               <Button 
                 onClick={nextStep} 
-                disabled={step === 0 && formData.sourceType === 'github' && !formData.sourceUrl}
+                disabled={step === 0 && ((formData.sourceType === 'github' && !formData.sourceUrl) || (formData.sourceType === 'upload' && !selectedFile))}
                 className="bg-zinc-100 text-zinc-950 hover:bg-white rounded-xl px-8"
               >
                 Continue

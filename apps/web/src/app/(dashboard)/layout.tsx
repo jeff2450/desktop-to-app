@@ -10,12 +10,8 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, isLoading, hydrate } = useAuthStore();
+  const { user, isLoading } = useAuthStore();
   const router = useRouter();
-
-  useEffect(() => {
-    hydrate();
-  }, [hydrate]);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -31,7 +27,13 @@ export default function DashboardLayout({
     );
   }
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-zinc-950 text-zinc-50">

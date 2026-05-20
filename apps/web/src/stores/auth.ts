@@ -15,96 +15,180 @@ interface AuthState {
   login: (email: string, password: string) => Promise<{ error?: string }>;
   register: (email: string, password: string, name?: string, plan?: string) => Promise<{ error?: string }>;
   logout: () => Promise<void>;
-  hydrate: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+let authMutationVersion = 0;
+
+function setAuthenticatedSession(accessToken: string, user: User) {
+  setClientToken(accessToken);
+  useAuthStore.setState({ accessToken, user, isLoading: false });
+}
+
+async function clearAuthSession() {
+  setClientToken(null);
+  useAuthStore.setState({ accessToken: null, user: null, isLoading: false });
+  await fetchAuthCookie("/api/auth/cookie", { method: "DELETE" });
+}
+
+async function fetchAuthCookie(path: string, options?: RequestInit) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+
+  try {
+    return await fetch(path, {
+      ...options,
+      signal: controller.signal,
+    });
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function saveRefreshToken(refreshToken: string) {
+  const response = await fetchAuthCookie("/api/auth/cookie", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refreshToken }),
+  });
+
+  return Boolean(response?.ok);
+}
+
+export const useAuthStore = create<AuthState>((set) => ({
   accessToken: null,
   user: null,
   isLoading: true,
 
   login: async (email, password) => {
-    set({ isLoading: true });
-    const result = await authApi.login(email, password);
-    set({ isLoading: false });
-    
-    if (result.error) return { error: result.error };
-    
-    if (result.data?.accessToken && result.data?.user) {
-      const { accessToken, refreshToken, user } = result.data;
-      setClientToken(accessToken);
-      set({ accessToken, user });
-      
-      if (refreshToken) {
-        await fetch("/api/auth/cookie", {
-          method: "POST",
-          body: JSON.stringify({ refreshToken }),
-        });
+    authMutationVersion += 1;
+
+    try {
+      const result = await authApi.login(email, password);
+
+      if (result.error) {
+        set({ isLoading: false });
+        return { error: result.error };
       }
+
+      if (result.data?.accessToken && result.data?.user) {
+        const { accessToken, refreshToken, user } = result.data;
+        if (refreshToken) {
+          const cookieSaved = await saveRefreshToken(refreshToken);
+          if (!cookieSaved) {
+            set({ isLoading: false });
+            return { error: "Unable to save your session. Please try again." };
+          }
+        }
+
+        setAuthenticatedSession(accessToken, user);
+      }
+
+      return {};
+    } catch {
+      set({ isLoading: false });
+      return { error: "Unable to sign in. Please try again." };
     }
-    return {};
   },
 
   register: async (email, password, name, plan) => {
-    set({ isLoading: true });
-    const result = await authApi.register(email, password, name, plan);
-    set({ isLoading: false });
-    
-    if (result.error) return { error: result.error };
-    
-    if (result.data?.accessToken && result.data?.user) {
-      const { accessToken, refreshToken, user } = result.data;
-      setClientToken(accessToken);
-      set({ accessToken, user });
+    authMutationVersion += 1;
 
-      if (refreshToken) {
-        await fetch("/api/auth/cookie", {
-          method: "POST",
-          body: JSON.stringify({ refreshToken }),
-        });
+    try {
+      const result = await authApi.register(email, password, name, plan);
+
+      if (result.error) {
+        set({ isLoading: false });
+        return { error: result.error };
       }
+
+      if (result.data?.accessToken && result.data?.user) {
+        const { accessToken, refreshToken, user } = result.data;
+        if (refreshToken) {
+          const cookieSaved = await saveRefreshToken(refreshToken);
+          if (!cookieSaved) {
+            set({ isLoading: false });
+            return { error: "Unable to save your session. Please try again." };
+          }
+        }
+
+        setAuthenticatedSession(accessToken, user);
+      }
+
+      return {};
+    } catch {
+      set({ isLoading: false });
+      return { error: "Unable to create your account. Please try again." };
     }
-    return {};
   },
 
   logout: async () => {
+    authMutationVersion += 1;
     await authApi.logout().catch(() => {});
-    await fetch("/api/auth/cookie", { method: "DELETE" });
-    setClientToken(null);
-    set({ accessToken: null, user: null });
+    await clearAuthSession();
   },
+}));
 
-  hydrate: async () => {
-    // Only hydrate once
-    if (get().user && get().accessToken) {
-      set({ isLoading: false });
+// Bootstrap once when this module is first imported.
+(async () => {
+  const bootstrapVersion = authMutationVersion;
+
+  const isStaleBootstrap = () => authMutationVersion !== bootstrapVersion;
+
+  try {
+    const cookieRes = await fetchAuthCookie("/api/auth/cookie");
+    if (isStaleBootstrap()) {
       return;
     }
 
-    set({ isLoading: true });
-    try {
-      // 1. Check if we have a refresh token in the cookie
-      const cookieRes = await fetch("/api/auth/cookie");
-      const { refreshToken } = await cookieRes.json();
-
-      if (refreshToken) {
-        // 2. Try to get a new access token
-        const refreshRes = await authApi.refresh(refreshToken);
-        if (refreshRes.data?.accessToken) {
-          setClientToken(refreshRes.data.accessToken);
-          set({ accessToken: refreshRes.data.accessToken });
-          
-          // 3. Fetch user data
-          const userRes = await authApi.me();
-          if (userRes.data) {
-            set({ user: userRes.data });
-          }
-        }
-      }
-    } catch (e) {
-      console.error("Hydration failed:", e);
-    } finally {
-      set({ isLoading: false });
+    if (!cookieRes) {
+      return;
     }
-  },
-}));
+
+    const { refreshToken } = await cookieRes.json();
+    if (isStaleBootstrap()) {
+      return;
+    }
+
+    if (!refreshToken) {
+      return;
+    }
+
+    const refreshRes = await authApi.refresh(refreshToken);
+    if (isStaleBootstrap()) {
+      return;
+    }
+
+    if (refreshRes.error || !refreshRes.data?.accessToken) {
+      await clearAuthSession();
+      return;
+    }
+
+    setClientToken(refreshRes.data.accessToken);
+    useAuthStore.setState({ accessToken: refreshRes.data.accessToken });
+
+    const userRes = await authApi.me();
+    if (isStaleBootstrap()) {
+      return;
+    }
+
+    if (userRes.error || !userRes.data) {
+      await clearAuthSession();
+      return;
+    }
+
+    useAuthStore.setState({ user: userRes.data, isLoading: false });
+  } catch (e) {
+    if (isStaleBootstrap()) {
+      return;
+    }
+
+    console.error("Auth bootstrap failed:", e);
+    await clearAuthSession();
+  } finally {
+    if (!isStaleBootstrap()) {
+      useAuthStore.setState({ isLoading: false });
+    }
+  }
+})();
