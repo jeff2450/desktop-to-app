@@ -1,0 +1,147 @@
+import { execSync } from 'child_process';
+import { DoctorCheck, DoctorResult } from './types.js';
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function commandExists(cmd: string): boolean {
+  try {
+    execSync(`${cmd} --version`, { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function envExists(name: string): boolean {
+  return !!process.env[name];
+}
+
+function getCommandVersion(cmd: string, args = '--version'): string {
+  try {
+    return execSync(`${cmd} ${args}`, { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim()
+      .split('\n')[0];
+  } catch {
+    return 'unknown';
+  }
+}
+
+// ─── Android doctor ──────────────────────────────────────────────────────────
+
+export function checkAndroid(): DoctorResult {
+  const checks: DoctorCheck[] = [];
+
+  // Java
+  const javaOk = commandExists('java');
+  checks.push({
+    name: 'Java JDK',
+    passed: javaOk,
+    message: javaOk
+      ? `Found: ${getCommandVersion('java')}`
+      : 'Not found — install JDK 17+ from https://adoptium.net',
+    required: true,
+  });
+
+  // Node (already assumed available but double-check)
+  const nodeOk = commandExists('node');
+  checks.push({
+    name: 'Node.js',
+    passed: nodeOk,
+    message: nodeOk
+      ? `Found: ${getCommandVersion('node')}`
+      : 'Not found — required for Capacitor CLI',
+    required: true,
+  });
+
+  // ANDROID_HOME env
+  const androidHomeOk = envExists('ANDROID_HOME') || envExists('ANDROID_SDK_ROOT');
+  checks.push({
+    name: 'ANDROID_HOME / ANDROID_SDK_ROOT',
+    passed: androidHomeOk,
+    message: androidHomeOk
+      ? `Set to: ${process.env['ANDROID_HOME'] ?? process.env['ANDROID_SDK_ROOT']}`
+      : 'Not set — install Android Studio and set ANDROID_HOME in your environment',
+    required: true,
+  });
+
+  // adb
+  const adbOk = commandExists('adb');
+  checks.push({
+    name: 'adb (Android Debug Bridge)',
+    passed: adbOk,
+    message: adbOk
+      ? `Found: ${getCommandVersion('adb', 'version').split('\n')[0]}`
+      : 'Not found — install Android SDK Platform-Tools',
+    required: false, // needed for device deploy, not just building
+  });
+
+  // Gradle (ships with Android Studio but check anyway)
+  const gradleOk = commandExists('gradle');
+  checks.push({
+    name: 'Gradle',
+    passed: gradleOk,
+    message: gradleOk
+      ? `Found: ${getCommandVersion('gradle')}`
+      : 'Not found in PATH — Android project uses its own Gradle wrapper (gradlew), so this is optional',
+    required: false,
+  });
+
+  const ready = checks.filter((c) => c.required).every((c) => c.passed);
+  return { platform: 'android', ready, checks };
+}
+
+// ─── iOS doctor ──────────────────────────────────────────────────────────────
+
+export function checkIos(): DoctorResult {
+  const checks: DoctorCheck[] = [];
+
+  // Must be macOS
+  const isMac = process.platform === 'darwin';
+  checks.push({
+    name: 'macOS',
+    passed: isMac,
+    message: isMac
+      ? 'Running on macOS ✓'
+      : 'iOS builds require macOS. Use GitHub Actions macos-latest runner for CI.',
+    required: true,
+  });
+
+  if (!isMac) {
+    return { platform: 'ios', ready: false, checks };
+  }
+
+  // Xcode
+  const xcodeOk = commandExists('xcodebuild');
+  checks.push({
+    name: 'Xcode',
+    passed: xcodeOk,
+    message: xcodeOk
+      ? `Found: ${getCommandVersion('xcodebuild', '-version').split('\n')[0]}`
+      : 'Not found — install Xcode from the Mac App Store',
+    required: true,
+  });
+
+  // Xcode command line tools
+  const xcrunOk = commandExists('xcrun');
+  checks.push({
+    name: 'Xcode Command Line Tools',
+    passed: xcrunOk,
+    message: xcrunOk ? 'Installed ✓' : 'Run: xcode-select --install',
+    required: true,
+  });
+
+  // CocoaPods
+  const podOk = commandExists('pod');
+  checks.push({
+    name: 'CocoaPods',
+    passed: podOk,
+    message: podOk
+      ? `Found: ${getCommandVersion('pod')}`
+      : 'Not found — run: sudo gem install cocoapods',
+    required: true,
+  });
+
+  const ready = checks.filter((c) => c.required).every((c) => c.passed);
+  return { platform: 'ios', ready, checks };
+}

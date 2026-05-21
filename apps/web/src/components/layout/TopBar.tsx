@@ -29,7 +29,11 @@ export function TopBar({ title }: TopBarProps) {
           />
         </div>
 
-        <button className="relative text-zinc-400 hover:text-white transition-colors">
+        <button 
+          type="button"
+          onClick={() => alert("You have no new notifications.")}
+          className="relative text-zinc-400 hover:text-white transition-colors"
+        >
           <Bell className="w-5 h-5" />
           <span className="absolute top-0 right-0 w-2 h-2 bg-indigo-500 rounded-full border-2 border-zinc-950" />
         </button>

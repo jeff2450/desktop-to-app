@@ -124,7 +124,13 @@ export default function DocsPage() {
                 </h2>
                 <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 font-mono text-sm overflow-x-auto relative group">
                   <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-zinc-800 text-zinc-500">
+                    <Button 
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText("npx webtoapp init\nnpx webtoapp convert\nnpx webtoapp doctor")}
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8 w-8 p-0 hover:bg-zinc-800 text-zinc-500"
+                    >
                       <Code className="w-4 h-4" />
                     </Button>
                   </div>

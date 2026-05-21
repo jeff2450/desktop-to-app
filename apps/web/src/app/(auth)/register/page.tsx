@@ -152,7 +152,12 @@ function RegisterForm() {
           </div>
         </div>
 
-        <Button variant="outline" className="w-full border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-white hover:bg-zinc-900 h-11 rounded-xl">
+        <Button 
+          type="button"
+          onClick={() => setError("GitHub authentication is not configured in this environment.")}
+          variant="outline" 
+          className="w-full border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-white hover:bg-zinc-900 h-11 rounded-xl"
+        >
           <Github className="w-4 h-4 mr-2" />
           GitHub
         </Button>

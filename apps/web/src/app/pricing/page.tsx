@@ -102,8 +102,8 @@ export default function PricingPage() {
                     Our enterprise plan offers custom limits, dedicated worker slots, and 
                     on-premise deployment options.
                   </p>
-                  <Button className="bg-white text-zinc-950 hover:bg-zinc-200 rounded-xl px-8 h-12 font-bold">
-                    Talk to our team
+                  <Button asChild className="bg-white text-zinc-950 hover:bg-zinc-200 rounded-xl px-8 h-12 font-bold">
+                    <a href="mailto:sales@webtoapp.dev">Talk to our team</a>
                   </Button>
                 </div>
                 <div className="grid grid-cols-2 gap-4">

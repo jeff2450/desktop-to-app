@@ -69,7 +69,12 @@ export default function JobsPage() {
           </div>
           
           <div className="flex items-center gap-3">
-            <Button variant="outline" className="border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl">
+            <Button 
+              type="button"
+              onClick={() => alert("Filter options coming soon!")}
+              variant="outline" 
+              className="border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl"
+            >
               <Filter className="w-4 h-4 mr-2" />
               Filter
             </Button>
@@ -144,13 +149,31 @@ function JobRow({ job }: { job: Conversion }) {
             </div>
             
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-500 hover:text-white rounded-lg">
+              <Button 
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); alert("External link coming soon!"); }}
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 text-zinc-500 hover:text-white rounded-lg"
+              >
                 <ExternalLink className="w-4 h-4" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-500 hover:text-rose-400 rounded-lg">
+              <Button 
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); alert("Delete functionality coming soon!"); }}
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 text-zinc-500 hover:text-rose-400 rounded-lg"
+              >
                 <Trash2 className="w-4 h-4" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-500 hover:text-white rounded-lg">
+              <Button 
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); alert("More options coming soon!"); }}
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 text-zinc-500 hover:text-white rounded-lg"
+              >
                 <MoreVertical className="w-4 h-4" />
               </Button>
             </div>
