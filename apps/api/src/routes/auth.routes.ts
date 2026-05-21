@@ -16,6 +16,7 @@ import type { AuthenticatedRequest } from "../lib/types.js";
 const credentialsSchema = z.object({
   email:    z.string().email(),
   password: z.string().min(8),
+  name:     z.string().optional(),
   plan:     z.enum(["free", "pro", "team", "enterprise"]).optional(),
 });
 
@@ -28,7 +29,7 @@ export const authRouter: Router = Router();
 // POST /auth/register
 authRouter.post("/register", registerRateLimiter, async (req, res, next) => {
   try {
-    const { email, password, plan } = credentialsSchema.parse(req.body);
+    const { email, password, name, plan } = credentialsSchema.parse(req.body);
     const existing = await prisma.user.findUnique({ where: { email } });
 
     if (existing) {
@@ -49,10 +50,11 @@ authRouter.post("/register", registerRateLimiter, async (req, res, next) => {
     const user = await prisma.user.create({
       data:   { 
         email, 
+        name,
         passwordHash, 
         plan: mappedPlan 
       },
-      select: { id: true, email: true, plan: true, createdAt: true },
+      select: { id: true, email: true, name: true, plan: true, createdAt: true },
     });
     const tokens = await signTokens(user);
 
@@ -80,7 +82,12 @@ authRouter.post("/login", loginRateLimiter, async (req, res, next) => {
     res.json({
       accessToken:  tokens.accessToken,
       refreshToken: tokens.refreshToken,
-      user: { id: user.id, email: user.email, plan: user.plan },
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        plan: user.plan
+      },
     });
   } catch (error) {
     next(error);
@@ -93,7 +100,7 @@ authRouter.get("/me", requireAuth, async (req, res, next) => {
     const authReq = req as unknown as AuthenticatedRequest;
     const user = await prisma.user.findUnique({
       where:  { id: authReq.auth.userId },
-      select: { id: true, email: true, plan: true, createdAt: true },
+      select: { id: true, email: true, name: true, plan: true, createdAt: true },
     });
 
     if (!user) throw new ApiError(404, "User not found", "USER_NOT_FOUND");

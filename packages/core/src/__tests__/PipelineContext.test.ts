@@ -3,6 +3,8 @@ import * as path from "node:path";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import { PipelineContext } from "../pipeline/PipelineContext.js";
+import { ConversionConfig } from "../types/ConversionConfig.js";
+
 
 /**
  * Unit tests for PipelineContext — the shared state object that flows
@@ -14,17 +16,17 @@ import { PipelineContext } from "../pipeline/PipelineContext.js";
  *   - Dry-run mode guard
  */
 
-function makeConfig(overrides: Record<string, unknown> = {}) {
+function makeConfig(overrides: Partial<ConversionConfig> = {}): ConversionConfig {
   return {
     name: "Test App",
     version: "1.0.0",
     source: "/fake/source",
-    targets: ["windows"] as const,
-    mode: "offline" as const,
+    targets: ["windows"],
+    mode: "offline",
     appId: "com.test.app",
-    backend: { type: "auto" as const, port: 3001 },
-    auth: { type: "local" as const },
-    database: { type: "sqlite" as const },
+    backend: { type: "auto", port: 3001 },
+    auth: { type: "local" },
+    database: { type: "sqlite" },
     ...overrides,
   };
 }

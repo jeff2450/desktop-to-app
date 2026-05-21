@@ -87,7 +87,7 @@ export function Sidebar() {
 
       {/* User & Footer */}
       <div className="p-4 border-t border-zinc-800 bg-zinc-950/50">
-        <div className="flex items-center gap-3 px-2 py-3 mb-2">
+        <Link href="/settings" className="flex items-center gap-3 px-2 py-3 mb-2 hover:bg-zinc-900 rounded-xl transition-colors cursor-pointer">
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-cyan-500 flex items-center justify-center text-white text-xs font-bold">
             {user?.email?.[0]?.toUpperCase() || "U"}
           </div>
@@ -95,7 +95,7 @@ export function Sidebar() {
             <p className="text-sm font-medium text-white truncate">{user?.email}</p>
             <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">{user?.plan || "FREE"} PLAN</p>
           </div>
-        </div>
+        </Link>
         
         <button
           onClick={handleLogout}

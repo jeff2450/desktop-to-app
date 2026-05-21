@@ -48,8 +48,8 @@ export default function PricingPage() {
             price="0"
             desc="Perfect for trying out the pipeline."
             features={[
-              "3 conversions / mo",
-              "Windows & Linux targets",
+              "1 free conversion",
+              "Choose Windows, Linux, or Mac",
               "AST Transformations",
               "Offline SQLite layer",
               "Community Support"

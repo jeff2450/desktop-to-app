@@ -21,6 +21,7 @@ import { prisma } from "../db/prisma.js";
 import { appendJobLog } from "../services/jobs.service.js";
 import { pushLogLine, createWorker, type ConversionQueuePayload } from "../services/queue.service.js";
 import { uploadArtifact } from "../services/storage.service.js";
+import { env } from "../config/env.js";
 import type { WebToAppConfig } from "../lib/types.js";
 
 const PLATFORM_TARGET_MAP: Record<string, "windows" | "linux" | "mac"> = {
@@ -28,6 +29,10 @@ const PLATFORM_TARGET_MAP: Record<string, "windows" | "linux" | "mac"> = {
   linux:   "linux",
   macos:   "mac",
 };
+
+const CURRENT_WORKER_PLATFORM =
+  process.platform === "win32" ? "windows" :
+  process.platform === "darwin" ? "macos" : "linux";
 
 // ─── Main job processor ──────────────────────────────────────────────────────
 
@@ -60,8 +65,25 @@ async function runWorkerJob(payload: ConversionQueuePayload): Promise<void> {
     );
 
     const rawConfig = jobRecord.config as unknown as WebToAppConfig;
+    const requestedPlatforms = jobRecord.platforms;
+    const buildablePlatforms = requestedPlatforms.filter((platform) => platform === CURRENT_WORKER_PLATFORM);
+    const skippedPlatforms = requestedPlatforms.filter((platform) => platform !== CURRENT_WORKER_PLATFORM);
 
-    for (const platform of jobRecord.platforms) {
+    if (skippedPlatforms.length > 0) {
+      await log(
+        `Skipping ${skippedPlatforms.join(", ")} on this ${CURRENT_WORKER_PLATFORM} worker. ` +
+        "Those platforms need a worker running on their native OS."
+      );
+    }
+
+    if (buildablePlatforms.length === 0) {
+      throw new Error(
+        `No selected platforms can be built on this ${CURRENT_WORKER_PLATFORM} worker. ` +
+        `Selected: ${requestedPlatforms.join(", ")}.`
+      );
+    }
+
+    for (const platform of buildablePlatforms) {
       await ensureNotCancelled(jobRecord.id);
 
       await log(`▶ Starting build for platform: ${platform}`);
@@ -249,7 +271,7 @@ function formatBytes(bytes: number): string {
 
 const worker = createWorker(async (bullJob) => {
   await runWorkerJob(bullJob.data);
-}, 2);
+}, env.WORKER_CONCURRENCY);
 
 worker.on("failed", async (job, error) => {
   console.error(`[worker] job ${job?.data.jobId} failed: ${error.message}`);

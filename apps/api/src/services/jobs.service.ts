@@ -10,7 +10,7 @@ const PLAN_LIMITS: Record<
   Plan,
   { monthlyLimit: number | null; platforms: string[]; priority: number }
 > = {
-  FREE:    { monthlyLimit: 3,    platforms: ["linux"],                         priority: 10 },
+  FREE:    { monthlyLimit: 1,    platforms: ["windows", "linux", "macos"],     priority: 10 },
   STARTER: { monthlyLimit: 20,   platforms: ["windows", "linux", "macos"],     priority: 5  },
   PRO:     { monthlyLimit: null, platforms: ["windows", "linux", "macos"],     priority: 1  },
 };
@@ -89,7 +89,7 @@ async function assertPlanLimits(
   });
 
   if (policy.monthlyLimit !== null && jobsThisMonth >= policy.monthlyLimit) {
-    throw new PlanLimitError("Monthly job limit reached. Upgrade at /billing to continue.");
+    throw new PlanLimitError("You have used your 1 free conversion. Upgrade or pay from Billing to convert another app.");
   }
 
   const invalidPlatforms = platforms.filter((p) => !policy.platforms.includes(p));

@@ -1,0 +1,54 @@
+
+> @webtoapp/web@1.0.0 build C:\Users\JEFF-PC\Documents\desktop-to-app\apps\web
+> next build
+
+  ▲ Next.js 14.2.35
+  - Environments: .env
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/17) ...
+   Generating static pages (4/17) 
+   Generating static pages (8/17) 
+   Generating static pages (12/17) 
+ ✓ Generating static pages (17/17)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                              Size     First Load JS
+┌ ○ /                                    860 B          97.1 kB
+├ ○ /_not-found                          876 B          88.4 kB
+├ ƒ /api/auth/cookie                     0 B                0 B
+├ ƒ /api/billing/checkout                0 B                0 B
+├ ƒ /api/billing/paypal/capture-order    0 B                0 B
+├ ƒ /api/billing/paypal/create-order     0 B                0 B
+├ ƒ /api/billing/plans                   0 B                0 B
+├ ƒ /api/billing/portal                  0 B                0 B
+├ ƒ /api/billing/subscription            0 B                0 B
+├ ƒ /api/billing/usage                   0 B                0 B
+├ ƒ /api/billing/usage-chart             0 B                0 B
+├ ƒ /api/billing/verify                  0 B                0 B
+├ ○ /billing                             111 kB          212 kB
+├ ○ /billing/success                     2.68 kB         113 kB
+├ ○ /dashboard                           5.42 kB         116 kB
+├ ○ /docs                                10.8 kB         118 kB
+├ ○ /jobs                                3.3 kB          114 kB
+├ ƒ /jobs/[id]                           4.54 kB         106 kB
+├ ○ /jobs/new                            8.38 kB         115 kB
+├ ○ /login                               5.7 kB          112 kB
+├ ○ /pricing                             860 B          97.1 kB
+├ ○ /register                            5.94 kB         113 kB
+└ ○ /settings                            6.07 kB         113 kB
++ First Load JS shared by all            87.5 kB
+  ├ chunks/5b8f0dd8-963e26f73fce6c0b.js  53.6 kB
+  ├ chunks/749-d322f1fd78f9c17f.js       31.9 kB
+  └ other shared chunks (total)          1.96 kB
+
+
+ƒ Middleware                             26.6 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

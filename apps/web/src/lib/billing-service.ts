@@ -1,50 +1,16 @@
 import type { UsageStats, BillingPlan, SubscriptionInfo, UsageChartData, Plan } from "@/types";
 
-const FLUTTERWAVE_API_BASE = "https://api.flutterwave.com/v3";
-const DEFAULT_CURRENCY = "USD";
 const mockUserPlans = new Map<string, Plan>();
-
-type FlutterwavePaymentResponse = {
-  status: string;
-  message: string;
-  data?: {
-    link?: string;
-  };
-};
-
-type FlutterwaveVerifyResponse = {
-  status: string;
-  message: string;
-  data?: {
-    id: number;
-    tx_ref: string;
-    amount: number;
-    currency: string;
-    status: string;
-    customer?: {
-      email?: string;
-      name?: string;
-    };
-  } | null;
-};
-
-export type PaymentVerificationResult = {
-  success: boolean;
-  plan: Plan;
-  txRef: string;
-  transactionId: string;
-  message: string;
-};
 
 const MOCK_PLANS: BillingPlan[] = [
   {
     id: "free",
     name: "Free",
     price: 0,
-    conversionsPerMonth: 3,
+    conversionsPerMonth: 1,
     features: [
-      "3 conversions per month",
-      "Linux builds only",
+      "1 free conversion",
+      "Choose Windows, Linux, or macOS",
       "Community support",
       "Basic templates"
     ]
@@ -96,14 +62,6 @@ function getBaseUrl(): string {
   return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 }
 
-function getFlutterwaveSecretKey(): string | undefined {
-  return process.env.FLUTTERWAVE_SECRET_KEY || process.env.FLW_SECRET_KEY;
-}
-
-function getFlutterwaveCurrency(): string {
-  return process.env.FLUTTERWAVE_CURRENCY || DEFAULT_CURRENCY;
-}
-
 function getPlan(plan: Plan): BillingPlan {
   const billingPlan = MOCK_PLANS.find((item) => item.id === plan);
 
@@ -123,37 +81,36 @@ function getUserPlan(userId: string): Plan {
 }
 
 function getPlanLimitValue(plan: Plan): number {
-  return MOCK_PLANS.find((item) => item.id === plan)?.conversionsPerMonth ?? 3;
+  return MOCK_PLANS.find((item) => item.id === plan)?.conversionsPerMonth ?? 1;
 }
 
-function createTransactionReference(userId: string, plan: Plan): string {
-  const random = Math.random().toString(36).slice(2, 10);
-  return `wta_${plan}_${userId.slice(0, 8)}_${Date.now()}_${random}`;
+function getMockUsageValue(plan: Plan): number {
+  return plan === "free" ? 0 : 2;
 }
 
 export const billingService = {
   async getUsage(userId: string): Promise<UsageStats> {
     const plan = getUserPlan(userId);
     const limit = getPlanLimitValue(plan);
+    const usage = getMockUsageValue(plan);
 
-    // Mock usage data - in real app, query database
     return {
       plan,
-      usage: 2,
+      usage,
       limit,
       resetsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      percentUsed: limit === 9999 ? 0 : Math.round((2 / limit) * 100)
+      percentUsed: limit === 9999 ? 0 : Math.round((usage / limit) * 100)
     };
   },
 
   async getSubscription(userId: string): Promise<SubscriptionInfo> {
     const plan = getUserPlan(userId);
     const limit = getPlanLimitValue(plan);
+    const usage = getMockUsageValue(plan);
 
-    // Mock subscription data - in real app, query your billing database.
     return {
       plan,
-      jobsUsedThisMonth: 2,
+      jobsUsedThisMonth: usage,
       jobsLimitThisMonth: limit === 9999 ? null : limit,
       renewsAt: plan === "free" ? null : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       cancelAtPeriodEnd: false,
@@ -162,7 +119,6 @@ export const billingService = {
   },
 
   async getUsageChart(userId: string): Promise<UsageChartData[]> {
-    // Mock chart data - in real app, aggregate from database
     const now = new Date();
     const data: UsageChartData[] = [];
 
@@ -171,7 +127,7 @@ export const billingService = {
       date.setDate(date.getDate() - i);
       data.push({
         date: date.toISOString().split('T')[0],
-        jobs: Math.floor(Math.random() * 5) // Random data for demo
+        jobs: Math.floor(Math.random() * 5)
       });
     }
 
@@ -182,111 +138,81 @@ export const billingService = {
     return MOCK_PLANS;
   },
 
-  async createCheckout(userId: string, plan: Plan, email = "user@example.com"): Promise<string> {
-    const billingPlan = getPlan(plan);
+  async createCheckout(userId: string, plan: Plan): Promise<string> {
     const baseUrl = getBaseUrl();
-    const txRef = createTransactionReference(userId, plan);
-    const secretKey = getFlutterwaveSecretKey();
-
-    if (!secretKey && process.env.NODE_ENV !== "production") {
-      return `${baseUrl}/billing/success?status=successful&plan=${plan}&tx_ref=${txRef}&transaction_id=mock_${txRef}`;
-    }
-
-    if (!secretKey) {
-      throw new Error("Flutterwave is not configured");
-    }
-
-    const response = await fetch(`${FLUTTERWAVE_API_BASE}/payments`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${secretKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        tx_ref: txRef,
-        amount: billingPlan.price,
-        currency: getFlutterwaveCurrency(),
-        redirect_url: `${baseUrl}/billing/success?plan=${plan}`,
-        customer: {
-          email,
-        },
-        customizations: {
-          title: "WebToApp",
-          description: `${billingPlan.name} monthly plan`,
-        },
-        meta: {
-          userId,
-          plan,
-        },
-      }),
-    });
-
-    const json = (await response.json()) as FlutterwavePaymentResponse;
-    const checkoutUrl = json.data?.link;
-
-    if (!response.ok || !checkoutUrl) {
-      throw new Error(json.message || "Unable to create Flutterwave checkout");
-    }
-
-    return checkoutUrl;
+    // Return a mock success redirect
+    return `${baseUrl}/billing?payment=success&plan=${plan}`;
   },
 
-  async verifyPayment(userId: string, transactionId: string, txRef: string, plan: Plan): Promise<PaymentVerificationResult> {
-    const billingPlan = getPlan(plan);
-    const expectedAmount = billingPlan.price ?? 0;
-    const secretKey = getFlutterwaveSecretKey();
+  async createPaypalOrder(userId: string, planId: Plan, authHeader: string | null = null): Promise<{ id: string }> {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    
+    // Convert web plan to API plan
+    const apiPlan = planId === "pro" ? "STARTER" : planId === "team" ? "PRO" : planId.toUpperCase();
 
-    if (transactionId.startsWith("mock_") && process.env.NODE_ENV !== "production") {
-      mockUserPlans.set(userId, plan);
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
 
-      return {
-        success: true,
-        plan,
-        txRef,
-        transactionId,
-        message: "Mock payment verified",
-      };
+    if (authHeader) {
+      headers["Authorization"] = authHeader;
     }
 
-    if (!secretKey) {
-      throw new Error("Flutterwave is not configured");
-    }
-
-    const response = await fetch(`${FLUTTERWAVE_API_BASE}/transactions/${transactionId}/verify`, {
-      headers: {
-        Authorization: `Bearer ${secretKey}`,
-        "Content-Type": "application/json",
-      },
+    const response = await fetch(`${apiBase}/api/billing/paypal/create`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ plan: apiPlan, userId }),
     });
 
-    const json = (await response.json()) as FlutterwaveVerifyResponse;
-    const transaction = json.data;
-    const currency = getFlutterwaveCurrency();
-
-    const verified =
-      response.ok &&
-      json.status === "success" &&
-      transaction?.status === "successful" &&
-      transaction.tx_ref === txRef &&
-      transaction.currency === currency &&
-      transaction.amount >= expectedAmount;
-
-    if (verified) {
-      mockUserPlans.set(userId, plan);
+    if (!response.ok) {
+      throw new Error("Failed to create order via API");
     }
 
+    return response.json();
+  },
+
+  async capturePaypalOrder(userId: string, orderId: string, planId: Plan, authHeader: string | null = null): Promise<any> {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    const apiPlan = planId === "pro" ? "STARTER" : planId === "team" ? "PRO" : planId.toUpperCase();
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (authHeader) {
+      headers["Authorization"] = authHeader;
+    }
+
+    const response = await fetch(`${apiBase}/api/billing/paypal/capture`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ orderID: orderId, plan: apiPlan, userId }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to capture order via API");
+    }
+
+    const result = await response.json();
+    if (result.status === "COMPLETED") {
+       mockUserPlans.set(userId, planId);
+    }
+    return result;
+  },
+
+  async verifyPayment(userId: string, transactionId: string, txRef: string, plan: Plan): Promise<any> {
+    mockUserPlans.set(userId, plan);
     return {
-      success: verified,
+      success: true,
       plan,
       txRef,
       transactionId,
-      message: verified ? "Payment verified" : json.message || "Payment could not be verified",
+      message: "Mock payment verified",
     };
   },
 
   async createPortal(userId: string): Promise<string> {
-    // Mock portal URL - Flutterwave does not provide a Stripe-style subscription portal here.
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const baseUrl = getBaseUrl();
     return `${baseUrl}/billing?portal=mock`;
   }
 };

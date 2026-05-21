@@ -26,7 +26,7 @@ app.use(
 app.use(compression());
 app.use(globalRateLimiter);
 
-// ── Stripe webhook MUST arrive before express.json() ────────────────────────
+// ── Webhooks MUST arrive before express.json() ──────────────────────────────
 app.use("/billing/webhooks", billingRouter);
 
 // ── Body parsing ─────────────────────────────────────────────────────────────
@@ -72,3 +72,4 @@ async function shutdown(signal: string): Promise<void> {
 
 process.on("SIGINT",  () => void shutdown("SIGINT"));
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
+

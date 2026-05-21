@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "This plan cannot be purchased through checkout" }, { status: 400 });
     }
 
-    const checkoutUrl = await billingService.createCheckout(user.id, plan, user.email);
+    const checkoutUrl = await billingService.createCheckout(user.id, plan);
     return NextResponse.json({ url: checkoutUrl });
   } catch (error) {
     console.error("Checkout API error:", error);

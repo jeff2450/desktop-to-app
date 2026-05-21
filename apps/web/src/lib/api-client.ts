@@ -1,9 +1,80 @@
-import type { Conversion, User, UsageStats, BillingPlan, SubscriptionInfo, UsageChartData } from "../types";
+import type { Conversion, ConversionMode, ConversionStatus, User, UsageStats, BillingPlan, SubscriptionInfo, UsageChartData } from "../types";
 
 const API_BASE = typeof window !== "undefined" ? "" : (process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001");
 const REQUEST_TIMEOUT_MS = 15000;
 
 let _accessToken: string | null = null;
+
+type ApiResult<T> = { data: T; error?: never } | { data?: never; error: string };
+
+type ConversionResponse = Conversion & {
+  appName?: unknown;
+  app_name?: unknown;
+  created_at?: unknown;
+  platforms?: unknown;
+  source?: unknown;
+  source_type?: unknown;
+  targetPlatforms?: unknown;
+  target_platforms?: unknown;
+  updated_at?: unknown;
+};
+
+function toStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string" && item.length > 0);
+  }
+
+  if (typeof value === "string" && value.length > 0) {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((item): item is string => typeof item === "string" && item.length > 0);
+      }
+    } catch {
+      return value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+  }
+
+  return [];
+}
+
+function toString(value: unknown, fallback = ""): string {
+  return typeof value === "string" && value.length > 0 ? value : fallback;
+}
+
+function normalizeConversion(conversion: ConversionResponse): Conversion {
+  const id = toString(conversion.id, "unknown");
+  const createdAt = toString(conversion.createdAt ?? conversion.created_at, new Date().toISOString());
+
+  return {
+    ...conversion,
+    id,
+    userId: toString(conversion.userId),
+    name: toString(conversion.name ?? conversion.appName ?? conversion.app_name, `Conversion ${id.slice(0, 8)}`),
+    sourceType: toString(conversion.sourceType ?? conversion.source_type ?? conversion.source, "upload") as Conversion["sourceType"],
+    mode: toString(conversion.mode, "offline") as ConversionMode,
+    status: toString(conversion.status, "queued") as ConversionStatus,
+    targets: toStringArray(
+      conversion.targets ??
+      conversion.platforms ??
+      conversion.targetPlatforms ??
+      conversion.target_platforms
+    ),
+    createdAt,
+    updatedAt: toString(conversion.updatedAt ?? conversion.updated_at, createdAt),
+  };
+}
+
+function unwrapList<T>(value: T[] | { data?: T[] }): T[] {
+  return Array.isArray(value) ? value : value.data ?? [];
+}
+
+function isApiError<T>(result: ApiResult<T>): result is { data?: never; error: string } {
+  return "error" in result;
+}
 
 export function setClientToken(token: string | null) {
   _accessToken = token;
@@ -12,7 +83,7 @@ export function setClientToken(token: string | null) {
 async function request<T>(
   path: string,
   options?: RequestInit
-): Promise<{ data: T; error?: never } | { data?: never; error: string }> {
+): Promise<ApiResult<T>> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -93,13 +164,27 @@ export const authApi = {
 // ── Conversions ───────────────────────────────────────────────────────────────
 
 export const conversionsApi = {
-  list: () => request<Conversion[]>("/api/conversions"),
-  get: (id: string) => request<Conversion>(`/api/conversions/${id}`),
-  create: (body: any) =>
-    request<Conversion>("/api/conversions", {
+  list: async (): Promise<ApiResult<Conversion[]>> => {
+    const result = await request<ConversionResponse[] | { data?: ConversionResponse[] }>("/api/conversions");
+    if (isApiError(result)) return result;
+
+    return { data: unwrapList(result.data).map(normalizeConversion) };
+  },
+  get: async (id: string): Promise<ApiResult<Conversion>> => {
+    const result = await request<ConversionResponse>(`/api/conversions/${id}`);
+    if (isApiError(result)) return result;
+
+    return { data: normalizeConversion(result.data) };
+  },
+  create: async (body: any): Promise<ApiResult<Conversion>> => {
+    const result = await request<ConversionResponse>("/api/conversions", {
       method: "POST",
       body: body instanceof FormData ? body : JSON.stringify(body),
-    }),
+    });
+    if (isApiError(result)) return result;
+
+    return { data: normalizeConversion(result.data) };
+  },
   cancel: (id: string) =>
     request<{ id: string; status: string }>(`/api/conversions/${id}`, { method: "DELETE" }),
   getDownloadUrl: (id: string, platform: string) =>
@@ -132,4 +217,18 @@ export const billingApi = {
     }),
   portal: () =>
     request<{ url: string }>("/api/billing/portal", { method: "POST" }),
+  createPaypalOrder: (plan: string) => {
+    const apiPlan = plan === "pro" ? "STARTER" : plan === "team" ? "PRO" : plan.toUpperCase();
+    return request<{ id: string }>("/api/billing/paypal/create", {
+      method: "POST",
+      body: JSON.stringify({ plan: apiPlan }),
+    });
+  },
+  capturePaypalOrder: (orderID: string, plan: string) => {
+    const apiPlan = plan === "pro" ? "STARTER" : plan === "team" ? "PRO" : plan.toUpperCase();
+    return request<any>("/api/billing/paypal/capture", {
+      method: "POST",
+      body: JSON.stringify({ orderID, plan: apiPlan }),
+    });
+  },
 };

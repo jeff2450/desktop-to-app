@@ -26,7 +26,8 @@ import {
   ChevronLeft, 
   Rocket,
   Info,
-  Check
+  Check,
+  CreditCard
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
@@ -39,6 +40,8 @@ export default function NewJobPage() {
   const { user } = useAuthStore();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
   // Form State
@@ -48,7 +51,7 @@ export default function NewJobPage() {
     sourceUrl: "",
     appId: "com.example.myapp",
     mode: "offline" as "offline" | "online" | "hybrid",
-    targets: ["windows"] as string[],
+    targets: ["linux"] as string[],
   });
 
   const nextStep = () => setStep(s => Math.min(s + 1, STEPS.length - 1));
@@ -65,6 +68,9 @@ export default function NewJobPage() {
 
   const handleSubmit = async () => {
     setLoading(true);
+    setSubmitError(null);
+    setShowUpgradePrompt(false);
+
     try {
       let res;
       const appName = formData.name.trim() || "Untitled App";
@@ -106,10 +112,12 @@ export default function NewJobPage() {
         router.push(`/jobs/${jobId}`);
       } else if (res.error) {
         console.error("Failed to create job:", res.error);
-        alert(`Failed to start conversion: ${res.error}`);
+        setSubmitError(res.error);
+        setShowUpgradePrompt(isUsageLimitError(res.error));
       }
     } catch (error) {
       console.error("Failed to create job:", error);
+      setSubmitError("Failed to start conversion. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -145,6 +153,36 @@ export default function NewJobPage() {
 
         {/* Form Content */}
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {submitError && (
+            <Card className={cn(
+              "border p-5",
+              showUpgradePrompt
+                ? "bg-amber-500/10 border-amber-500/30"
+                : "bg-red-500/10 border-red-500/30"
+            )}>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className={cn(
+                    "text-sm font-bold",
+                    showUpgradePrompt ? "text-amber-200" : "text-red-200"
+                  )}>
+                    {showUpgradePrompt ? "Free conversion used" : "Conversion failed"}
+                  </p>
+                  <p className="mt-1 text-sm text-zinc-300">{submitError}</p>
+                </div>
+                {showUpgradePrompt && (
+                  <Button
+                    type="button"
+                    onClick={() => router.push("/billing")}
+                    className="shrink-0 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl"
+                  >
+                    <CreditCard className="w-4 h-4 mr-2" />
+                    Upgrade
+                  </Button>
+                )}
+              </div>
+            </Card>
+          )}
           
           {/* STEP 1: SOURCE */}
           {step === 0 && (
@@ -280,15 +318,9 @@ export default function NewJobPage() {
                     <TargetCheckbox 
                       label="macOS" 
                       checked={formData.targets.includes("macos")} 
-                      disabled={user?.plan === "free"}
                       onCheckedChange={() => toggleTarget("macos")} 
                     />
                   </div>
-                  {user?.plan === "free" && (
-                    <p className="text-[10px] text-amber-500/80 bg-amber-500/5 p-2 rounded border border-amber-500/10">
-                      Note: macOS builds require a PRO plan subscription.
-                    </p>
-                  )}
                 </div>
               </CardContent>
             </Card>
@@ -412,4 +444,9 @@ function ReviewItem({ label, value }: { label: string, value: string }) {
       <span className="text-sm font-medium text-zinc-300 text-right max-w-xs truncate">{value}</span>
     </div>
   );
+}
+
+function isUsageLimitError(error: string): boolean {
+  const normalized = error.toLowerCase();
+  return normalized.includes("free conversion") || normalized.includes("monthly job limit");
 }

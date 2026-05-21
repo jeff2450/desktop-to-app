@@ -3,6 +3,7 @@
 import { useAuthStore } from "@/stores/auth";
 import { Bell, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 interface TopBarProps {
   title: string;
@@ -35,7 +36,7 @@ export function TopBar({ title }: TopBarProps) {
 
         <div className="h-8 w-[1px] bg-zinc-800" />
 
-        <div className="flex items-center gap-3">
+        <Link href="/settings" className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer">
           <div className="flex flex-col items-end hidden sm:flex">
             <span className="text-sm font-medium text-white">{user?.name || user?.email?.split('@')[0]}</span>
             <span className="text-[10px] text-zinc-500">{user?.email}</span>
@@ -43,7 +44,7 @@ export function TopBar({ title }: TopBarProps) {
           <div className="w-9 h-9 rounded-full bg-indigo-600/20 border border-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold text-sm">
             {user?.email?.[0]?.toUpperCase() || "U"}
           </div>
-        </div>
+        </Link>
       </div>
     </header>
   );

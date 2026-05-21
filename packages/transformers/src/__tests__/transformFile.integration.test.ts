@@ -5,9 +5,11 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 
 let tmpDir: string;
+let projectRoot: string;
 
 beforeAll(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "transformfile-test-"));
+  projectRoot = tmpDir;
 });
 
 afterAll(async () => {
@@ -27,7 +29,7 @@ async function writeTmp(relPath: string, content: string): Promise<string> {
  * correct transformer is selected for each type.
  */
 
-const projectRoot = tmpDir;
+
 
 describe("transformFile — supabase-query", () => {
   it("successfully transforms a file with SELECT", async () => {

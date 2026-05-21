@@ -15,12 +15,17 @@ const envSchema = z.object({
   AWS_REGION: z.string().min(1).default("us-east-1"),
   S3_BUCKET: z.string().min(1).optional(),
 
-  // Stripe — optional; billing routes return 503 when absent
+  // Stripe — optional; kept for backward compat / gradual migration
   STRIPE_SECRET_KEY: z.string().min(1).optional(),
   STRIPE_WEBHOOK_SECRET: z.string().min(1).optional(),
   STRIPE_PRICE_STARTER: z.string().min(1).optional(),
   STRIPE_PRICE_PRO: z.string().min(1).optional(),
   DASHBOARD_URL: z.string().url().optional(),
+  
+  // PayPal
+  PAYPAL_CLIENT_ID: z.string().optional(),
+  PAYPAL_CLIENT_SECRET: z.string().optional(),
+
 
   // Email — optional
   RESEND_API_KEY: z.string().optional(),
@@ -34,6 +39,7 @@ const envSchema = z.object({
   UPLOAD_MAX_SIZE_MB: z.coerce.number().default(200),
   UPLOADS_DIR: z.string().default("uploads"),
   OUTPUTS_DIR: z.string().default("outputs"),
+  WORKER_CONCURRENCY: z.coerce.number().int().positive().max(8).default(2),
 });
 
 const parsed = envSchema.safeParse(process.env);

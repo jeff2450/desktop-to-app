@@ -15,6 +15,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<{ error?: string }>;
   register: (email: string, password: string, name?: string, plan?: string) => Promise<{ error?: string }>;
   logout: () => Promise<void>;
+  updateUser: (user: Partial<User>) => void;
 }
 
 let authMutationVersion = 0;
@@ -127,6 +128,12 @@ export const useAuthStore = create<AuthState>((set) => ({
     authMutationVersion += 1;
     await authApi.logout().catch(() => {});
     await clearAuthSession();
+  },
+
+  updateUser: (nextUser) => {
+    set((state) => ({
+      user: state.user ? { ...state.user, ...nextUser } : state.user,
+    }));
   },
 }));
 

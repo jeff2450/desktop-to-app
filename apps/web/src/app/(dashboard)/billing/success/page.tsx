@@ -39,50 +39,10 @@ export default function BillingSuccessPage() {
 function BillingSuccessContent() {
   const searchParams = useSearchParams();
   const plan = (searchParams.get("plan") || "pro") as Plan;
-  const status = searchParams.get("status");
-  const txRef = searchParams.get("tx_ref");
-  const transactionId = searchParams.get("transaction_id");
-  const [verification, setVerification] = useState<"checking" | "success" | "failed">(
-    transactionId && txRef ? "checking" : "success"
-  );
-  const [message, setMessage] = useState("Confirming your Flutterwave payment...");
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function verifyPayment() {
-      if (!transactionId || !txRef) {
-        setVerification("success");
-        return;
-      }
-
-      if (status && status !== "successful" && status !== "completed") {
-        setVerification("failed");
-        setMessage("Flutterwave did not mark this payment as successful.");
-        return;
-      }
-
-      const result = await billingApi.verifyPayment(transactionId, txRef, plan);
-      if (cancelled) return;
-
-      if (result.data?.success) {
-        setVerification("success");
-        setMessage(result.data.message);
-      } else {
-        setVerification("failed");
-        setMessage(result.error || "Payment could not be verified.");
-      }
-    }
-
-    verifyPayment();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [plan, status, transactionId, txRef]);
-
-  const isChecking = verification === "checking";
-  const isFailed = verification === "failed";
+  const [message] = useState("Your payment was processed successfully.");
+  const isChecking = false;
+  const isFailed = false;
 
   return (
     <div className="min-h-screen bg-zinc-950">
