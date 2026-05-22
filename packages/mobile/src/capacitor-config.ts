@@ -76,6 +76,8 @@ export async function patchPackageJsonForMobile(
   pkg.scripts['mobile:ios'] = 'npx cap open ios';
   pkg.scripts['mobile:build:android'] =
     'npm run build && npx cap sync android && cd android && ./gradlew assembleDebug';
+  pkg.scripts['mobile:build:ios'] =
+    'npm run build && npx cap sync ios && cd ios/App && pod install && xcodebuild -workspace App.xcworkspace -scheme App -configuration Debug -destination "generic/platform=iOS Simulator" build CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO';
 
   await fs.writeJson(pkgPath, pkg, { spaces: 2 });
 }

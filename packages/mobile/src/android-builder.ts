@@ -48,6 +48,13 @@ export async function buildAndroid(
       stdio: 'inherit',
     });
 
+    // 4b. Build web assets — cap sync needs a populated dist/ folder
+    log('\n🏗️   Building web assets (npm run build)...');
+    await execa('npm', ['run', 'build'], {
+      cwd: projectDir,
+      stdio: 'inherit',
+    });
+
     // 5. Add Android platform (idempotent — safe to re-run)
     const androidDir = path.join(projectDir, 'android');
     if (!(await fs.pathExists(androidDir))) {
@@ -77,6 +84,10 @@ export async function buildAndroid(
     log(`\n🔨  Building APK (./gradlew ${gradleTask})...`);
 
     const gradlew = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
+    // Ensure gradlew is executable on Linux/macOS (git may not preserve +x)
+    if (process.platform !== 'win32') {
+      await execa('chmod', ['+x', gradlew], { cwd: androidDir });
+    }
     await execa(gradlew, [gradleTask, '--no-daemon'], {
       cwd: androidDir,
       stdio: 'inherit',

@@ -48,6 +48,13 @@ export async function buildIos(
       stdio: 'inherit',
     });
 
+    // 4b. Build web assets — cap sync needs a populated dist/ folder
+    log('\n🏗️   Building web assets (npm run build)...');
+    await execa('npm', ['run', 'build'], {
+      cwd: projectDir,
+      stdio: 'inherit',
+    });
+
     // 5. Add iOS platform
     const iosDir = path.join(projectDir, 'ios');
     if (!(await fs.pathExists(iosDir))) {
@@ -61,18 +68,18 @@ export async function buildIos(
       warnings.push('iOS platform already existed; skipped `cap add ios`.');
     }
 
-    // 6. Install CocoaPods dependencies
+    // 6. Sync web assets (writes Podfile / updates native project)
+    log('\n🔄  Syncing web assets (npx cap sync ios)...');
+    await execa('npx', ['cap', 'sync', 'ios'], {
+      cwd: projectDir,
+      stdio: 'inherit',
+    });
+
+    // 7. Install CocoaPods dependencies (must run AFTER cap sync writes the Podfile)
     const iosAppDir = path.join(iosDir, 'App');
     log('\n🍫  Installing CocoaPods (pod install)...');
     await execa('pod', ['install'], {
       cwd: iosAppDir,
-      stdio: 'inherit',
-    });
-
-    // 7. Sync
-    log('\n🔄  Syncing web assets (npx cap sync ios)...');
-    await execa('npx', ['cap', 'sync', 'ios'], {
-      cwd: projectDir,
       stdio: 'inherit',
     });
 
@@ -94,9 +101,15 @@ export async function buildIos(
     if (teamId) {
       xcodebuildArgs.push(`DEVELOPMENT_TEAM=${teamId}`);
     } else {
+      // No team ID — disable code signing so simulator builds succeed without a paid Apple account
+      xcodebuildArgs.push(
+        'CODE_SIGN_IDENTITY=',
+        'CODE_SIGNING_REQUIRED=NO',
+        'CODE_SIGNING_ALLOWED=NO',
+      );
       warnings.push(
-        'No iOS developmentTeam set in config. Build may fail for device deployment. ' +
-        'Add "ios": { "developmentTeam": "YOURTEAMID" } to webtoapp.config.json.'
+        'No iOS developmentTeam set — code signing disabled (simulator only). ' +
+        'Add "ios": { "developmentTeam": "YOURTEAMID" } to webtoapp.config.json for device deployment.'
       );
     }
 
