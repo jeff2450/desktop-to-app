@@ -3,33 +3,8 @@
     {
       "name": "Default",
       "files": [
-        "apps/web/.turbo/turbo-build.log",
-        "apps/api/.env.example",
-        "apps/api/prisma/schema.prisma",
-        "apps/api/src/config/env.ts",
-        "apps/api/src/index.ts",
-        "apps/api/src/routes/auth.routes.ts",
-        "apps/api/src/services/jobs.service.ts",
-        "apps/web/.env.example",
-        "apps/web/src/app/(dashboard)/billing/page.tsx",
-        "apps/web/src/app/(dashboard)/billing/success/page.tsx",
-        "apps/web/src/app/(dashboard)/jobs/new/page.tsx",
-        "apps/web/src/app/api/billing/checkout/route.ts",
-        "apps/web/src/app/pricing/page.tsx",
-        "apps/web/src/lib/api-client.ts",
-        "apps/web/src/lib/billing-service.ts",
-        "apps/web/src/app/api/billing/paypal/capture-order/route.ts",
-        "apps/web/src/app/api/billing/paypal/create-order/route.ts",
-        "apps/web/src/components/billing/PayPalCheckout.tsx",
         ".vscode/changelists.json",
-        "apps/api/src/routes/billing.routes.ts",
-        "apps/api/src/workers/conversion.worker.ts",
-        "apps/web/src/app/(dashboard)/settings/page.tsx",
-        "apps/web/src/stores/auth.ts",
-        "packages/core/src/__tests__/PipelineContext.test.ts",
-        "packages/transformers/src/__tests__/transformFile.integration.test.ts",
-        "apps/api/src/services/paypal.service.ts",
-        "apps/web/src/components/ui/tabs.tsx"
+        "packages/core/src/__tests__/preflight-failures.test.ts"
       ]
     }
   ],

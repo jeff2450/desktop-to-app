@@ -248,7 +248,7 @@ describe("Preflight — Next.js project", () => {
 
     const { ConversionPipeline } = await import("../pipeline/ConversionPipeline.js");
     const pipeline = new ConversionPipeline(
-      baseConfig({ source: tmpDir }) as any,
+      baseConfig({ source: tmpDir, dryRun: true }) as any,
       {
         onLog: (entry: { level: string; message: string }) => {
           if (entry.level === "warn") warnings.push(entry.message);
