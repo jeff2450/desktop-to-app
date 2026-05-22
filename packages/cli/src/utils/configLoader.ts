@@ -1,6 +1,6 @@
 import path from "node:path";
 import fs from "node:fs/promises";
-import type { ConversionConfig } from "@webtoapp/core";
+import type { ConversionConfig, MobileOverrides } from "@webtoapp/core";
 import _Ajv from "ajv";
 import _addErrors from "ajv-errors";
 
@@ -123,6 +123,8 @@ function validateConfig(
     migrations: databaseRaw?.["migrations"] as string | undefined,
   };
 
+  const mobile = raw["mobile"] as MobileOverrides | undefined;
+
   return {
     name: raw["name"] as string,
     version: raw["version"] as string,
@@ -141,5 +143,6 @@ function validateConfig(
     author: raw["author"] as string | undefined,
     resumeFromStage: raw["resumeFromStage"] as string | undefined,
     cleanLogs: raw["cleanLogs"] as boolean | undefined,
+    mobile,
   };
 }

@@ -24,6 +24,9 @@ function baseConfig(overrides: Record<string, unknown> = {}) {
     source: "",        // filled in by each test
     mode: "offline",
     targets: ["linux"],
+    backend: { type: "auto", port: 3001 },
+    auth: { type: "local" },
+    database: { type: "sqlite" },
     ...overrides,
   };
 }

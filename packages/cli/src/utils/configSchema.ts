@@ -43,7 +43,32 @@ export const configSchema = {
     dryRun: { type: "boolean" },
     author: { type: "string" },
     resumeFromStage: { type: "string" },
-    cleanLogs: { type: "boolean" }
+    cleanLogs: { type: "boolean" },
+    mobile: {
+      type: "object",
+      properties: {
+        android: {
+          type: "object",
+          properties: {
+            minSdkVersion: { type: "number" },
+            buildVariant: { type: "string", enum: ["debug", "release"] },
+            keystorePath: { type: "string" },
+            keystoreAlias: { type: "string" },
+            keystorePassword: { type: "string" }
+          },
+          additionalProperties: false
+        },
+        ios: {
+          type: "object",
+          properties: {
+            deploymentTarget: { type: "string" },
+            developmentTeam: { type: "string" }
+          },
+          additionalProperties: false
+        }
+      },
+      additionalProperties: false
+    }
   },
   additionalProperties: false
 };

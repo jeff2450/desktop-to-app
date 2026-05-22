@@ -12,7 +12,7 @@ export type { ValidationResult, ValidationError } from "./config/validateConfig.
 export { generateReport } from "./report/generateReport.js";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-export type { ConversionConfig, BackendConfig, AuthConfig, DatabaseConfig } from "./types/ConversionConfig.js";
+export type { ConversionConfig, BackendConfig, AuthConfig, DatabaseConfig, MobileOverrides } from "./types/ConversionConfig.js";
 export type { DetectionResult } from "./types/DetectionResult.js";
 export type { MigrationPlan, FileTransformPlan, FileGeneratePlan } from "./types/MigrationPlan.js";
 export type { BuildResult, StageSummary } from "./types/BuildResult.js";
