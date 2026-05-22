@@ -278,6 +278,9 @@ importers:
       '@webtoapp/builder':
         specifier: workspace:*
         version: link:../builder
+      '@webtoapp/mobile':
+        specifier: workspace:*
+        version: link:../mobile
       '@webtoapp/transformers':
         specifier: workspace:*
         version: link:../transformers
@@ -331,9 +334,6 @@ importers:
 
   packages/mobile:
     dependencies:
-      '@webtoapp/core':
-        specifier: workspace:*
-        version: link:../core
       chalk:
         specifier: ^5.3.0
         version: 5.6.2
