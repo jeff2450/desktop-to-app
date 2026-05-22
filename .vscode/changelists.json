@@ -2,7 +2,12 @@
   "changelists": [
     {
       "name": "Default",
-      "files": []
+      "files": [
+        "packages/mobile/tsconfig.json",
+        ".vscode/changelists.json",
+        "packages/mobile/package.json",
+        "packages/core/test-import.mjs"
+      ]
     }
   ],
   "active": "Default"
