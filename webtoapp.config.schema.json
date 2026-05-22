@@ -143,6 +143,62 @@
       "type": "boolean",
       "default": false,
       "description": "Delete the conversion log file after a successful pipeline run"
+    },
+    "mobile": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Mobile-specific build settings. Only used when 'android' or 'ios' appears in targets.",
+      "properties": {
+        "android": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Android build overrides",
+          "properties": {
+            "minSdkVersion": {
+              "type": "integer",
+              "minimum": 21,
+              "default": 22,
+              "description": "Minimum Android SDK version (22 = Android 5.1)"
+            },
+            "buildVariant": {
+              "type": "string",
+              "enum": ["debug", "release"],
+              "default": "debug",
+              "description": "debug: unsigned APK for testing. release: signed APK for Play Store."
+            },
+            "keystorePath": {
+              "type": "string",
+              "description": "Path to the release keystore file, relative to source root"
+            },
+            "keystoreAlias": {
+              "type": "string",
+              "description": "Keystore alias for release signing"
+            },
+            "keystorePassword": {
+              "type": "string",
+              "description": "Keystore password for release signing"
+            }
+          }
+        },
+        "ios": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "iOS build overrides (macOS only)",
+          "properties": {
+            "deploymentTarget": {
+              "type": "string",
+              "default": "13.0",
+              "description": "Minimum iOS deployment target, e.g. '13.0'",
+              "examples": ["13.0", "14.0", "15.0"]
+            },
+            "developmentTeam": {
+              "type": "string",
+              "description": "Apple developer team ID for Xcode signing. Found in Xcode → Signing & Capabilities.",
+              "examples": ["ABCD1234EF"]
+            }
+          }
+        }
+      }
     }
   }
 }

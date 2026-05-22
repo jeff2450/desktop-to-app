@@ -39,3 +39,12 @@ linux:
 publish:
   provider: generic
   url: https://your-update-server.com/updates/
+
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  icon: assets/icon.png
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist

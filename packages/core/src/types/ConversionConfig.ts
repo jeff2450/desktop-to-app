@@ -91,6 +91,48 @@ export interface ConversionConfig {
    * @default false
    */
   cleanLogs?: boolean;
+
+  /**
+   * Mobile-specific overrides for Android and/or iOS builds.
+   * Only used when "android" or "ios" appears in `targets`.
+   */
+  mobile?: MobileOverrides;
+}
+
+export interface MobileOverrides {
+  /** Android-specific build settings */
+  android?: {
+    /**
+     * Minimum Android SDK version.
+     * @default 22 (Android 5.1)
+     */
+    minSdkVersion?: number;
+    /**
+     * "debug" generates an unsigned debug APK (fast, no keystore needed).
+     * "release" generates a release APK suitable for Play Store upload.
+     * @default "debug"
+     */
+    buildVariant?: "debug" | "release";
+    /** Path to a release keystore file (relative to source root). */
+    keystorePath?: string;
+    keystoreAlias?: string;
+    keystorePassword?: string;
+  };
+  /** iOS-specific build settings (macOS only) */
+  ios?: {
+    /**
+     * Minimum iOS deployment target, e.g. "13.0".
+     * @default "13.0"
+     */
+    deploymentTarget?: string;
+    /**
+     * Apple developer team ID for Xcode signing.
+     * Required for device deployment; optional for Simulator builds.
+     * Find it in Xcode → Signing & Capabilities.
+     * @example "ABCD1234EF"
+     */
+    developmentTeam?: string;
+  };
 }
 
 export interface BackendConfig {

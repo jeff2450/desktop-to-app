@@ -4,10 +4,15 @@ import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { conversionsApi } from "../../lib/api-client";
 
-const TARGETS = [
+const DESKTOP_TARGETS = [
   { id: "windows", label: "Windows", icon: "⊞", ext: ".exe" },
   { id: "linux",   label: "Linux",   icon: "🐧", ext: ".AppImage" },
   { id: "mac",     label: "macOS",   icon: "🍎", ext: ".dmg" },
+];
+
+const MOBILE_TARGETS = [
+  { id: "android", label: "Android", icon: "🤖", ext: ".apk" },
+  { id: "ios",     label: "iOS",     icon: "📱", ext: ".ipa" },
 ];
 
 export function ConversionWizard() {
@@ -18,8 +23,13 @@ export function ConversionWizard() {
   const [appId, setAppId] = useState("");
   const [version, setVersion] = useState("1.0.0");
   const [mode, setMode] = useState<"offline" | "online" | "hybrid">("offline");
+  const [androidVariant, setAndroidVariant] = useState<"debug" | "release">("debug");
+  const [iosTeamId, setIosTeamId] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const hasMobile = targets.some((t) => t === "android" || t === "ios");
+  const hasIos = targets.includes("ios");
 
   function toggleTarget(id: string) {
     setTargets((prev) =>
@@ -58,6 +68,16 @@ export function ConversionWizard() {
       appId: appId || `com.webtoapp.${name.toLowerCase().replace(/\s+/g, "")}`,
       version,
       mode,
+      ...(hasMobile && {
+        mobile: {
+          ...(targets.includes("android") && {
+            android: { buildVariant: androidVariant },
+          }),
+          ...(hasIos && iosTeamId && {
+            ios: { developmentTeam: iosTeamId },
+          }),
+        },
+      }),
     });
     setLoading(false);
 
@@ -171,8 +191,11 @@ export function ConversionWizard() {
       {/* Targets */}
       <div>
         <label className="block text-sm font-medium text-gray-300 mb-2">Target platforms</label>
-        <div className="flex gap-3">
-          {TARGETS.map(({ id, label, icon, ext }) => (
+
+        {/* Desktop */}
+        <p className="text-xs text-gray-500 mb-1.5 uppercase tracking-wide">Desktop</p>
+        <div className="flex gap-3 mb-3">
+          {DESKTOP_TARGETS.map(({ id, label, icon, ext }) => (
             <button
               key={id}
               type="button"
@@ -189,7 +212,92 @@ export function ConversionWizard() {
             </button>
           ))}
         </div>
+
+        {/* Mobile */}
+        <p className="text-xs text-gray-500 mb-1.5 uppercase tracking-wide">Mobile</p>
+        <div className="flex gap-3">
+          {MOBILE_TARGETS.map(({ id, label, icon, ext }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => toggleTarget(id)}
+              className={`flex-1 flex flex-col items-center gap-1.5 py-3 rounded-lg border text-sm transition-colors ${
+                targets.includes(id)
+                  ? "border-green-500 bg-green-600/20 text-green-300"
+                  : "border-gray-700 bg-gray-900 text-gray-400 hover:border-gray-600"
+              }`}
+            >
+              <span className="text-xl">{icon}</span>
+              <span className="font-medium">{label}</span>
+              <span className="text-xs opacity-60">{ext}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Mobile requirement notices */}
+        {targets.includes("android") && (
+          <p className="text-xs text-yellow-400/80 mt-2">
+            🤖 Android requires Java JDK 17+ and Android Studio (ANDROID_HOME set).
+          </p>
+        )}
+        {targets.includes("ios") && (
+          <p className="text-xs text-blue-400/80 mt-2">
+            📱 iOS requires macOS with Xcode and CocoaPods installed.
+          </p>
+        )}
       </div>
+
+      {/* Mobile-specific options (shown only when a mobile target is selected) */}
+      {hasMobile && (
+        <div className="rounded-lg border border-gray-700 bg-gray-900/60 p-4 space-y-4">
+          <p className="text-sm font-medium text-gray-300">Mobile options</p>
+
+          {targets.includes("android") && (
+            <div>
+              <label className="block text-xs text-gray-400 mb-1.5">Android build variant</label>
+              <div className="flex gap-3">
+                {(["debug", "release"] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setAndroidVariant(v)}
+                    className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      androidVariant === v
+                        ? "border-green-500 bg-green-600/20 text-green-300"
+                        : "border-gray-700 text-gray-400 hover:border-gray-600"
+                    }`}
+                  >
+                    {v === "debug" ? "🐛 Debug (.apk)" : "🚀 Release (.apk)"}
+                  </button>
+                ))}
+              </div>
+              {androidVariant === "release" && (
+                <p className="text-xs text-yellow-400/80 mt-1.5">
+                  Release builds require a keystore. You can sign manually after conversion.
+                </p>
+              )}
+            </div>
+          )}
+
+          {hasIos && (
+            <div>
+              <label className="block text-xs text-gray-400 mb-1.5">
+                Apple Development Team ID <span className="text-gray-600">(optional)</span>
+              </label>
+              <input
+                type="text"
+                value={iosTeamId}
+                onChange={(e) => setIosTeamId(e.target.value)}
+                placeholder="ABCD1234EF"
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 text-sm font-mono"
+              />
+              <p className="text-xs text-gray-600 mt-1">
+                Found in Xcode → Signing & Capabilities. Required for device deployment.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       <button
         type="submit"

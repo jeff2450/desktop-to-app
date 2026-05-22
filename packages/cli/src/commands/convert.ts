@@ -44,7 +44,7 @@ export async function convertCommand(options: ConvertOptions): Promise<void> {
   if (options.target?.length) {
     config = {
       ...config,
-      targets: options.target as Array<"windows" | "linux" | "mac">,
+      targets: options.target as Array<"windows" | "linux" | "mac" | "android" | "ios">,
     };
   }
 
@@ -69,6 +69,7 @@ export async function convertCommand(options: ConvertOptions): Promise<void> {
     "05-install":  "Installing dependencies",
     "06-build":    "Building with Vite",
     "07-package":  "Packaging installer",
+    "07b-mobile":  "Building mobile apps (Capacitor)",
   };
 
   const pipeline = new ConversionPipeline(config, {

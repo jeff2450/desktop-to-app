@@ -13,7 +13,7 @@ const DEFAULT_CONFIG = {
   version: "1.0.0",
   appId: "com.example.myapp",
   source: ".",
-  targets: ["windows", "linux"] as Array<"windows" | "linux" | "mac">,
+  targets: ["windows", "linux"] as Array<"windows" | "linux" | "mac" | "android" | "ios">,
   backend: { type: "auto", port: 3001 },
   auth: { type: "local", defaultAdmin: "admin@app.local" },
   database: { type: "sqlite" },
@@ -89,13 +89,13 @@ async function promptConfig(): Promise<typeof DEFAULT_CONFIG> {
   );
 
   const targetsRaw = await prompt(
-    `  Targets (windows, linux, mac) ${chalk.dim("[windows,linux]")}: `,
+    `  Targets (windows, linux, mac, android, ios) ${chalk.dim("[windows,linux]")}: `,
     "windows,linux"
   );
   const targets = targetsRaw
     .split(",")
     .map((t) => t.trim())
-    .filter((t) => ["windows", "linux", "mac"].includes(t)) as Array<"windows" | "linux" | "mac">;
+    .filter((t) => ["windows", "linux", "mac", "android", "ios"].includes(t)) as Array<"windows" | "linux" | "mac" | "android" | "ios">;
 
   const backendPort = await prompt(
     `  Local backend port ${chalk.dim("[3001]")}: `,
@@ -110,6 +110,41 @@ async function promptConfig(): Promise<typeof DEFAULT_CONFIG> {
   const modeInput = await prompt(`  Mode (offline/online/hybrid) [offline]: `, "offline");
   const mode = (["offline", "online", "hybrid"].includes(modeInput) ? modeInput : "offline") as "offline" | "online" | "hybrid";
 
+  // ── Mobile-specific prompts (only shown when android/ios is in targets) ──
+  const wantsAndroid = targets.includes("android");
+  const wantsIos     = targets.includes("ios");
+
+  let androidVariant: "debug" | "release" = "debug";
+  let iosTeamId: string | undefined;
+
+  if (wantsAndroid) {
+    console.log(chalk.dim("\n  Android options:"));
+    const variantInput = await prompt(
+      `    Build variant (debug/release) ${chalk.dim("[debug]")}: `,
+      "debug"
+    );
+    androidVariant = variantInput === "release" ? "release" : "debug";
+  }
+
+  if (wantsIos) {
+    console.log(chalk.dim("\n  iOS options:"));
+    console.log(chalk.dim("    (iOS builds require macOS + Xcode + CocoaPods)"));
+    const teamInput = await prompt(
+      `    Apple Development Team ID ${chalk.dim("[leave blank to skip]")}: `,
+      ""
+    );
+    if (teamInput) iosTeamId = teamInput;
+  }
+
+  const mobileConfig = (wantsAndroid || wantsIos)
+    ? {
+        mobile: {
+          ...(wantsAndroid && { android: { buildVariant: androidVariant } }),
+          ...(wantsIos && iosTeamId && { ios: { developmentTeam: iosTeamId } }),
+        },
+      }
+    : {};
+
   return {
     name,
     version,
@@ -120,6 +155,7 @@ async function promptConfig(): Promise<typeof DEFAULT_CONFIG> {
     backend: { type: "auto", port: parseInt(backendPort, 10) || 3001 },
     auth: { type: "local", defaultAdmin },
     database: { type: "sqlite" },
+    ...mobileConfig,
   };
 }
 
