@@ -2,6 +2,25 @@ import type { PipelineContext } from "../PipelineContext.js";
 
 const STAGE = "07b-mobile";
 
+type MobileModule = typeof import("@webtoapp/mobile");
+
+async function importMobileModule(): Promise<MobileModule> {
+  try {
+    return await import("@webtoapp/mobile");
+  } catch (err) {
+    if (
+      err instanceof Error &&
+      "code" in err &&
+      err.code === "ERR_MODULE_NOT_FOUND" &&
+      err.message.includes("@webtoapp/mobile")
+    ) {
+      return await import("../../../../mobile/dist/index.js") as MobileModule;
+    }
+
+    throw err;
+  }
+}
+
 /**
  * Stage 07b — Mobile (optional)
  *
@@ -38,7 +57,7 @@ export async function runMobileStage(ctx: PipelineContext): Promise<void> {
 
     // Dynamically import @webtoapp/mobile to avoid loading Capacitor deps
     // when only desktop targets are requested.
-    const { buildAndroid, buildIos } = await import("@webtoapp/mobile");
+    const { buildAndroid, buildIos } = await importMobileModule();
 
     const mobileConfig = {
       appId:   ctx.config.appId,
