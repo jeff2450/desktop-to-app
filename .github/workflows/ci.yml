@@ -113,3 +113,17 @@ jobs:
           path: '**/coverage/'
           retention-days: 7
           if-no-files-found: ignore
+
+      - name: Generate Prisma Client
+        run: pnpm prisma generate
+        working-directory: apps/api
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm prisma generate
+        working-directory: apps/api
+
+      - name: Typecheck all packages
+        run: pnpm turbo typecheck
