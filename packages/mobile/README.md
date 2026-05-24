@@ -127,7 +127,7 @@ Add `"ios"` to targets when you're on macOS or using the GitHub Actions workflow
 
 ## Android requirements (local build)
 
-- Java JDK 17+ — https://adoptium.net
+- Java JDK 17 - Capacitor 6's Android Gradle stack can fail on newer JDKs such as 25
 - Android Studio — https://developer.android.com/studio
 - Set `ANDROID_HOME` env var to your SDK path
 

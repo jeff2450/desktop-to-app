@@ -28,7 +28,7 @@ async function importMobileModule(): Promise<MobileModule> {
  * Skipped automatically when no mobile targets are in config.targets.
  *
  * Prerequisites:
- *  Android — Java JDK 17+, Android Studio, ANDROID_HOME set in env
+ *  Android — Java JDK 17, Android Studio, ANDROID_HOME set in env
  *  iOS     — macOS only, Xcode + CocoaPods installed
  *
  * The @webtoapp/mobile package is dynamically imported so that its

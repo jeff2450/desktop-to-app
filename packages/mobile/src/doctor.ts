@@ -2,6 +2,12 @@ import { execSync } from 'child_process';
 import { existsSync } from 'fs';
 import path from 'path';
 import { DoctorCheck, DoctorResult } from './types.js';
+import {
+  ANDROID_JDK_MAJOR,
+  configureAndroidJava,
+  formatJavaRuntime,
+  getCurrentJava,
+} from './java-env.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -69,13 +75,16 @@ export function checkAndroid(): DoctorResult {
   const androidSdk = configureAndroidSdk();
 
   // Java
-  const javaOk = commandExists('java');
+  const androidJava = configureAndroidJava();
+  const currentJava = androidJava ?? getCurrentJava();
   checks.push({
     name: 'Java JDK',
-    passed: javaOk,
-    message: javaOk
-      ? `Found: ${getCommandVersion('java')}`
-      : 'Not found — install JDK 17+ from https://adoptium.net',
+    passed: !!androidJava,
+    message: androidJava
+      ? `Using ${formatJavaRuntime(androidJava)}`
+      : currentJava
+        ? `Found ${formatJavaRuntime(currentJava)}, but Android builds require JDK ${ANDROID_JDK_MAJOR}. Install JDK ${ANDROID_JDK_MAJOR} and set JAVA_HOME to it.`
+        : `Not found - install JDK ${ANDROID_JDK_MAJOR} from https://adoptium.net`,
     required: true,
   });
 

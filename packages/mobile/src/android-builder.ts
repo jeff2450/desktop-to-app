@@ -4,6 +4,7 @@ import { execa } from 'execa';
 import { MobileConfig, MobileBuildResult } from './types.js';
 import { checkAndroid } from './doctor.js';
 import { writeCapacitorConfig, patchPackageJsonForMobile } from './capacitor-config.js';
+import { createAndroidJavaEnv } from './java-env.js';
 
 // ─── Main Android builder ─────────────────────────────────────────────────────
 
@@ -90,6 +91,7 @@ export async function buildAndroid(
     }
     await execa(gradlew, [gradleTask, '--no-daemon'], {
       cwd: androidDir,
+      env: createAndroidJavaEnv(),
       stdio: 'inherit',
     });
 
