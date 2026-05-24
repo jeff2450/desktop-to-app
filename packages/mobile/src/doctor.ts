@@ -1,4 +1,6 @@
 import { execSync } from 'child_process';
+import { existsSync } from 'fs';
+import path from 'path';
 import { DoctorCheck, DoctorResult } from './types.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -16,6 +18,39 @@ function envExists(name: string): boolean {
   return !!process.env[name];
 }
 
+function addToPath(dir: string): void {
+  const currentPath = process.env['PATH'] ?? process.env['Path'] ?? '';
+  const entries = currentPath.split(path.delimiter).filter(Boolean);
+  if (!entries.some((entry) => entry.toLowerCase() === dir.toLowerCase())) {
+    process.env['PATH'] = [...entries, dir].join(path.delimiter);
+  }
+}
+
+function findAndroidSdk(): string | null {
+  const configured = process.env['ANDROID_HOME'] ?? process.env['ANDROID_SDK_ROOT'];
+  if (configured && existsSync(configured)) {
+    return configured;
+  }
+
+  const candidates = [
+    process.env['LOCALAPPDATA'] ? path.join(process.env['LOCALAPPDATA'], 'Android', 'Sdk') : null,
+    process.env['ANDROID_SDK_HOME'] ? path.join(process.env['ANDROID_SDK_HOME'], 'Sdk') : null,
+  ].filter((candidate): candidate is string => !!candidate);
+
+  return candidates.find((candidate) => existsSync(candidate)) ?? null;
+}
+
+function configureAndroidSdk(): string | null {
+  const sdk = findAndroidSdk();
+  if (!sdk) return null;
+
+  process.env['ANDROID_HOME'] = sdk;
+  process.env['ANDROID_SDK_ROOT'] = sdk;
+  addToPath(path.join(sdk, 'platform-tools'));
+  addToPath(path.join(sdk, 'cmdline-tools', 'latest', 'bin'));
+  return sdk;
+}
+
 function getCommandVersion(cmd: string, args = '--version'): string {
   try {
     return execSync(`${cmd} ${args}`, { stdio: ['ignore', 'pipe', 'ignore'] })
@@ -31,6 +66,7 @@ function getCommandVersion(cmd: string, args = '--version'): string {
 
 export function checkAndroid(): DoctorResult {
   const checks: DoctorCheck[] = [];
+  const androidSdk = configureAndroidSdk();
 
   // Java
   const javaOk = commandExists('java');
@@ -55,12 +91,12 @@ export function checkAndroid(): DoctorResult {
   });
 
   // ANDROID_HOME env
-  const androidHomeOk = envExists('ANDROID_HOME') || envExists('ANDROID_SDK_ROOT');
+  const androidHomeOk = !!androidSdk || envExists('ANDROID_HOME') || envExists('ANDROID_SDK_ROOT');
   checks.push({
     name: 'ANDROID_HOME / ANDROID_SDK_ROOT',
     passed: androidHomeOk,
     message: androidHomeOk
-      ? `Set to: ${process.env['ANDROID_HOME'] ?? process.env['ANDROID_SDK_ROOT']}`
+      ? `Set to: ${androidSdk ?? process.env['ANDROID_HOME'] ?? process.env['ANDROID_SDK_ROOT']}`
       : 'Not set — install Android Studio and set ANDROID_HOME in your environment',
     required: true,
   });
