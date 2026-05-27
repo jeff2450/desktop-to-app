@@ -20,7 +20,8 @@ import {
   CheckCircle2, 
   XCircle, 
   Clock, 
-  ArrowUpRight 
+  ArrowUpRight,
+  ChevronRight
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -39,8 +40,7 @@ export default function DashboardPage() {
           billingApi.usage()
         ]);
         if (c.data) {
-          const jobsArray = Array.isArray(c.data) ? c.data : (c.data as any).data || [];
-          setConversions(jobsArray);
+          setConversions(c.data);
         }
         if (u.data) setUsage(u.data);
       } catch (error) {
@@ -281,7 +281,15 @@ export default function DashboardPage() {
   );
 }
 
-function StatCard({ label, value, icon: Icon, color, bg }: any) {
+interface StatCardProps {
+  label: string;
+  value: number;
+  icon: React.ElementType;
+  color: string;
+  bg: string;
+}
+
+function StatCard({ label, value, icon: Icon, color, bg }: StatCardProps) {
   return (
     <div className="bg-zinc-900/50 border border-zinc-800 p-5 rounded-2xl flex items-center gap-4">
       <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", bg)}>
@@ -312,21 +320,4 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function ChevronRight(props: any) {
-  return (
-    <svg 
-      {...props}
-      xmlns="http://www.w3.org/2000/svg" 
-      width="24" 
-      height="24" 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round"
-    >
-      <path d="m9 18 6-6-6-6"/>
-    </svg>
-  );
-}
+

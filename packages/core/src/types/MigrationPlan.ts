@@ -72,6 +72,7 @@ export interface FileGeneratePlan {
     | "jwt-auth"
     | "crud-routes"
     | "local-api-client"
+    | "local-auth-client"
     | "sync-engine"
     | "online-status-hook"
     | "mac-entitlements";

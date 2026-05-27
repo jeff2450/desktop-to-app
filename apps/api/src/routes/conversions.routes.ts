@@ -15,17 +15,21 @@ import { requireAuth } from "../middleware/auth.js";
 import { handleUpload } from "../middleware/upload.js";
 import {
   cancelJob,
+  deleteJob,
   createJob,
   createJobFromUpload,
   getJob,
   listJobs,
 } from "../services/jobs.service.js";
 import { generateSignedUrl, localPathForKey } from "../services/storage.service.js";
-import { getLogLines } from "../services/queue.service.js";
+import { getLogLines, getJobProgress } from "../services/queue.service.js";
 import { ApiError } from "../lib/errors.js";
 import { useS3 } from "../config/env.js";
 import fs from "node:fs";
 import type { Response, Request } from "express";
+
+/** Terminal job statuses — SSE stream closes once the job reaches one of these */
+const TERMINAL_STATUSES = new Set(["SUCCESS", "FAILED", "CANCELLED"]);
 
 const configSchema = z.object({
   name:               z.string().min(1),
@@ -149,12 +153,113 @@ conversionsRouter.get("/:id", async (req: Request, res: Response, next) => {
 
     // Enrich with any live Redis log lines not yet flushed to DB
     const liveLines = await getLogLines(job.id);
+    const progress = await getJobProgress(job.id);
 
     res.json({
       ...job,
+      progress,
       // Prefer real-time Redis buffer while job is running; fall back to DB logs
       liveLogLines: liveLines.length > 0 ? liveLines : undefined,
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ─── GET /conversions/:id/stream — SSE real-time log stream ─────────────────
+//
+// Events emitted:
+//   data: {"type":"log","line":"..."} — one per log line
+//   data: {"type":"status","status":"..."} — when job status changes
+//   data: {"type":"ping"} — keepalive every 15 s
+//   data: {"type":"done"} — stream end (terminal status reached)
+
+conversionsRouter.get("/:id/stream", async (req: Request, res: Response, next) => {
+  try {
+    const authReq = req as unknown as AuthenticatedRequest;
+    const jobId   = (req.params["id"] as string) ?? "";
+
+    // Verify the job exists and belongs to this user (throws 404 otherwise)
+    await getJob(authReq.auth.userId, jobId);
+
+    // ── SSE headers ──────────────────────────────────────────────────────────
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no"); // disable nginx buffering
+    res.flushHeaders();
+
+    const send = (payload: Record<string, unknown>) => {
+      res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    };
+
+    // ── Send all buffered lines and current progress immediately ─────────────
+    let sentCount = 0;
+    const initialLines = await getLogLines(jobId);
+    for (const line of initialLines) {
+      send({ type: "log", line });
+    }
+    sentCount = initialLines.length;
+
+    const initialProgress = await getJobProgress(jobId);
+    send({ type: "progress", progress: initialProgress });
+
+    // ── Periodic polling ─────────────────────────────────────────────────────
+    let lastStatus   = "";
+    let lastProgress = initialProgress;
+    let pingCount    = 0;
+    const POLL_MS    = 500;
+    const PING_EVERY = Math.ceil(15_000 / POLL_MS); // every 30 ticks ≈ 15 s
+
+    const interval = setInterval(async () => {
+      try {
+        // Check job status
+        const job = await getJob(authReq.auth.userId, jobId);
+
+        if (job.status !== lastStatus) {
+          lastStatus = job.status;
+          send({ type: "status", status: job.status });
+        }
+
+        const progress = await getJobProgress(jobId);
+        if (progress !== lastProgress) {
+          lastProgress = progress;
+          send({ type: "progress", progress });
+        }
+
+        // Push any new log lines
+        const allLines = await getLogLines(jobId);
+        if (allLines.length > sentCount) {
+          for (const line of allLines.slice(sentCount)) {
+            send({ type: "log", line });
+          }
+          sentCount = allLines.length;
+        }
+
+        // Keepalive ping
+        pingCount++;
+        if (pingCount % PING_EVERY === 0) {
+          send({ type: "ping" });
+        }
+
+        // Close when terminal
+        if (TERMINAL_STATUSES.has(job.status)) {
+          send({ type: "done" });
+          clearInterval(interval);
+          res.end();
+        }
+      } catch {
+        // If the job disappears, close gracefully
+        clearInterval(interval);
+        res.end();
+      }
+    }, POLL_MS);
+
+    // ── Clean up if client disconnects ───────────────────────────────────────
+    req.on("close", () => {
+      clearInterval(interval);
+    });
+
   } catch (error) {
     next(error);
   }
@@ -213,8 +318,15 @@ conversionsRouter.get("/local-file/:key", async (req: Request, res: Response, ne
 conversionsRouter.delete("/:id", async (req: Request, res: Response, next) => {
   try {
     const authReq = req as unknown as AuthenticatedRequest;
-    const job     = await cancelJob(authReq.auth.userId, (req.params["id"] as string) ?? "");
-    res.json(job);
+    const jobId   = (req.params["id"] as string) ?? "";
+
+    if (req.query["action"] === "cancel") {
+      const job = await cancelJob(authReq.auth.userId, jobId);
+      return res.json(job);
+    }
+
+    const result = await deleteJob(authReq.auth.userId, jobId);
+    res.json(result);
   } catch (error) {
     next(error);
   }

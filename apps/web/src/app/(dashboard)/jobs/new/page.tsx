@@ -7,10 +7,6 @@ import { conversionsApi } from "@/lib/api-client";
 import { 
   Card, 
   CardContent, 
-  CardHeader, 
-  CardTitle, 
-  CardDescription,
-  CardFooter
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,14 +16,16 @@ import {
   RadioGroupItem 
 } from "@/components/ui/radio-group";
 import { 
-  GitBranch as Github, 
+  GitBranch,
   FileArchive, 
   ChevronRight, 
   ChevronLeft, 
   Rocket,
   Info,
   Check,
-  CreditCard
+  CreditCard,
+  Loader2,
+  AlertCircle
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
@@ -35,27 +33,98 @@ import { useAuthStore } from "@/stores/auth";
 
 const STEPS = ["Source", "Config", "Review"];
 
+type ConversionMode = "offline" | "online" | "hybrid";
+type SourceType = "github" | "upload";
+
+interface FormData {
+  name: string;
+  sourceType: SourceType;
+  sourceUrl: string;
+  appId: string;
+  mode: ConversionMode;
+  targets: string[];
+}
+
+interface SourceOptionProps {
+  icon: React.ElementType;
+  label: string;
+  description: string;
+  active: boolean;
+  onClick: () => void;
+}
+
+interface ModeOptionProps {
+  value: string;
+  label: string;
+  desc: string;
+}
+
+interface TargetCheckboxProps {
+  label: string;
+  value: string;
+  checked: boolean;
+  onCheckedChange: () => void;
+  disabled?: boolean;
+}
+
+interface ReviewItemProps {
+  label: string;
+  value: string;
+}
+
+const APP_ID_RE = /^[a-zA-Z][a-zA-Z0-9]*(\.[a-zA-Z0-9-]+)+$/;
+
 export default function NewJobPage() {
   const router = useRouter();
   const { user } = useAuthStore();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [fieldError, setFieldError] = useState<string | null>(null);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
-  // Form State
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     name: "",
-    sourceType: "github" as "github" | "upload",
+    sourceType: "github",
     sourceUrl: "",
-    appId: "com.example.myapp",
-    mode: "offline" as "offline" | "online" | "hybrid",
-    targets: ["linux"] as string[],
+    appId: "",
+    mode: "offline",
+    targets: ["linux"],
   });
 
-  const nextStep = () => setStep(s => Math.min(s + 1, STEPS.length - 1));
-  const prevStep = () => setStep(s => Math.max(s - 1, 0));
+  const nextStep = () => {
+    setFieldError(null);
+
+    if (step === 0) {
+      if (formData.sourceType === "github" && !formData.sourceUrl.trim()) {
+        setFieldError("Please enter a GitHub repository URL.");
+        return;
+      }
+      if (formData.sourceType === "upload" && !selectedFile) {
+        setFieldError("Please select a ZIP file to upload.");
+        return;
+      }
+    }
+
+    if (step === 1) {
+      if (!APP_ID_RE.test(formData.appId.trim())) {
+        setFieldError("App ID must be in reverse-domain format, e.g. com.example.myapp");
+        return;
+      }
+      if (formData.targets.length === 0) {
+        setFieldError("Please select at least one target platform.");
+        return;
+      }
+    }
+
+    setStep(s => Math.min(s + 1, STEPS.length - 1));
+  };
+
+  const prevStep = () => {
+    setFieldError(null);
+    setStep(s => Math.max(s - 1, 0));
+  };
 
   const toggleTarget = (target: string) => {
     setFormData(prev => ({
@@ -66,13 +135,30 @@ export default function NewJobPage() {
     }));
   };
 
+  const handleFileSelect = (file: File) => {
+    if (!file.name.endsWith(".zip")) {
+      setFieldError("Only .zip files are accepted.");
+      return;
+    }
+    setFieldError(null);
+    setSelectedFile(file);
+    if (!formData.name) {
+      setFormData(prev => ({
+        ...prev,
+        name: file.name
+          .replace(/\.[^/.]+$/, "")
+          .replace(/-/g, " ")
+          .replace(/\b\w/g, c => c.toUpperCase())
+      }));
+    }
+  };
+
   const handleSubmit = async () => {
     setLoading(true);
     setSubmitError(null);
     setShowUpgradePrompt(false);
 
     try {
-      let res;
       const appName = formData.name.trim() || "Untitled App";
       const appId = formData.appId.trim();
       const config = {
@@ -82,22 +168,12 @@ export default function NewJobPage() {
         targets: formData.targets,
       };
 
-      if (!/^[a-z][a-z0-9]*(\.[a-z0-9-]+)+$/i.test(appId)) {
-        alert("App ID must look like com.example.myapp.");
-        return;
-      }
-
+      let res;
       if (formData.sourceType === "upload") {
-        if (!selectedFile) {
-          alert("Please select a ZIP file first.");
-          return;
-        }
-
         const data = new FormData();
-        data.append("archive", selectedFile);
+        data.append("archive", selectedFile!);
         data.append("config", JSON.stringify(config));
         data.append("platforms", JSON.stringify(formData.targets));
-
         res = await conversionsApi.create(data);
       } else {
         res = await conversionsApi.create({
@@ -108,15 +184,12 @@ export default function NewJobPage() {
       }
       
       if (res.data) {
-        const jobId = (res.data as any).conversionId || res.data.id;
-        router.push(`/jobs/${jobId}`);
+        router.push(`/jobs/${res.data.id}`);
       } else if (res.error) {
-        console.error("Failed to create job:", res.error);
         setSubmitError(res.error);
         setShowUpgradePrompt(isUsageLimitError(res.error));
       }
-    } catch (error) {
-      console.error("Failed to create job:", error);
+    } catch {
       setSubmitError("Failed to start conversion. Please try again.");
     } finally {
       setLoading(false);
@@ -145,27 +218,30 @@ export default function NewJobPage() {
                 </span>
               </div>
               {i < STEPS.length - 1 && (
-                <div className={cn("h-[2px] flex-1 mx-4 bg-zinc-800", step > i && "bg-indigo-600/50")} />
+                <div className={cn("h-[2px] flex-1 mx-4 bg-zinc-800 transition-colors", step > i && "bg-indigo-600/50")} />
               )}
             </div>
           ))}
         </div>
 
-        {/* Form Content */}
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {/* Inline field error */}
+          {fieldError && (
+            <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 flex items-center gap-3 text-rose-400 text-sm">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {fieldError}
+            </div>
+          )}
+
+          {/* Submit error */}
           {submitError && (
             <Card className={cn(
               "border p-5",
-              showUpgradePrompt
-                ? "bg-amber-500/10 border-amber-500/30"
-                : "bg-red-500/10 border-red-500/30"
+              showUpgradePrompt ? "bg-amber-500/10 border-amber-500/30" : "bg-red-500/10 border-red-500/30"
             )}>
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className={cn(
-                    "text-sm font-bold",
-                    showUpgradePrompt ? "text-amber-200" : "text-red-200"
-                  )}>
+                  <p className={cn("text-sm font-bold", showUpgradePrompt ? "text-amber-200" : "text-red-200")}>
                     {showUpgradePrompt ? "Free conversion used" : "Conversion failed"}
                   </p>
                   <p className="mt-1 text-sm text-zinc-300">{submitError}</p>
@@ -189,18 +265,18 @@ export default function NewJobPage() {
             <div className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <SourceOption 
-                  icon={Github} 
+                  icon={GitBranch}
                   label="GitHub Repo" 
                   description="Point to a public or private repository" 
                   active={formData.sourceType === "github"}
-                  onClick={() => setFormData(f => ({ ...f, sourceType: "github" }))}
+                  onClick={() => { setFieldError(null); setFormData(f => ({ ...f, sourceType: "github" })); }}
                 />
                 <SourceOption 
-                  icon={FileArchive} 
+                  icon={FileArchive}
                   label="Upload ZIP" 
-                  description="Upload a source archive (max 50MB)" 
+                  description="Upload a source archive (max 200 MB)" 
                   active={formData.sourceType === "upload"}
-                  onClick={() => setFormData(f => ({ ...f, sourceType: "upload" }))}
+                  onClick={() => { setFieldError(null); setFormData(f => ({ ...f, sourceType: "upload" })); }}
                 />
               </div>
 
@@ -208,6 +284,7 @@ export default function NewJobPage() {
                 <div className="space-y-2">
                   <Label className="text-zinc-400">Repository URL</Label>
                   <Input 
+                    id="source-url"
                     placeholder="https://github.com/user/repo" 
                     className="bg-zinc-900 border-zinc-800 h-12 rounded-xl text-white placeholder:text-zinc-600 focus:ring-indigo-500"
                     value={formData.sourceUrl}
@@ -222,15 +299,7 @@ export default function NewJobPage() {
                   onDrop={(e) => {
                     e.preventDefault();
                     const file = e.dataTransfer.files?.[0];
-                    if (file && file.name.endsWith(".zip")) {
-                      setSelectedFile(file);
-                      if (!formData.name) {
-                        setFormData(prev => ({
-                          ...prev,
-                          name: file.name.replace(/\.[^/.]+$/, "").replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())
-                        }));
-                      }
-                    }
+                    if (file) handleFileSelect(file);
                   }}
                   className="border-2 border-dashed border-zinc-800 rounded-2xl p-12 text-center bg-zinc-900/10 hover:bg-zinc-900/20 transition-colors cursor-pointer group"
                 >
@@ -241,15 +310,7 @@ export default function NewJobPage() {
                     className="hidden" 
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file) {
-                        setSelectedFile(file);
-                        if (!formData.name) {
-                          setFormData(prev => ({
-                            ...prev,
-                            name: file.name.replace(/\.[^/.]+$/, "").replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase())
-                          }));
-                        }
-                      }
+                      if (file) handleFileSelect(file);
                     }}
                   />
                   <FileArchive className={cn("w-12 h-12 mx-auto mb-4 transition-colors", selectedFile ? "text-indigo-400" : "text-zinc-700 group-hover:text-indigo-500")} />
@@ -257,7 +318,7 @@ export default function NewJobPage() {
                     {selectedFile ? selectedFile.name : "Click to select or drag and drop"}
                   </p>
                   <p className="text-zinc-600 text-xs mt-1">
-                    {selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB` : ".zip files only"}
+                    {selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB` : ".zip files only · max 200 MB"}
                   </p>
                 </div>
               )}
@@ -270,8 +331,9 @@ export default function NewJobPage() {
               <CardContent className="pt-6 space-y-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label className="text-zinc-400">App Name</Label>
+                    <Label htmlFor="app-name" className="text-zinc-400">App Name</Label>
                     <Input 
+                      id="app-name"
                       placeholder="My Amazing App" 
                       className="bg-zinc-950 border-zinc-800 text-white"
                       value={formData.name}
@@ -279,13 +341,17 @@ export default function NewJobPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-zinc-400">App ID (Bundle ID)</Label>
+                    <Label htmlFor="app-id" className="text-zinc-400">App ID (Bundle ID)</Label>
                     <Input 
+                      id="app-id"
                       placeholder="com.example.myapp" 
                       className="bg-zinc-950 border-zinc-800 text-white font-mono"
                       value={formData.appId}
                       onChange={(e) => setFormData(f => ({ ...f, appId: e.target.value }))}
                     />
+                    <p className="text-[10px] text-zinc-600 flex items-center gap-1">
+                      <Info className="w-3 h-3" /> Reverse-domain format, e.g. com.acme.app
+                    </p>
                   </div>
                 </div>
 
@@ -293,11 +359,11 @@ export default function NewJobPage() {
                   <Label className="text-zinc-400">Conversion Mode</Label>
                   <RadioGroup 
                     value={formData.mode} 
-                    onValueChange={(v: any) => setFormData(f => ({ ...f, mode: v }))}
+                    onValueChange={(v: ConversionMode) => setFormData(f => ({ ...f, mode: v }))}
                     className="grid grid-cols-1 sm:grid-cols-3 gap-4"
                   >
                     <ModeOption value="offline" label="Offline" desc="Full SQLite sync" />
-                    <ModeOption value="online" label="Online" desc="WebView Wrapper" />
+                    <ModeOption value="online" label="Online" desc="WebView wrapper" />
                     <ModeOption value="hybrid" label="Hybrid" desc="Partial caching" />
                   </RadioGroup>
                 </div>
@@ -305,22 +371,22 @@ export default function NewJobPage() {
                 <div className="space-y-4">
                   <Label className="text-zinc-400">Target Platforms</Label>
                   <div className="flex flex-wrap gap-6 p-4 bg-zinc-950 border border-zinc-800 rounded-xl">
-                    <TargetCheckbox 
-                      label="Windows" 
-                      checked={formData.targets.includes("windows")} 
-                      onCheckedChange={() => toggleTarget("windows")} 
-                    />
-                    <TargetCheckbox 
-                      label="Linux" 
-                      checked={formData.targets.includes("linux")} 
-                      onCheckedChange={() => toggleTarget("linux")} 
-                    />
-                    <TargetCheckbox 
-                      label="macOS" 
-                      checked={formData.targets.includes("macos")} 
-                      onCheckedChange={() => toggleTarget("macos")} 
-                    />
+                    <TargetCheckbox label="Windows" value="windows" checked={formData.targets.includes("windows")} onCheckedChange={() => toggleTarget("windows")} />
+                    <TargetCheckbox label="Linux"   value="linux"   checked={formData.targets.includes("linux")}   onCheckedChange={() => toggleTarget("linux")} />
+                    <TargetCheckbox label="macOS"   value="mac"     checked={formData.targets.includes("mac")}     onCheckedChange={() => toggleTarget("mac")} />
+                    <TargetCheckbox label="Android" value="android" checked={formData.targets.includes("android")} onCheckedChange={() => toggleTarget("android")} />
+                    <TargetCheckbox label="iOS"     value="ios"     checked={formData.targets.includes("ios")}     onCheckedChange={() => toggleTarget("ios")} disabled={user?.plan === "free"} />
                   </div>
+                  {formData.targets.includes("ios") && (
+                    <p className="text-[10px] text-amber-400 flex items-center gap-1">
+                      <Info className="w-3 h-3" /> iOS builds require macOS — the pipeline will skip this target on Linux/Windows runners.
+                    </p>
+                  )}
+                  {formData.targets.includes("mac") && (
+                    <p className="text-[10px] text-amber-400 flex items-center gap-1">
+                      <Info className="w-3 h-3" /> macOS (.dmg) builds require a macOS worker. This target will be skipped if the pipeline runs on a Linux or Windows machine.
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -343,7 +409,7 @@ export default function NewJobPage() {
               <CardContent className="p-6 space-y-4">
                 <ReviewItem label="App Name" value={formData.name || "Untitled App"} />
                 <ReviewItem label="App ID" value={formData.appId} />
-                <ReviewItem label="Source" value={formData.sourceType === 'github' ? formData.sourceUrl : 'ZIP Upload'} />
+                <ReviewItem label="Source" value={formData.sourceType === "github" ? formData.sourceUrl : selectedFile?.name ?? "ZIP Upload"} />
                 <ReviewItem label="Mode" value={formData.mode.toUpperCase()} />
                 <ReviewItem label="Targets" value={formData.targets.join(", ").toUpperCase()} />
                 
@@ -353,14 +419,14 @@ export default function NewJobPage() {
                     <span className="text-sm font-bold text-white">Estimated Build Time</span>
                   </div>
                   <p className="text-sm text-zinc-500">
-                    Based on your selection of {formData.targets.length} target(s), this build will take approximately {formData.targets.length * 2}-5 minutes.
+                    Based on {formData.targets.length} target platform{formData.targets.length !== 1 ? "s" : ""}, this build will take approximately {formData.targets.length * 2}–{formData.targets.length * 2 + 3} minutes.
                   </p>
                 </div>
               </CardContent>
             </Card>
           )}
 
-          {/* Navigation Buttons */}
+          {/* Navigation */}
           <div className="flex items-center justify-between pt-4">
             <Button 
               variant="ghost" 
@@ -373,8 +439,8 @@ export default function NewJobPage() {
             
             {step < STEPS.length - 1 ? (
               <Button 
-                onClick={nextStep} 
-                disabled={step === 0 && ((formData.sourceType === 'github' && !formData.sourceUrl) || (formData.sourceType === 'upload' && !selectedFile))}
+                id="step-next"
+                onClick={nextStep}
                 className="bg-zinc-100 text-zinc-950 hover:bg-white rounded-xl px-8"
               >
                 Continue
@@ -382,12 +448,20 @@ export default function NewJobPage() {
               </Button>
             ) : (
               <Button 
+                id="start-conversion"
                 onClick={handleSubmit} 
                 disabled={loading}
                 className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-8 shadow-[0_0_20px_rgba(99,102,241,0.3)]"
               >
-                {loading ? "Starting..." : "Start Conversion"}
-                <Rocket className="w-4 h-4 ml-2" />
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Starting…
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    Start Conversion <Rocket className="w-4 h-4" />
+                  </span>
+                )}
               </Button>
             )}
           </div>
@@ -397,7 +471,7 @@ export default function NewJobPage() {
   );
 }
 
-function SourceOption({ icon: Icon, label, description, active, onClick }: any) {
+function SourceOption({ icon: Icon, label, description, active, onClick }: SourceOptionProps) {
   return (
     <div 
       onClick={onClick}
@@ -414,11 +488,11 @@ function SourceOption({ icon: Icon, label, description, active, onClick }: any) 
   );
 }
 
-function ModeOption({ value, label, desc }: any) {
+function ModeOption({ value, label, desc }: ModeOptionProps) {
   return (
     <div className="flex items-center space-x-2">
-      <RadioGroupItem value={value} id={value} className="text-indigo-600" />
-      <Label htmlFor={value} className="cursor-pointer">
+      <RadioGroupItem value={value} id={`mode-${value}`} className="text-indigo-600" />
+      <Label htmlFor={`mode-${value}`} className="cursor-pointer">
         <span className="block font-bold text-sm text-white">{label}</span>
         <span className="block text-[10px] text-zinc-500">{desc}</span>
       </Label>
@@ -426,20 +500,21 @@ function ModeOption({ value, label, desc }: any) {
   );
 }
 
-function TargetCheckbox({ label, checked, onCheckedChange, disabled }: any) {
+function TargetCheckbox({ label, value, checked, onCheckedChange, disabled }: TargetCheckboxProps) {
   return (
     <div className={cn("flex items-center space-x-2", disabled && "opacity-40 cursor-not-allowed")}>
-      <Checkbox id={label} checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} />
-      <label htmlFor={label} className="text-sm font-medium text-zinc-300 cursor-pointer uppercase tracking-tight">
+      <Checkbox id={`target-${value}`} checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} />
+      <label htmlFor={`target-${value}`} className="text-sm font-medium text-zinc-300 cursor-pointer uppercase tracking-tight">
         {label}
+        {disabled && <span className="ml-1 text-[9px] text-amber-500 normal-case tracking-normal">Pro</span>}
       </label>
     </div>
   );
 }
 
-function ReviewItem({ label, value }: { label: string, value: string }) {
+function ReviewItem({ label, value }: ReviewItemProps) {
   return (
-    <div className="flex justify-between items-start py-2">
+    <div className="flex justify-between items-start py-2 border-b border-zinc-800/50 last:border-0">
       <span className="text-xs font-bold text-zinc-600 uppercase tracking-widest">{label}</span>
       <span className="text-sm font-medium text-zinc-300 text-right max-w-xs truncate">{value}</span>
     </div>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, Terminal, GitBranch as Github, Package, Download } from "lucide-react";
+import { TerminalAnimation } from "@/components/ui/terminal-animation";
 
 export default function LandingPage() {
   return (
@@ -31,45 +32,79 @@ export default function LandingPage() {
 
       <main className="pt-32 pb-24">
         {/* ── Hero Section ── */}
-        <section className="container mx-auto px-6 grid lg:grid-cols-2 gap-16 items-center">
+        <section className="container mx-auto px-6 grid lg:grid-cols-2 gap-12 xl:gap-16 items-center">
           <div className="max-w-2xl relative z-10">
+            {/* Glow */}
             <div className="absolute -top-24 -left-24 w-96 h-96 bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none" />
-            <h1 className="text-5xl md:text-6xl font-bold leading-tight tracking-tight mb-6">
-              Convert your AI-generated web app into a desktop app in <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">60 seconds</span>.
+
+            {/* Social-proof badge */}
+            <div className="animate-fade-in-up animation-delay-100 inline-flex items-center gap-2 mb-6">
+              <span className="animate-shimmer inline-flex items-center gap-2 px-3 py-1 rounded-full border border-indigo-500/30 text-xs font-medium text-indigo-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_6px_#4ade80] inline-block" />
+                500+ developers shipping desktop apps
+              </span>
+            </div>
+
+            {/* Headline */}
+            <h1 className="animate-fade-in-up animation-delay-200 text-5xl md:text-6xl font-bold leading-tight tracking-tight mb-6">
+              Convert your AI-generated web app into a desktop app in{" "}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">
+                60 seconds
+              </span>
+              .
             </h1>
-            <p className="text-lg text-zinc-400 mb-10 leading-relaxed max-w-xl">
-              Turn your React, Vue, Next.js, and Supabase projects into native, offline-capable 
+
+            {/* Subheading */}
+            <p className="animate-fade-in-up animation-delay-300 text-lg text-zinc-400 mb-10 leading-relaxed max-w-xl">
+              Turn your React, Vue, Next.js, and Supabase projects into native, offline-capable{" "}
               desktop apps for Windows, macOS, and Linux automatically. Zero config required.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Link href="/register" className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-4 rounded-xl font-medium transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:shadow-[0_0_30px_rgba(99,102,241,0.5)]">
+
+            {/* CTAs */}
+            <div className="animate-fade-in-up animation-delay-500 flex flex-col sm:flex-row gap-4">
+              <Link
+                href="/register"
+                className="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-4 rounded-xl font-medium transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] hover:shadow-[0_0_30px_rgba(99,102,241,0.5)] hover:-translate-y-0.5"
+              >
                 Start for free <ArrowRight className="w-4 h-4" />
               </Link>
-              <Link href="/docs" className="flex items-center justify-center gap-2 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-white px-8 py-4 rounded-xl font-medium transition-colors">
+              <Link
+                href="/docs"
+                className="flex items-center justify-center gap-2 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 hover:border-zinc-700 text-white px-8 py-4 rounded-xl font-medium transition-all hover:-translate-y-0.5"
+              >
                 View documentation
               </Link>
             </div>
+
+            {/* Scroll indicator */}
+            <div className="animate-fade-in-up animation-delay-700 mt-14 hidden md:flex items-center gap-3 text-zinc-600 text-xs">
+              <a
+                href="#how-it-works"
+                className="flex flex-col items-center gap-1 hover:text-zinc-400 transition-colors group"
+              >
+                <span className="animate-scroll-bounce">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M10 4v12M5 11l5 5 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </span>
+                <span>Scroll to explore</span>
+              </a>
+            </div>
           </div>
 
-          <div className="relative group perspective">
+          {/* Terminal card */}
+          <div className="relative group perspective animate-fade-in-up animation-delay-300">
             <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-cyan-500 rounded-2xl opacity-20 blur-2xl group-hover:opacity-30 transition-opacity duration-500" />
             <div className="relative bg-zinc-950 border border-zinc-800 rounded-2xl overflow-hidden shadow-2xl transform transition-transform duration-500 hover:scale-[1.02] hover:-rotate-1">
+              {/* Title bar */}
               <div className="flex items-center gap-2 px-4 py-3 bg-zinc-900 border-b border-zinc-800">
                 <div className="w-3 h-3 rounded-full bg-red-500/80" />
                 <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
                 <div className="w-3 h-3 rounded-full bg-green-500/80" />
                 <span className="ml-2 text-xs font-medium text-zinc-500">npx webtoapp convert</span>
               </div>
-              <div className="p-6 font-mono text-sm leading-relaxed overflow-hidden h-[300px]">
-                <div className="animate-pulse text-zinc-500 mb-2">$ npx webtoapp convert</div>
-                <div className="text-zinc-300">✔ Stack detected: React + Supabase</div>
-                <div className="text-zinc-300">✔ Generating AST transformation plan...</div>
-                <div className="text-zinc-300">✔ Scaffolding offline sync layer...</div>
-                <div className="text-cyan-400">⚙ Building for Windows...</div>
-                <div className="text-zinc-500 mt-2">  [vite] bundle generated in 1250ms</div>
-                <div className="text-zinc-500">  [electron-builder] creating setup.exe</div>
-                <div className="text-green-400 mt-4 font-bold">✨ Success! webtoapp_setup.exe ready.</div>
-              </div>
+              {/* Animated terminal body */}
+              <TerminalAnimation />
             </div>
           </div>
         </section>
@@ -150,6 +185,24 @@ export default function LandingPage() {
                   <td className="p-6 font-semibold text-zinc-200">None (WebView)</td>
                   <td className="p-6 font-semibold text-zinc-200">Selective AST</td>
                 </tr>
+                <tr className="hover:bg-zinc-800/30 transition-colors">
+                  <td className="p-6 text-zinc-400">Authentication</td>
+                  <td className="p-6 font-semibold text-zinc-200">Local JWT + SQLite</td>
+                  <td className="p-6 font-semibold text-zinc-200">Cloud Auth (unchanged)</td>
+                  <td className="p-6 font-semibold text-zinc-200">Local JWT + Cloud Sync</td>
+                </tr>
+                <tr className="hover:bg-zinc-800/30 transition-colors">
+                  <td className="p-6 text-zinc-400">Behavior Parity Gate</td>
+                  <td className="p-6 font-semibold text-zinc-200">Strict (blocks on issues)</td>
+                  <td className="p-6 font-semibold text-zinc-200">Source diff check</td>
+                  <td className="p-6 font-semibold text-zinc-200">Strict (blocks on issues)</td>
+                </tr>
+                <tr className="hover:bg-zinc-800/30 transition-colors">
+                  <td className="p-6 text-zinc-400">Mobile Targets</td>
+                  <td className="p-6 font-semibold text-zinc-200">Android / iOS</td>
+                  <td className="p-6 font-semibold text-zinc-200">Android / iOS</td>
+                  <td className="p-6 font-semibold text-zinc-200">Android / iOS</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -165,7 +218,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-6 text-sm text-zinc-500">
             <Link href="https://github.com/jeff2450/desktop-to-app" className="hover:text-white transition-colors">GitHub</Link>
             <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>
-            <Link href="https://twitter.com/webtoapp" className="hover:text-white transition-colors">Twitter</Link>
+            <Link href="https://x.com/webtoapp" className="hover:text-white transition-colors">X / Twitter</Link>
           </div>
         </div>
       </footer>

@@ -8,7 +8,65 @@
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
+
+  /* Selection color */
+  ::selection { background: rgba(99, 102, 241, 0.3); color: #fff; }
+
+  /* Focus-visible ring */
+  :focus-visible {
+    outline: 2px solid rgba(99, 102, 241, 0.7);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Scrollbar */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+}
+
+@layer utilities {
+  /* Used by active-job progress bars in dashboard */
+  @keyframes progress-flow {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(350%); }
+  }
+  .animate-progress-flow {
+    animation: progress-flow 1.8s ease-in-out infinite;
+  }
+
+  /* Hero fade-in-up */
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-in-up {
+    animation: fade-in-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .animation-delay-100 { animation-delay: 100ms; }
+  .animation-delay-200 { animation-delay: 200ms; }
+  .animation-delay-300 { animation-delay: 300ms; }
+  .animation-delay-500 { animation-delay: 500ms; }
+  .animation-delay-700 { animation-delay: 700ms; }
+
+  /* Badge shimmer */
+  @keyframes shimmer {
+    0%   { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
+  .animate-shimmer {
+    background: linear-gradient(90deg, rgba(99,102,241,0.15) 25%, rgba(99,102,241,0.35) 50%, rgba(99,102,241,0.15) 75%);
+    background-size: 200% auto;
+    animation: shimmer 2.5s linear infinite;
+  }
+
+  /* Scroll bounce arrow */
+  @keyframes scroll-bounce {
+    0%, 100% { transform: translateY(0);   opacity: 0.6; }
+    50%       { transform: translateY(8px); opacity: 1;   }
+  }
+  .animate-scroll-bounce {
+    animation: scroll-bounce 1.6s ease-in-out infinite;
+  }
 }

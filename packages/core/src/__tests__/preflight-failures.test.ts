@@ -221,6 +221,51 @@ describe("Preflight — invalid config fields", () => {
     expect(res.status).toBe("failed");
     expect(res.error).toMatch(/name/i);
   });
+
+  it("throws before Gradle when Android release signing config is missing", async () => {
+    await createValidProject();
+    const { ConversionPipeline } = await import("../pipeline/ConversionPipeline.js");
+    const pipeline = new ConversionPipeline(
+      baseConfig({
+        source: tmpDir,
+        targets: ["android"],
+        mobile: { android: { buildVariant: "release" } },
+        dryRun: true,
+      }) as any
+    );
+
+    const res = await pipeline.run();
+    expect(res.status).toBe("failed");
+    expect(res.error).toMatch(/Android release builds require signing config/i);
+    expect(res.error).toMatch(/keystorePath/i);
+  });
+
+  it("throws before Gradle when Android release targetSdkVersion is too low", async () => {
+    await createValidProject();
+    await fs.writeFile(path.join(tmpDir, "release.jks"), "placeholder", "utf-8");
+
+    const { ConversionPipeline } = await import("../pipeline/ConversionPipeline.js");
+    const pipeline = new ConversionPipeline(
+      baseConfig({
+        source: tmpDir,
+        targets: ["android"],
+        mobile: {
+          android: {
+            buildVariant: "release",
+            targetSdkVersion: 34,
+            keystorePath: "release.jks",
+            keystoreAlias: "upload",
+            keystorePassword: "secret",
+          },
+        },
+        dryRun: true,
+      }) as any
+    );
+
+    const res = await pipeline.run();
+    expect(res.status).toBe("failed");
+    expect(res.error).toMatch(/targetSdkVersion must be 35 or higher/i);
+  });
 });
 
 // ─── Preflight — Next.js project (warning, not hard failure) ─────────────────

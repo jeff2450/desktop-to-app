@@ -36,6 +36,12 @@ export interface Conversion {
   completedAt?: string;
   createdAt: string;
   updatedAt: string;
+  /** Estimated seconds to build start — returned by POST /conversions */
+  estimatedWait?: number;
+  /** Live log lines from Redis buffer — returned by GET /conversions/:id */
+  liveLogLines?: string[];
+  /** Job execution progress percentage (0 to 100) */
+  progress?: number;
 }
 
 export interface DetectionResult {
@@ -80,11 +86,13 @@ export interface BillingPlan {
 }
 
 export interface SseEvent {
-  type: "status" | "log" | "completed" | "failed" | "ping";
+  type: "status" | "log" | "completed" | "failed" | "ping" | "progress";
   status?: ConversionStatus;
   stage?: string;
   message?: string;
   installerUrl?: string;
   durationMs?: number;
   error?: string;
+  progress?: number;
+  line?: string;
 }

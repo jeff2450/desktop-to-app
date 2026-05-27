@@ -16,14 +16,18 @@ export interface MobileConfig {
 export interface AndroidConfig {
   /** Minimum Android SDK version (default: 22 = Android 5.1) */
   minSdkVersion?: number;
-  /** Target Android SDK version (default: 34) */
+  /** Target Android SDK version (default: 35 for release builds) */
   targetSdkVersion?: number;
   /** Build variant: "debug" | "release" (default: "debug") */
   buildVariant?: 'debug' | 'release';
+  /** Release artifact type: "apk" | "aab" (default: "aab" for release, "apk" for debug) */
+  artifactType?: 'apk' | 'aab';
   /** Path to keystore file for release signing */
   keystorePath?: string;
   keystoreAlias?: string;
   keystorePassword?: string;
+  /** Key password. Defaults to keystorePassword when omitted. */
+  keystoreAliasPassword?: string;
 }
 
 export interface IosConfig {

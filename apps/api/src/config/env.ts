@@ -53,3 +53,11 @@ if (!parsed.success) {
 export const env = parsed.data;
 export const isProduction = env.NODE_ENV === "production";
 export const useS3 = Boolean(env.AWS_ACCESS_KEY_ID && env.S3_BUCKET);
+
+if (isProduction && !useS3) {
+  console.warn(
+    "[api] ⚠  S3 is not configured — artifacts will be stored on local disk and will be " +
+    "LOST when the container restarts. Set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and " +
+    "S3_BUCKET environment variables to enable durable artifact storage."
+  );
+}

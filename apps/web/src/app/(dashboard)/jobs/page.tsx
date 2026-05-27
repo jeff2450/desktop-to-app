@@ -93,7 +93,7 @@ export default function JobsPage() {
             [1, 2, 3, 4].map(i => <Skeleton key={i} className="h-20 w-full bg-zinc-900/50 border border-zinc-800 rounded-2xl" />)
           ) : filteredJobs.length > 0 ? (
             filteredJobs.map(job => (
-              <JobRow key={job.id} job={job} />
+              <JobRow key={job.id} job={job} onDelete={(id) => setJobs(prev => prev.filter(j => j.id !== id))} />
             ))
           ) : (
             <div className="py-24 flex flex-col items-center justify-center border border-dashed border-zinc-800 rounded-[2rem] bg-zinc-900/10">
@@ -117,7 +117,8 @@ export default function JobsPage() {
   );
 }
 
-function JobRow({ job }: { job: Conversion }) {
+function JobRow({ job, onDelete }: { job: Conversion; onDelete: (id: string) => void }) {
+  const [isDeleting, setIsDeleting] = useState(false);
   return (
     <Card className="bg-zinc-900/30 border-zinc-800 hover:border-zinc-700 transition-all group overflow-hidden">
       <CardContent className="p-0">
@@ -160,12 +161,31 @@ function JobRow({ job }: { job: Conversion }) {
               </Button>
               <Button 
                 type="button"
-                onClick={(e) => { e.preventDefault(); e.stopPropagation(); alert("Delete functionality coming soon!"); }}
+                onClick={async (e) => { 
+                  e.preventDefault(); 
+                  e.stopPropagation(); 
+                  if (confirm(`Are you sure you want to delete "${job.name}" and all of its artifacts?`)) {
+                    setIsDeleting(true);
+                    try {
+                      const res = await conversionsApi.delete(job.id);
+                      if (res.error) {
+                        alert(res.error);
+                      } else {
+                        onDelete(job.id);
+                      }
+                    } catch (err) {
+                      alert("An error occurred while deleting the job.");
+                    } finally {
+                      setIsDeleting(false);
+                    }
+                  }
+                }}
+                disabled={isDeleting}
                 variant="ghost" 
                 size="icon" 
-                className="h-8 w-8 text-zinc-500 hover:text-rose-400 rounded-lg"
+                className="h-8 w-8 text-zinc-500 hover:text-rose-400 rounded-lg disabled:opacity-50"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className={cn("w-4 h-4", isDeleting && "animate-spin")} />
               </Button>
               <Button 
                 type="button"

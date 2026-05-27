@@ -8,47 +8,17 @@
    Creating an optimized production build ...
  ✓ Compiled successfully
    Linting and checking validity of types ...
-   Collecting page data ...
-   Generating static pages (0/17) ...
-   Generating static pages (4/17) 
-   Generating static pages (8/17) 
-   Generating static pages (12/17) 
- ✓ Generating static pages (17/17)
-   Finalizing page optimization ...
-   Collecting build traces ...
+Failed to compile.
 
-Route (app)                              Size     First Load JS
-┌ ○ /                                    860 B          97.1 kB
-├ ○ /_not-found                          876 B          88.4 kB
-├ ƒ /api/auth/cookie                     0 B                0 B
-├ ƒ /api/billing/checkout                0 B                0 B
-├ ƒ /api/billing/paypal/capture-order    0 B                0 B
-├ ƒ /api/billing/paypal/create-order     0 B                0 B
-├ ƒ /api/billing/plans                   0 B                0 B
-├ ƒ /api/billing/portal                  0 B                0 B
-├ ƒ /api/billing/subscription            0 B                0 B
-├ ƒ /api/billing/usage                   0 B                0 B
-├ ƒ /api/billing/usage-chart             0 B                0 B
-├ ƒ /api/billing/verify                  0 B                0 B
-├ ○ /billing                             111 kB          221 kB
-├ ○ /billing/success                     2.66 kB         113 kB
-├ ○ /dashboard                           5.39 kB         116 kB
-├ ○ /docs                                10.8 kB         118 kB
-├ ○ /jobs                                3.39 kB         114 kB
-├ ƒ /jobs/[id]                           4.54 kB         115 kB
-├ ○ /jobs/new                            8.38 kB         124 kB
-├ ○ /login                               5.73 kB         112 kB
-├ ○ /pricing                             860 B          97.1 kB
-├ ○ /register                            5.97 kB         113 kB
-└ ○ /settings                            6.08 kB         121 kB
-+ First Load JS shared by all            87.5 kB
-  ├ chunks/5b8f0dd8-963e26f73fce6c0b.js  53.6 kB
-  ├ chunks/749-d322f1fd78f9c17f.js       31.9 kB
-  └ other shared chunks (total)          1.96 kB
+./src/app/(dashboard)/jobs/[id]/page.tsx:161:53
+Type error: Property 'progress' does not exist on type '{ type: string; line?: string | undefined; status?: string | undefined; }'.
 
-
-ƒ Middleware                             26.6 kB
-
-○  (Static)   prerendered as static content
-ƒ  (Dynamic)  server-rendered on demand
-
+[0m [90m 159 |[39m         setJob(prev [33m=>[39m prev [33m?[39m { [33m...[39mprev[33m,[39m status[33m:[39m event[33m.[39mstatus [36mas[39m [33mConversionStatus[39m } [33m:[39m prev)[33m;[39m[0m
+[0m [90m 160 |[39m       }[0m
+[0m[31m[1m>[22m[39m[90m 161 |[39m       [36mif[39m (event[33m.[39mtype [33m===[39m [32m"progress"[39m [33m&&[39m [36mtypeof[39m event[33m.[39mprogress [33m===[39m [32m"number"[39m) {[0m
+[0m [90m     |[39m                                                     [31m[1m^[22m[39m[0m
+[0m [90m 162 |[39m         setJob(prev [33m=>[39m prev [33m?[39m { [33m...[39mprev[33m,[39m progress[33m:[39m event[33m.[39mprogress } [33m:[39m prev)[33m;[39m[0m
+[0m [90m 163 |[39m       }[0m
+[0m [90m 164 |[39m       [36mif[39m (event[33m.[39mtype [33m===[39m [32m"done"[39m) {[0m
+Next.js build worker exited with code: 1 and signal: null
+ ELIFECYCLE  Command failed with exit code 1.

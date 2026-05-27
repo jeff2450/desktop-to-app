@@ -17,7 +17,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { 
-  GitBranch as Github, 
   Mail, 
   Lock, 
   Loader2, 
@@ -45,7 +44,7 @@ export default function LoginPage() {
       } else {
         router.replace("/dashboard");
       }
-    } catch (err) {
+    } catch {
       setError("An unexpected error occurred. Please try again.");
     } finally {
       setLoading(false);
@@ -106,6 +105,7 @@ export default function LoginPage() {
 
           <Button 
             type="submit" 
+            id="login-submit"
             disabled={loading}
             className="w-full bg-indigo-600 hover:bg-indigo-500 text-white h-11 rounded-xl shadow-[0_0_20px_rgba(99,102,241,0.3)] transition-all"
           >
@@ -116,25 +116,6 @@ export default function LoginPage() {
             )}
           </Button>
         </form>
-
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-zinc-800"></span>
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-transparent px-2 text-zinc-600 font-bold tracking-widest">Or continue with</span>
-          </div>
-        </div>
-
-        <Button 
-          type="button"
-          onClick={() => setError("GitHub authentication is not configured in this environment.")}
-          variant="outline" 
-          className="w-full border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-white hover:bg-zinc-900 h-11 rounded-xl"
-        >
-          <Github className="w-4 h-4 mr-2" />
-          GitHub
-        </Button>
       </CardContent>
       <CardFooter className="flex justify-center border-t border-zinc-800/50 pt-6">
         <p className="text-sm text-zinc-500">

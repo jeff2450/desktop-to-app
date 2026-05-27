@@ -19,8 +19,9 @@ import unzipperModule from "unzipper";
 const unzipper = (unzipperModule as any).default || unzipperModule;
 import { prisma } from "../db/prisma.js";
 import { appendJobLog } from "../services/jobs.service.js";
-import { pushLogLine, createWorker, type ConversionQueuePayload } from "../services/queue.service.js";
+import { pushLogLine, setJobProgress, createWorker, type ConversionQueuePayload } from "../services/queue.service.js";
 import { uploadArtifact } from "../services/storage.service.js";
+import { sendBuildComplete, sendBuildFailed } from "../services/email.service.js";
 import { env } from "../config/env.js";
 import type { WebToAppConfig } from "../lib/types.js";
 
@@ -34,16 +35,41 @@ const CURRENT_WORKER_PLATFORM =
   process.platform === "win32" ? "windows" :
   process.platform === "darwin" ? "macos" : "linux";
 
+// ─── Progress checkpoints (0–100) ───────────────────────────────────────────
+// These are approximate — they give the user a meaningful sense of advancement
+// without needing fine-grained instrumentation inside the pipeline.
+const PROGRESS = {
+  STARTED:    5,
+  SOURCE:     15,  // source materialised
+  BUILD_BASE: 20,  // per-platform base (before pipeline runs)
+  UPLOADING:  90,  // artifact uploading
+  DONE:       100,
+} as const;
+
 // ─── Main job processor ──────────────────────────────────────────────────────
 
 async function runWorkerJob(payload: ConversionQueuePayload): Promise<void> {
   const jobRecord = await prisma.job.findUnique({ where: { id: payload.jobId } });
-  if (!jobRecord || jobRecord.status === "CANCELLED") return;
+  if (!jobRecord || jobRecord.status === "CANCELLED") {
+    console.warn(`[worker] skipping job ${payload.jobId}: record not found or cancelled`);
+    return;
+  }
 
-  await prisma.job.update({
-    where: { id: jobRecord.id },
-    data: { status: "RUNNING", logs: "" },
-  });
+  try {
+    await prisma.job.update({
+      where: { id: jobRecord.id },
+      data: { status: "RUNNING", logs: "" },
+    });
+  } catch (updateErr: any) {
+    // P2025 = record not found — the DB row was deleted between findUnique and update
+    if (updateErr?.code === "P2025") {
+      console.warn(`[worker] skipping job ${payload.jobId}: DB record disappeared before update`);
+      return;
+    }
+    throw updateErr;
+  }
+
+  await setJobProgress(jobRecord.id, PROGRESS.STARTED);
 
   const tempRoot = await fsp.mkdtemp(path.join(os.tmpdir(), `webtoapp-${jobRecord.id}-`));
 
@@ -63,6 +89,7 @@ async function runWorkerJob(payload: ConversionQueuePayload): Promise<void> {
       tempRoot,
       log
     );
+    await setJobProgress(jobRecord.id, PROGRESS.SOURCE);
 
     const rawConfig = jobRecord.config as unknown as WebToAppConfig;
     const requestedPlatforms = jobRecord.platforms;
@@ -83,12 +110,35 @@ async function runWorkerJob(payload: ConversionQueuePayload): Promise<void> {
       );
     }
 
-    for (const platform of buildablePlatforms) {
+    // Each platform gets an equal slice of the BUILD_BASE → UPLOADING range
+    const perPlatformSlice = Math.floor(
+      (PROGRESS.UPLOADING - PROGRESS.BUILD_BASE) / buildablePlatforms.length
+    );
+
+    for (const [platformIdx, platform] of buildablePlatforms.entries()) {
       await ensureNotCancelled(jobRecord.id);
+      const platformBaseProgress = PROGRESS.BUILD_BASE + platformIdx * perPlatformSlice;
 
       await log(`▶ Starting build for platform: ${platform}`);
+      await setJobProgress(jobRecord.id, platformBaseProgress);
 
       const outputDir = path.join(tempRoot, `output-${platform}`);
+
+      // Internal stage weights within a single platform build (add up to 100)
+      // Used to interpolate progress inside the pipeline.
+      const STAGE_WEIGHTS: Record<string, number> = {
+        "01-detect":    8,
+        "02-plan":      5,
+        "03-transform": 15,
+        "04-scaffold":  12,
+        "05-install":   30,
+        "06-build":     20,
+        "07-package":   10,
+      };
+      let stageAccum = 0;
+      const stageTotal = Object.values(STAGE_WEIGHTS).reduce((a, b) => a + b, 0);
+      let lastStage = "";
+
       const pipeline = new ConversionPipeline(
         {
           name: rawConfig.name,
@@ -111,6 +161,19 @@ async function runWorkerJob(payload: ConversionQueuePayload): Promise<void> {
               appendJobLog(jobRecord.id, line),
             ]);
             await ensureNotCancelled(jobRecord.id);
+
+            // Advance progress when a new pipeline stage starts
+            if (entry.stage && entry.stage !== lastStage) {
+              if (lastStage) {
+                stageAccum += STAGE_WEIGHTS[lastStage] ?? 0;
+              }
+              lastStage = entry.stage;
+              const stageRatio = stageAccum / stageTotal;
+              const interpolated = Math.round(
+                platformBaseProgress + stageRatio * perPlatformSlice
+              );
+              await setJobProgress(jobRecord.id, Math.min(interpolated, PROGRESS.UPLOADING - 1));
+            }
           },
         }
       );
@@ -130,6 +193,7 @@ async function runWorkerJob(payload: ConversionQueuePayload): Promise<void> {
       const s3Key = `artifacts/${jobRecord.id}/${platform}/${artifactFileName}`;
 
       await log(`↑ Uploading artifact: ${artifactFileName}`);
+      await setJobProgress(jobRecord.id, PROGRESS.UPLOADING);
       await uploadArtifact(s3Key, fs.createReadStream(result.installerPath), getContentType(artifactFileName));
 
       const stats = await fsp.stat(result.installerPath);
@@ -145,12 +209,23 @@ async function runWorkerJob(payload: ConversionQueuePayload): Promise<void> {
       await log(`✓ Platform ${platform} complete — ${artifactFileName} (${formatBytes(Number(stats.size))})`);
     }
 
+    await setJobProgress(jobRecord.id, PROGRESS.DONE);
     await prisma.job.update({
       where: { id: jobRecord.id },
       data: { status: "SUCCESS", completedAt: new Date() },
     });
 
     await log("✅ All platforms built successfully.");
+
+    // Send completion email (non-blocking — failure here must not crash the job)
+    try {
+      const user = await prisma.user.findUnique({ where: { id: jobRecord.userId }, select: { email: true } });
+      if (user?.email) {
+        await sendBuildComplete(user.email, jobRecord.inputName ?? jobRecord.id, jobRecord.id, buildablePlatforms);
+      }
+    } catch (mailErr) {
+      console.warn(`[worker] email notification failed for job ${jobRecord.id}:`, mailErr);
+    }
 
   } catch (err) {
     const latest = await prisma.job.findUnique({
@@ -164,6 +239,18 @@ async function runWorkerJob(payload: ConversionQueuePayload): Promise<void> {
       where: { id: jobRecord.id },
       data: { status: nextStatus, completedAt: new Date() },
     });
+
+    // Send failure email (non-blocking)
+    if (nextStatus === "FAILED") {
+      try {
+        const user = await prisma.user.findUnique({ where: { id: jobRecord.userId }, select: { email: true } });
+        if (user?.email) {
+          await sendBuildFailed(user.email, jobRecord.inputName ?? jobRecord.id, jobRecord.id, errMsg);
+        }
+      } catch (mailErr) {
+        console.warn(`[worker] failure email notification failed for job ${jobRecord.id}:`, mailErr);
+      }
+    }
   } finally {
     // Clean up temp directory regardless of outcome
     await fsp.rm(tempRoot, { recursive: true, force: true }).catch(() => {/* ignore */});

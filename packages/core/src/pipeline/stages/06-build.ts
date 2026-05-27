@@ -73,9 +73,10 @@ export async function runBuildStage(ctx: PipelineContext): Promise<void> {
 
     ctx.log("info", "Vite build complete — dist/ ready", STAGE);
 
-    // ── Strip external CDN scripts from dist/index.html ──────────
-    // Lovable.dev and similar tools inject external <script src="https://..."> tags
-    // into index.html. These fail in offline Electron mode and can block rendering.
+    // ── Strip known injected preview scripts from dist/index.html ─
+    // Lovable.dev and similar tools inject preview/runtime scripts into
+    // index.html. Removing every external script is risky for mobile apps
+    // because app-owned SDK scripts may be required at runtime.
     await stripExternalScriptsFromDistHtml(ctx);
 
     ctx.completeStage(STAGE);
@@ -434,11 +435,12 @@ async function resolveBuildCommand(outputDir: string): Promise<string> {
  * Post-build: Strip external CDN <script> tags from dist/index.html.
  *
  * Tools like Lovable.dev inject <script src="https://cdn.gpteng.co/..."> tags
- * into index.html. These fail in Electron's offline environment (mixed-content
- * or network-not-available errors) and can prevent the React app from mounting.
+ * into index.html. These fail in Electron's offline environment and can
+ * prevent the React app from mounting.
  *
- * We remove any <script> tag whose src attribute starts with http:// or https://.
- * This is safe because the Vite build bundles all local scripts into assets/.
+ * We only remove known preview/instrumentation scripts. App-owned external
+ * scripts are preserved so Android/iOS builds do not open to a blank screen
+ * because a required runtime script was stripped.
  */
 async function stripExternalScriptsFromDistHtml(ctx: PipelineContext): Promise<void> {
   const htmlPath = path.join(ctx.outputDir, "dist", "index.html");
@@ -452,11 +454,10 @@ async function stripExternalScriptsFromDistHtml(ctx: PipelineContext): Promise<v
 
   const before = html;
 
-  // Remove <script ...src="https://...">...</script> (possibly multiline)
-  html = html.replace(/<script[^>]+src=["']https?:\/\/[^"']+["'][^>]*>[\s\S]*?<\/script>/gi, "");
-
-  // Also remove self-closing / inline <script src="https://..."> variants
-  html = html.replace(/<script[^>]+src=["']https?:\/\/[^"']+["'][^>]*\/>/gi, "");
+  html = html.replace(
+    /<script\b[^>]*\bsrc=["']https?:\/\/[^"']+["'][^>]*>(?:[\s\S]*?<\/script>)?/gi,
+    (tag) => shouldStripInjectedScript(tag) ? "" : tag
+  );
 
   // Remove any comment lines that reference removed scripts
   // (e.g. "<!-- IMPORTANT: DO NOT REMOVE THIS SCRIPT TAG -->")
@@ -464,6 +465,15 @@ async function stripExternalScriptsFromDistHtml(ctx: PipelineContext): Promise<v
 
   if (html !== before) {
     await fs.writeFile(htmlPath, html, "utf-8");
-    ctx.log("info", "Stripped external CDN scripts from dist/index.html", STAGE);
+    ctx.log("info", "Stripped known injected preview scripts from dist/index.html", STAGE);
   }
+}
+
+function shouldStripInjectedScript(tag: string): boolean {
+  const src = /\bsrc=["']([^"']+)["']/i.exec(tag)?.[1] ?? "";
+  return [
+    /cdn\.gpteng\.co/i,
+    /gptengineer/i,
+    /lovable\.dev/i,
+  ].some((pattern) => pattern.test(src));
 }

@@ -89,10 +89,10 @@ export function Sidebar() {
       <div className="p-4 border-t border-zinc-800 bg-zinc-950/50">
         <Link href="/settings" className="flex items-center gap-3 px-2 py-3 mb-2 hover:bg-zinc-900 rounded-xl transition-colors cursor-pointer">
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-cyan-500 flex items-center justify-center text-white text-xs font-bold">
-            {user?.email?.[0]?.toUpperCase() || "U"}
+            {(user?.name ?? user?.email)?.[0]?.toUpperCase() || "U"}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">{user?.email}</p>
+            <p className="text-sm font-medium text-white truncate">{user?.name || user?.email}</p>
             <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">{user?.plan || "FREE"} PLAN</p>
           </div>
         </Link>

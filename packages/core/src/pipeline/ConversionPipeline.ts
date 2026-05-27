@@ -13,6 +13,7 @@ import { runTransformStage } from "./stages/03-transform.js";
 import { runScaffoldStage } from "./stages/04-scaffold.js";
 import { runInstallStage } from "./stages/05-install.js";
 import { runBuildStage } from "./stages/06-build.js";
+import { runParityStage } from "./stages/06b-parity.js";
 import { runPackageStage } from "./stages/07-package.js";
 import { runMobileStage } from "./stages/07b-mobile.js";
 import { runPreflightStage } from "./stages/00-preflight.js";
@@ -66,6 +67,7 @@ export class ConversionPipeline {
     
     // Auto-resume if state exists
     await ctx.loadState();
+    await this.validateLoadedState(ctx);
 
     if (this.config.resumeFromStage) {
       ctx.log("info", `Resuming from stage: ${this.config.resumeFromStage}`);
@@ -103,7 +105,11 @@ export class ConversionPipeline {
       if (ctx.shouldSkipStage("06-build")) ctx.skipStage("06-build", "resuming from later stage");
       else await runBuildStage(ctx);
 
-      // Stage 07 — Package installer
+      // Stage 06b - Behavior parity gate
+      if (ctx.shouldSkipStage("06b-parity")) ctx.skipStage("06b-parity", "resuming from later stage");
+      else await runParityStage(ctx);
+
+      // Stage 07 - Package installer
       if (ctx.shouldSkipStage("07-package")) ctx.skipStage("07-package", "resuming from later stage");
       else await runPackageStage(ctx);
 
@@ -147,6 +153,55 @@ export class ConversionPipeline {
       // Clean up temp dir
       await fs.rm(workDir, { recursive: true, force: true }).catch(() => {});
     }
+  }
+
+  private async validateLoadedState(ctx: PipelineContext): Promise<void> {
+    if (this.config.resumeFromStage || !ctx.getLastCompletedStage()) return;
+
+    const outputHasPackageJson = await this.fileExists(path.join(ctx.outputDir, "package.json"));
+    const outputHasSrc = await this.dirExists(path.join(ctx.outputDir, "src"));
+    if (!outputHasPackageJson || !outputHasSrc) {
+      ctx.discardLoadedState("output project is incomplete");
+      return;
+    }
+
+    const sourceHasIndex = await this.fileExists(path.join(ctx.sourceDir, "index.html"));
+    const outputHasIndex = await this.fileExists(path.join(ctx.outputDir, "index.html"));
+    if (sourceHasIndex && !outputHasIndex) {
+      ctx.discardLoadedState("output project is missing index.html");
+      return;
+    }
+
+    const sourceHasViteConfig = await this.hasAnyFile(ctx.sourceDir, [
+      "vite.config.ts",
+      "vite.config.js",
+      "vite.config.mts",
+      "vite.config.mjs",
+      "vite.config.cjs",
+    ]);
+    const outputHasViteConfig = await this.hasAnyFile(ctx.outputDir, [
+      "vite.config.ts",
+      "vite.config.js",
+      "vite.config.mts",
+      "vite.config.mjs",
+      "vite.config.cjs",
+    ]);
+    if (sourceHasViteConfig && !outputHasViteConfig) {
+      ctx.discardLoadedState("output project is missing Vite config");
+    }
+  }
+
+  private async hasAnyFile(dir: string, names: string[]): Promise<boolean> {
+    const results = await Promise.all(names.map((name) => this.fileExists(path.join(dir, name))));
+    return results.some(Boolean);
+  }
+
+  private async fileExists(filePath: string): Promise<boolean> {
+    return fs.stat(filePath).then((s) => s.isFile()).catch(() => false);
+  }
+
+  private async dirExists(dirPath: string): Promise<boolean> {
+    return fs.stat(dirPath).then((s) => s.isDirectory()).catch(() => false);
   }
 
   /**

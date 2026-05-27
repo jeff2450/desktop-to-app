@@ -16,9 +16,11 @@ declare module "@webtoapp/mobile" {
       minSdkVersion?: number;
       targetSdkVersion?: number;
       buildVariant?: "debug" | "release";
+      artifactType?: "apk" | "aab";
       keystorePath?: string;
       keystoreAlias?: string;
       keystorePassword?: string;
+      keystoreAliasPassword?: string;
     };
     ios?: {
       deploymentTarget?: string;

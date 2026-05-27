@@ -3,6 +3,13 @@ import type { Conversion, ConversionMode, ConversionStatus, User, UsageStats, Bi
 const API_BASE = typeof window !== "undefined" ? "" : (process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001");
 const REQUEST_TIMEOUT_MS = 15000;
 
+if (typeof window === "undefined" && !process.env["NEXT_PUBLIC_API_URL"] && process.env["NODE_ENV"] !== "production") {
+  console.warn(
+    "[api-client] NEXT_PUBLIC_API_URL is not set. Defaulting to http://localhost:3001 for SSR requests. " +
+    "Set this env var if your API runs on a different port."
+  );
+}
+
 let _accessToken: string | null = null;
 
 type ApiResult<T> = { data: T; error?: never } | { data?: never; error: string };
@@ -65,6 +72,9 @@ function normalizeConversion(conversion: ConversionResponse): Conversion {
     ),
     createdAt,
     updatedAt: toString(conversion.updatedAt ?? conversion.updated_at, createdAt),
+    estimatedWait: typeof (conversion as any).estimatedWait === "number" ? (conversion as any).estimatedWait : undefined,
+    liveLogLines: Array.isArray((conversion as any).liveLogLines) ? (conversion as any).liveLogLines : undefined,
+    progress: typeof (conversion as any).progress === "number" ? (conversion as any).progress : undefined,
   };
 }
 
@@ -78,6 +88,10 @@ function isApiError<T>(result: ApiResult<T>): result is { data?: never; error: s
 
 export function setClientToken(token: string | null) {
   _accessToken = token;
+}
+
+export function getClientToken(): string | null {
+  return _accessToken;
 }
 
 async function request<T>(
@@ -185,10 +199,35 @@ export const conversionsApi = {
 
     return { data: normalizeConversion(result.data) };
   },
+  delete: (id: string) =>
+    request<{ id: string; success: boolean }>(`/api/conversions/${id}`, { method: "DELETE" }),
   cancel: (id: string) =>
-    request<{ id: string; status: string }>(`/api/conversions/${id}`, { method: "DELETE" }),
+    request<{ id: string; status: string }>(`/api/conversions/${id}?action=cancel`, { method: "DELETE" }),
   getDownloadUrl: (id: string, platform: string) =>
     request<{ url: string; platform: string; sizeBytes: number }>(`/api/conversions/${id}/download?platform=${platform}`),
+  /**
+   * Open an SSE connection to /api/conversions/:id/stream.
+   * Calls onEvent for each parsed SSE message.
+   * Returns an EventSource so the caller can close it.
+   */
+  streamLogs: (
+    id: string,
+    onEvent: (event: { type: string; line?: string; status?: string }) => void
+  ): EventSource | null => {
+    if (typeof window === "undefined" || typeof EventSource === "undefined") return null;
+    // EventSource can't send Authorization headers — pass token as ?token= query param
+    const token = getClientToken();
+    const url = `${API_BASE}/api/conversions/${id}/stream${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+    const es = new EventSource(url);
+    es.onmessage = (e) => {
+      try {
+        onEvent(JSON.parse(e.data));
+      } catch {
+        // ignore malformed frames
+      }
+    };
+    return es;
+  },
 };
 
 // ── Downloads ─────────────────────────────────────────────────────────────────

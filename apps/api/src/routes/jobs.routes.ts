@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import type { AuthenticatedRequest } from "../lib/types.js";
 import { requireAuth } from "../middleware/auth.js";
-import { cancelJob, createJob, getJob, listJobs } from "../services/jobs.service.js";
+import { cancelJob, deleteJob, createJob, getJob, listJobs } from "../services/jobs.service.js";
 
 const configSchema = z.object({
   name: z.string().min(1),
@@ -80,8 +80,15 @@ jobsRouter.get("/:id", async (req, res, next) => {
 jobsRouter.delete("/:id", async (req, res, next) => {
   try {
     const authReq = req as unknown as AuthenticatedRequest;
-    const job = await cancelJob(authReq.auth.userId, req.params["id"] ?? "");
-    res.json(job);
+    const jobId   = req.params["id"] ?? "";
+
+    if (req.query["action"] === "cancel") {
+      const job = await cancelJob(authReq.auth.userId, jobId);
+      return res.json(job);
+    }
+
+    const result = await deleteJob(authReq.auth.userId, jobId);
+    res.json(result);
   } catch (error) {
     next(error);
   }

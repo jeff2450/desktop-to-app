@@ -143,6 +143,7 @@ function validateConfig(
     author: raw["author"] as string | undefined,
     resumeFromStage: raw["resumeFromStage"] as string | undefined,
     cleanLogs: raw["cleanLogs"] as boolean | undefined,
+    behaviorParity: raw["behaviorParity"] as "strict" | "warn" | "off" | undefined,
     mobile,
   };
 }

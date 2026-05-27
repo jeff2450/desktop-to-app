@@ -1,12 +1,17 @@
 {
-  "mode": "offline",
-  "name": "Webtoapp",
+  "$schema": "./webtoapp.config.schema.json",
+  "name": "WebToApp",
   "version": "1.0.0",
-  "appId": "com.example.myapp",
+  "author": "JEFF-PC",
+  "appId": "dev.webtoapp.app",
   "source": ".",
+  "output": "./output",
+  "icon": "apps/web/public/favicon.png",
+  "mode": "offline",
   "targets": [
     "windows",
-    "linux"
+    "linux",
+    "android"
   ],
   "backend": {
     "type": "auto",
@@ -17,6 +22,24 @@
     "defaultAdmin": "admin@app.local"
   },
   "database": {
-    "type": "sqlite"
+    "type": "sqlite",
+    "migrations": "supabase/migrations"
+  },
+  "behaviorParity": "warn",
+  "devTools": false,
+  "verbose": false,
+  "dryRun": false,
+  "cleanLogs": false,
+  "mobile": {
+    "webDir": "dist",
+    "android": {
+      "minSdkVersion": 22,
+      "targetSdkVersion": 35,
+      "buildVariant": "debug",
+      "artifactType": "aab",
+      "keystorePath": "release.jks",
+      "keystoreAlias": "my-key-alias",
+      "keystorePassword": "my-keystore-password"
+    }
   }
 }

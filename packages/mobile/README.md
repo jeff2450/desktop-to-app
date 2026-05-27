@@ -114,7 +114,7 @@ Copy `mobile-build.yml` to `.github/workflows/mobile-build.yml` in your repo.
     "webDir": "dist",
     "android": {
       "minSdkVersion": 22,
-      "targetSdkVersion": 34,
+      "targetSdkVersion": 35,
       "buildVariant": "debug"
     }
   }
@@ -122,6 +122,24 @@ Copy `mobile-build.yml` to `.github/workflows/mobile-build.yml` in your repo.
 ```
 
 Add `"ios"` to targets when you're on macOS or using the GitHub Actions workflow.
+
+For a Google Play release, use a signed AAB:
+
+```json
+{
+  "targets": ["android"],
+  "mobile": {
+    "android": {
+      "buildVariant": "release",
+      "artifactType": "aab",
+      "targetSdkVersion": 35,
+      "keystorePath": "release.jks",
+      "keystoreAlias": "upload",
+      "keystorePassword": "..."
+    }
+  }
+}
+```
 
 ---
 

@@ -44,17 +44,22 @@ export const configSchema = {
     author: { type: "string" },
     resumeFromStage: { type: "string" },
     cleanLogs: { type: "boolean" },
+    behaviorParity: { type: "string", enum: ["strict", "warn", "off"] },
     mobile: {
       type: "object",
       properties: {
+        webDir: { type: "string", minLength: 1 },
         android: {
           type: "object",
           properties: {
             minSdkVersion: { type: "number" },
+            targetSdkVersion: { type: "number" },
             buildVariant: { type: "string", enum: ["debug", "release"] },
+            artifactType: { type: "string", enum: ["apk", "aab"] },
             keystorePath: { type: "string" },
             keystoreAlias: { type: "string" },
-            keystorePassword: { type: "string" }
+            keystorePassword: { type: "string" },
+            keystoreAliasPassword: { type: "string" }
           },
           additionalProperties: false
         },

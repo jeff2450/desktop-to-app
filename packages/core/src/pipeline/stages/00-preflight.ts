@@ -120,6 +120,9 @@ export async function runPreflightStage(ctx: PipelineContext): Promise<void> {
     failures.push("config.targets is empty — specify at least one platform: windows, linux, or mac.");
   }
 
+  // ── Mobile config checks ────────────────────────────────────────
+  await validateMobilePreflight(ctx, failures, warnings);
+
   // ── Dry-run notice ──────────────────────────────────────────────
   if ((ctx.config as any).dryRun) {
     ctx.log("info", "🔍 DRY-RUN MODE — no files will be written or installed", STAGE);
@@ -158,4 +161,55 @@ async function fileExists(p: string): Promise<boolean> {
 
 async function isDir(p: string): Promise<boolean> {
   return fs.stat(p).then((s) => s.isDirectory()).catch(() => false);
+}
+
+async function validateMobilePreflight(
+  ctx: PipelineContext,
+  failures: string[],
+  warnings: string[]
+): Promise<void> {
+  if (!ctx.config.targets?.includes("android")) return;
+
+  const android = ctx.config.mobile?.android;
+  if (!android || android.buildVariant !== "release") return;
+
+  const missing = [
+    ["mobile.android.keystorePath", android.keystorePath],
+    ["mobile.android.keystoreAlias", android.keystoreAlias],
+    ["mobile.android.keystorePassword", android.keystorePassword],
+  ]
+    .filter(([, value]) => !value)
+    .map(([name]) => name);
+
+  if (missing.length > 0) {
+    failures.push(
+      `Android release builds require signing config before Gradle runs. Missing: ${missing.join(", ")}. ` +
+      `Use mobile.android.buildVariant "debug" for an unsigned test APK.`
+    );
+  }
+
+  if (android.keystorePath) {
+    const keystorePath = path.isAbsolute(android.keystorePath)
+      ? android.keystorePath
+      : path.resolve(ctx.sourceDir, android.keystorePath);
+
+    if (!(await fileExists(keystorePath))) {
+      failures.push(`Android release keystore not found: ${keystorePath}`);
+    }
+  }
+
+  const targetSdkVersion = android.targetSdkVersion ?? 35;
+  if (targetSdkVersion < 35) {
+    failures.push(
+      `Android release targetSdkVersion must be 35 or higher for Google Play submissions. ` +
+      `Got: ${targetSdkVersion}.`
+    );
+  }
+
+  if (android.artifactType === "apk") {
+    warnings.push(
+      `Android release artifactType is "apk". Google Play submissions should use "aab"; ` +
+      `APK is best reserved for side-loading or internal testing.`
+    );
+  }
 }

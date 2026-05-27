@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { conversionsApi, downloadsApi } from "@/lib/api-client";
-import type { Conversion } from "@/types";
+import type { Conversion, ConversionStatus } from "@/types";
 import { 
   Card, 
   CardContent, 
@@ -24,67 +24,210 @@ import {
   XCircle,
   RefreshCw,
   Trash2,
-  ArrowLeft
+  ArrowLeft,
+  Timer
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+
+// ─── Pipeline stage map ──────────────────────────────────────────────────────
+
+const STAGE_ORDER: ConversionStatus[] = [
+  "queued",
+  "detecting",
+  "planning",
+  "transforming",
+  "scaffolding",
+  "installing",
+  "building",
+  "packaging",
+  "done",
+];
+
+const STAGE_LABELS: Record<string, string> = {
+  queued:      "Queued",
+  detecting:   "Detecting stack",
+  planning:    "Planning transforms",
+  transforming:"Applying transforms",
+  scaffolding: "Scaffolding app",
+  installing:  "Installing dependencies",
+  building:    "Building",
+  packaging:   "Packaging installer",
+  done:        "Complete",
+  failed:      "Failed",
+  cancelled:   "Cancelled",
+};
+
+function stageProgress(status: ConversionStatus): number {
+  if (status === "done") return 100;
+  if (status === "failed" || status === "cancelled") return 0;
+  const idx = STAGE_ORDER.indexOf(status);
+  if (idx < 0) return 0;
+  return Math.round((idx / (STAGE_ORDER.length - 1)) * 100);
+}
+
+const ACTIVE_STATUSES: ConversionStatus[] = [
+  "queued", "detecting", "planning", "transforming",
+  "scaffolding", "installing", "building", "packaging",
+];
+const TERMINAL_STATUSES: ConversionStatus[] = ["done", "failed", "cancelled"];
+
+function getNormalizedStatus(status: string): ConversionStatus {
+  const lower = status.toLowerCase();
+  if (lower === "success") return "done";
+  return lower as ConversionStatus;
+}
+
+function getStageIndexByProgress(status: ConversionStatus, progress: number): number {
+  if (status === "done" || progress >= 100) return 8;
+  if (status === "failed" || status === "cancelled") return -1;
+  if (progress < 10) return 0;
+  if (progress < 20) return 1;
+  if (progress < 30) return 2;
+  if (progress < 45) return 3;
+  if (progress < 60) return 4;
+  if (progress < 75) return 5;
+  if (progress < 90) return 6;
+  return 7; // packaging
+}
+
+function getActiveStageLabelByProgress(progress: number): string {
+  if (progress < 10) return "Queued";
+  if (progress < 20) return "Detecting stack";
+  if (progress < 30) return "Planning transforms";
+  if (progress < 45) return "Applying transforms";
+  if (progress < 60) return "Scaffolding app";
+  if (progress < 75) return "Installing dependencies";
+  if (progress < 90) return "Building";
+  if (progress < 100) return "Packaging installer";
+  return "Complete";
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
 
 export default function JobDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [job, setJob] = useState<Conversion | null>(null);
   const [loading, setLoading] = useState(true);
-  const [polling, setPolling] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [logLines, setLogLines] = useState<string[]>([]);
+  const [sseConnected, setSseConnected] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
+  const esRef = useRef<EventSource | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    async function fetchJob() {
-      try {
-        const res = await conversionsApi.get(id);
-        if (res.data) {
-          setJob(res.data);
-          // Start polling if job is active
-          if (["queued", "detecting", "planning", "transforming", "scaffolding", "installing", "building", "packaging"].includes(res.data.status)) {
-            setPolling(true);
-          } else {
-            setPolling(false);
-          }
+  // ── Fetch initial job state ────────────────────────────────────────────────
+  const fetchJob = useCallback(async () => {
+    try {
+      const res = await conversionsApi.get(id);
+      if (res.data) {
+        setJob(res.data);
+        // Seed log from liveLogLines on first load
+        if (res.data.liveLogLines && res.data.liveLogLines.length > 0) {
+          setLogLines(res.data.liveLogLines);
         }
-      } catch (error) {
-        console.error("Failed to fetch job detail:", error);
-      } finally {
-        setLoading(false);
       }
+    } catch (error) {
+      console.error("Failed to fetch job detail:", error);
+    } finally {
+      setLoading(false);
     }
-    fetchJob();
   }, [id]);
 
-  // Polling logic
   useEffect(() => {
-    if (!polling) return;
+    fetchJob();
+  }, [fetchJob]);
 
-    const interval = setInterval(async () => {
+  // ── SSE stream ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!job) return;
+    if (TERMINAL_STATUSES.includes(job.status)) return;
+
+    // Close any existing stream
+    if (esRef.current) {
+      esRef.current.close();
+      esRef.current = null;
+    }
+
+    const es = conversionsApi.streamLogs(id, (event) => {
+      if (event.type === "log" && event.line) {
+        setLogLines(prev => [...prev, event.line!]);
+      }
+      if (event.type === "status" && event.status) {
+        setJob(prev => prev ? { ...prev, status: event.status as ConversionStatus } : prev);
+      }
+      if (event.type === "progress" && typeof event.progress === "number") {
+        setJob(prev => prev ? { ...prev, progress: event.progress } : prev);
+      }
+      if (event.type === "done") {
+        setSseConnected(false);
+        // Final fetch to get complete job data (artifacts etc.)
+        fetchJob();
+        es?.close();
+      }
+      if (event.type === "ping") {
+        // keepalive — no action needed
+      }
+    });
+
+    if (es) {
+      esRef.current = es;
+      es.onopen = () => setSseConnected(true);
+      es.onerror = () => {
+        setSseConnected(false);
+        // SSE failed — fall back to polling
+        es.close();
+        esRef.current = null;
+        startPolling();
+      };
+    } else {
+      // EventSource not available — use polling
+      startPolling();
+    }
+
+    return () => {
+      es?.close();
+      esRef.current = null;
+      setSseConnected(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, job?.status]);
+
+  // ── Fallback polling ──────────────────────────────────────────────────────
+  function startPolling() {
+    if (pollRef.current) return; // already polling
+    pollRef.current = setInterval(async () => {
       try {
         const res = await conversionsApi.get(id);
         if (res.data) {
           setJob(res.data);
-          if (["done", "failed", "cancelled"].includes(res.data.status)) {
-            setPolling(false);
+          if (res.data.liveLogLines && res.data.liveLogLines.length > 0) {
+            setLogLines(res.data.liveLogLines);
+          }
+          if (TERMINAL_STATUSES.includes(res.data.status)) {
+            clearInterval(pollRef.current!);
+            pollRef.current = null;
           }
         }
       } catch (err) {
         console.error("Polling error:", err);
       }
     }, 3000);
+  }
 
-    return () => clearInterval(interval);
-  }, [polling, id]);
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (esRef.current) esRef.current.close();
+    };
+  }, []);
 
-  // Auto-scroll logs
+  // ── Auto-scroll logs ──────────────────────────────────────────────────────
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [job?.status]);
+  }, [logLines.length]);
 
   const handleDownload = async (platform: string) => {
     try {
@@ -97,6 +240,7 @@ export default function JobDetailPage() {
     }
   };
 
+  // ── Loading skeleton ──────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen bg-zinc-950">
@@ -119,6 +263,13 @@ export default function JobDetailPage() {
     );
   }
 
+  const normStatus = getNormalizedStatus(job.status);
+  const progress = typeof job.progress === "number" ? job.progress : stageProgress(normStatus);
+  const isActive = ACTIVE_STATUSES.includes(normStatus) || normStatus === "running" || normStatus === "queued";
+  const estimatedMinutes = job.estimatedWait ? Math.ceil(job.estimatedWait / 60) : null;
+
+  const activeLabel = STAGE_LABELS[normStatus] || (normStatus === "running" ? getActiveStageLabelByProgress(progress) : STAGE_LABELS[normStatus] || job.status);
+
   return (
     <div className="min-h-screen bg-zinc-950">
       <TopBar title={job.name} />
@@ -128,11 +279,49 @@ export default function JobDetailPage() {
           <Button variant="ghost" size="icon" onClick={() => router.push("/jobs")} className="text-zinc-500 hover:text-white">
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-1 flex-wrap">
             <h2 className="text-2xl font-bold text-white">{job.name}</h2>
             <StatusBadge status={job.status} />
+            {/* Estimated wait time */}
+            {isActive && estimatedMinutes !== null && estimatedMinutes > 0 && (
+              <span className="flex items-center gap-1 text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 rounded-full px-2.5 py-1">
+                <Timer className="w-3 h-3" />
+                ~{estimatedMinutes} min estimated
+              </span>
+            )}
           </div>
         </div>
+
+        {/* Pipeline progress bar */}
+        {(isActive || normStatus === "done") && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs text-zinc-500">
+              <span className="font-medium uppercase tracking-widest">{activeLabel}</span>
+              <span>{progress}%</span>
+            </div>
+            <Progress
+              value={progress}
+              className="h-2 bg-zinc-900"
+            />
+            {/* Stage markers */}
+            <div className="flex justify-between px-0.5">
+              {STAGE_ORDER.slice(0, -1).map((stage, i) => {
+                const idx = getStageIndexByProgress(normStatus, progress);
+                const isPast = i < idx;
+                const isCurrent = i === idx;
+                return (
+                  <div key={stage} className="flex flex-col items-center gap-1">
+                    <div className={cn(
+                      "w-1.5 h-1.5 rounded-full transition-colors",
+                      isCurrent ? "bg-indigo-500 ring-2 ring-indigo-500/30" :
+                      isPast    ? "bg-emerald-500" : "bg-zinc-700"
+                    )} />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column: Summary & Downloads */}
@@ -197,8 +386,30 @@ export default function JobDetailPage() {
               </CardContent>
             </Card>
 
-            <Button variant="ghost" className="w-full text-zinc-600 hover:text-rose-400 hover:bg-rose-500/5">
-              <Trash2 className="w-4 h-4 mr-2" /> Delete Job History
+            <Button 
+              variant="ghost" 
+              className="w-full text-zinc-600 hover:text-rose-400 hover:bg-rose-500/5 disabled:opacity-50"
+              disabled={isDeleting}
+              onClick={async () => {
+                if (confirm(`Are you sure you want to delete "${job.name}" and all of its artifacts?`)) {
+                  setIsDeleting(true);
+                  try {
+                    const res = await conversionsApi.delete(id);
+                    if (res.error) {
+                      alert(res.error);
+                    } else {
+                      router.push("/jobs");
+                    }
+                  } catch (err) {
+                    alert("An error occurred while deleting the job.");
+                  } finally {
+                    setIsDeleting(false);
+                  }
+                }
+              }}
+            >
+              <Trash2 className={cn("w-4 h-4 mr-2", isDeleting && "animate-spin")} />
+              {isDeleting ? "Deleting..." : "Delete Job History"}
             </Button>
           </div>
 
@@ -212,38 +423,70 @@ export default function JobDetailPage() {
                   </div>
                   <div>
                     <CardTitle className="text-sm font-bold text-white tracking-tight">Pipeline Console</CardTitle>
-                    <CardDescription className="text-[10px] uppercase tracking-tighter">Live Build Output</CardDescription>
+                    <CardDescription className="text-[10px] uppercase tracking-tighter">
+                      {sseConnected ? "SSE · Live" : isActive ? "Polling · 3 s" : "Build Output"}
+                    </CardDescription>
                   </div>
                 </div>
-                {polling && (
+                {isActive && (
                   <div className="flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
                     <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                    <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Streaming</span>
+                    <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">
+                      {sseConnected ? "Streaming" : "Polling"}
+                    </span>
                   </div>
                 )}
               </CardHeader>
               <CardContent className="p-0 flex-1 relative bg-black font-mono text-xs leading-relaxed overflow-hidden">
                 <div className="absolute inset-0 p-6 overflow-y-auto custom-scrollbar">
                   <div className="space-y-1">
-                    <div className="text-zinc-500 mb-2">Initializing pipeline for {job.id}...</div>
-                    <div className="text-zinc-300 flex gap-4"><span className="text-zinc-600">01:12:05</span> <span className="text-indigo-400">[DETECTOR]</span> Analysing project stack...</div>
-                    <div className="text-zinc-300 flex gap-4"><span className="text-zinc-600">01:12:08</span> <span className="text-indigo-400">[DETECTOR]</span> Match found: Vite + React + Supabase</div>
-                    <div className="text-zinc-300 flex gap-4"><span className="text-zinc-600">01:12:12</span> <span className="text-cyan-400">[TRANSFORM]</span> Applying AST transforms to remove external imports...</div>
-                    
-                    {/* Fake logs based on status for now */}
-                    {["transforming", "scaffolding", "installing", "building", "packaging", "done"].includes(job.status) && (
-                      <div className="text-zinc-300 flex gap-4"><span className="text-zinc-600">01:12:45</span> <span className="text-amber-400">[SCAFFOLD]</span> Injecting local SQLite database layer...</div>
-                    )}
-                    
-                    {["installing", "building", "packaging", "done"].includes(job.status) && (
-                      <div className="text-zinc-300 flex gap-4"><span className="text-zinc-600">01:13:10</span> <span className="text-purple-400">[BUILD]</span> Running vite build for desktop target...</div>
+                    {logLines.length === 0 ? (
+                      <div className="text-zinc-600">
+                        {isActive
+                          ? "Waiting for pipeline output…"
+                          : job.status === "done"
+                          ? "Build completed — no log lines captured."
+                          : "No log output available."}
+                      </div>
+                    ) : (
+                      logLines.map((line, i) => {
+                        // Parse for display
+                        const tsMatch = line.match(/^\[(\d{4}-[^\]]+)\]\s*/);
+                        const rest = tsMatch ? line.slice(tsMatch[0].length) : line;
+                        const stageMatch = rest.match(/^\[([^\]]+)\]\s*/);
+                        const stage = stageMatch ? stageMatch[1] : "";
+                        const message = stageMatch ? rest.slice(stageMatch[0].length) : rest;
+                        const ts = tsMatch
+                          ? new Date(tsMatch[1]!).toLocaleTimeString()
+                          : "";
+
+                        const stageColor =
+                          stage?.startsWith("06") || stage === "BUILD" ? "text-pink-400" :
+                          stage?.startsWith("01") || stage === "DETECTOR" ? "text-blue-400" :
+                          stage?.startsWith("03") || stage === "TRANSFORM" ? "text-yellow-400" :
+                          stage?.startsWith("04") || stage === "SCAFFOLD" ? "text-orange-400" :
+                          stage?.startsWith("07") || stage === "PACKAGE" ? "text-green-400" :
+                          stage?.startsWith("05") ? "text-purple-400" :
+                          "text-zinc-500";
+
+                        return (
+                          <div key={i} className="text-zinc-300 flex gap-3">
+                            {ts && <span className="text-zinc-600 flex-shrink-0 text-[10px] mt-0.5">{ts}</span>}
+                            {stage && <span className={cn("flex-shrink-0 font-bold text-[10px] mt-0.5 uppercase", stageColor)}>[{stage}]</span>}
+                            <span className="break-all">{message || line}</span>
+                          </div>
+                        );
+                      })
                     )}
 
                     {job.status === "done" && (
                       <div className="mt-4 pt-4 border-t border-zinc-800">
                         <div className="text-emerald-500 font-bold">✨ BUILD SUCCESSFUL</div>
-                        <div className="text-zinc-400">Total time: 1m 45s</div>
-                        <div className="text-zinc-400">Artifacts uploaded to S3.</div>
+                        {job.completedAt && job.createdAt && (
+                          <div className="text-zinc-400">
+                            Total time: {Math.round((new Date(job.completedAt).getTime() - new Date(job.createdAt).getTime()) / 1000)}s
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -276,18 +519,19 @@ function SummaryItem({ label, value }: { label: string, value: string }) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const styles: any = {
-    done: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
-    failed: "bg-rose-500/10 text-rose-500 border-rose-500/20",
+  const norm = getNormalizedStatus(status);
+  const styles: Record<string, string> = {
+    done:      "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
+    failed:    "bg-rose-500/10 text-rose-500 border-rose-500/20",
     cancelled: "bg-zinc-800 text-zinc-500 border-zinc-700",
-    default: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20 animate-pulse",
+    default:   "bg-indigo-500/10 text-indigo-400 border-indigo-500/20 animate-pulse",
   };
   
-  const style = styles[status] || styles.default;
+  const style = styles[norm] ?? styles.default;
   
   return (
     <Badge variant="outline" className={cn("px-2 py-0.5 text-[10px] font-bold uppercase", style)}>
-      {status}
+      {STAGE_LABELS[norm] ?? status}
     </Badge>
   );
 }

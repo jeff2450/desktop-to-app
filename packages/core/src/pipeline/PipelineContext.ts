@@ -33,6 +33,7 @@ const STAGE_ORDER = [
   "04-scaffold",
   "05-install",
   "06-build",
+  "06b-parity",
   "07-package",
   "07b-mobile",
 ] as const;
@@ -180,6 +181,19 @@ export class PipelineContext {
     } catch {
       // No state file or invalid, which is fine for a fresh run
     }
+  }
+
+  getLastCompletedStage(): string | undefined {
+    return this._lastCompletedStage;
+  }
+
+  discardLoadedState(reason: string): void {
+    if (!this._lastCompletedStage) return;
+    this.log(
+      "warn",
+      `Ignoring saved pipeline state (${this._lastCompletedStage}): ${reason}`
+    );
+    this._lastCompletedStage = undefined;
   }
 
   async saveState(): Promise<void> {

@@ -128,6 +128,23 @@ export async function getLogLines(jobId: string): Promise<string[]> {
   return getConnection().lrange(`logs:${jobId}`, 0, -1);
 }
 
+/** Store job progress in Redis (0-100) */
+export async function setJobProgress(jobId: string, progress: number): Promise<void> {
+  if (!_redisAvailable) return;
+  const key = `progress:${jobId}`;
+  const conn = getConnection();
+  await conn.set(key, String(progress));
+  await conn.expire(key, 7 * 24 * 60 * 60);
+}
+
+/** Retrieve job progress from Redis (returns 0 if not found or Redis is down) */
+export async function getJobProgress(jobId: string): Promise<number> {
+  if (!_redisAvailable) return 0;
+  const key = `progress:${jobId}`;
+  const val = await getConnection().get(key);
+  return val ? parseInt(val, 10) : 0;
+}
+
 export function createWorker(
   processor: Processor<ConversionQueuePayload>,
   concurrency = 2
@@ -137,6 +154,10 @@ export function createWorker(
     concurrency,
     removeOnComplete: { count: 50 },
     removeOnFail: { count: 100 },
+    // Builds can take many minutes — check for stalls every 5 min and allow
+    // only 1 stall before moving to failed (avoids infinite retry loops).
+    stalledInterval: 5 * 60 * 1000, // 5 minutes
+    maxStalledCount: 1,
   });
 }
 

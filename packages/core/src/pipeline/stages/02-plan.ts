@@ -316,6 +316,14 @@ async function buildMigrationPlan(
       generatorType: "local-api-client",
       templateVars: { port: ctx.config.backend.port ?? 3001, tables, framework },
     });
+
+    if (ctx.config.auth.type === "local") {
+      filesToGenerate.push({
+        outputPath: "src/lib/localAuth.ts",
+        generatorType: "local-auth-client",
+        templateVars: {},
+      });
+    }
   }
 
   // ── Generate: Hybrid sync engine ───────────────────────────────────

@@ -44,7 +44,7 @@ export async function stageMobile(ctx: MobilePipelineContext): Promise<void> {
   const mobileConfig: MobileConfig = {
     appId: ctx.config.appId ?? 'com.example.app',
     appName: ctx.config.name ?? 'MyApp',
-    webDir: 'dist',
+    webDir: ctx.config.mobile?.webDir ?? 'dist',
     ...ctx.config.mobile,
     android: ctx.config.android ?? ctx.config.mobile?.android,
     ios: ctx.config.ios ?? ctx.config.mobile?.ios,

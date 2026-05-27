@@ -93,6 +93,16 @@ export interface ConversionConfig {
   cleanLogs?: boolean;
 
   /**
+   * Controls the behavior parity gate.
+   * "strict" blocks packaging when the pipeline detects a conversion that
+   * cannot preserve the original Lovable/web behavior in the selected mode.
+   * "warn" logs the same findings but lets packaging continue.
+   * "off" disables the parity gate.
+   * @default "strict"
+   */
+  behaviorParity?: "strict" | "warn" | "off";
+
+  /**
    * Mobile-specific overrides for Android and/or iOS builds.
    * Only used when "android" or "ios" appears in `targets`.
    */
@@ -100,6 +110,13 @@ export interface ConversionConfig {
 }
 
 export interface MobileOverrides {
+  /**
+   * Directory containing built web assets, relative to the converted project.
+   * Must match the frontend build output directory.
+   * @default "dist"
+   */
+  webDir?: string;
+
   /** Android-specific build settings */
   android?: {
     /**
@@ -108,15 +125,28 @@ export interface MobileOverrides {
      */
     minSdkVersion?: number;
     /**
+     * Target Android SDK version. Google Play currently requires API 35+
+     * for new apps and updates.
+     * @default 35 for release builds
+     */
+    targetSdkVersion?: number;
+    /**
      * "debug" generates an unsigned debug APK (fast, no keystore needed).
-     * "release" generates a release APK suitable for Play Store upload.
+     * "release" generates a signed release AAB by default.
      * @default "debug"
      */
     buildVariant?: "debug" | "release";
+    /**
+     * Release artifact type. Google Play submissions should use "aab".
+     * @default "aab" for release, "apk" for debug
+     */
+    artifactType?: "apk" | "aab";
     /** Path to a release keystore file (relative to source root). */
     keystorePath?: string;
     keystoreAlias?: string;
     keystorePassword?: string;
+    /** Key password. Defaults to keystorePassword when omitted. */
+    keystoreAliasPassword?: string;
   };
   /** iOS-specific build settings (macOS only) */
   ios?: {

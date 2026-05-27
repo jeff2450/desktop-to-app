@@ -123,6 +123,10 @@ export async function runTransformStage(ctx: PipelineContext): Promise<void> {
     // which throws ReferenceError at runtime — causing the blank white screen.
     await fixOrphanedSupabaseClient(ctx);
 
+    if (hasMobileTarget(ctx) && ctx.config.mode !== "online") {
+      await assertNoRemovedDependencyImports(ctx);
+    }
+
     ctx.log("info", `Transformed: ${transformed} files`, STAGE);
     ctx.log("info", `Copied:      ${copied} files`, STAGE);
     if (failed > 0) ctx.log("warn", `Failed:      ${failed} files (originals preserved)`, STAGE);
@@ -177,6 +181,73 @@ async function dirExists(p: string): Promise<boolean> {
     .stat(p)
     .then((s) => s.isDirectory())
     .catch(() => false);
+}
+
+function hasMobileTarget(ctx: PipelineContext): boolean {
+  return ctx.config.targets.some((target) => target === "android" || target === "ios");
+}
+
+async function assertNoRemovedDependencyImports(ctx: PipelineContext): Promise<void> {
+  const removedDeps = ctx.plan?.dependenciesToRemove ?? [];
+  if (removedDeps.length === 0) return;
+
+  if (ctx.config.mode === "online") return;
+
+  const srcDir = path.join(ctx.outputDir, "src");
+  if (!(await dirExists(srcDir))) return;
+
+  const offenders: Array<{ file: string; dependency: string }> = [];
+  const codeExts = /\.(ts|tsx|js|jsx|vue|svelte)$/i;
+
+  async function walk(dir: string): Promise<void> {
+    const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await walk(fullPath);
+        continue;
+      }
+
+      if (!codeExts.test(entry.name)) continue;
+
+      const content = await fs.readFile(fullPath, "utf-8").catch(() => "");
+      for (const dependency of removedDeps) {
+        if (importsDependency(content, dependency)) {
+          offenders.push({
+            file: path.relative(ctx.outputDir, fullPath),
+            dependency,
+          });
+        }
+      }
+    }
+  }
+
+  await walk(srcDir);
+
+  if (offenders.length === 0) return;
+
+  const details = offenders
+    .slice(0, 12)
+    .map((item) => `  - ${item.file} imports ${item.dependency}`)
+    .join("\n");
+  const suffix = offenders.length > 12 ? `\n  - ...and ${offenders.length - 12} more` : "";
+
+  throw new Error(
+    "Mobile build would fail because transformed output still imports dependencies that were removed:\n" +
+    details +
+    suffix +
+    "\nReview these transform results or run mobile builds in online mode."
+  );
+}
+
+function importsDependency(content: string, dependency: string): boolean {
+  const escaped = dependency.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const importPattern = new RegExp(
+    `(?:from\\s+|import\\s*\\(\\s*|require\\s*\\(\\s*|import\\s+)['"](${escaped}(?:/[^'"]*)?)['"]`,
+    "g"
+  );
+
+  return importPattern.test(content);
 }
 
 /**
@@ -236,8 +307,10 @@ async function copySrcAssets(ctx: PipelineContext): Promise<void> {
     if (srcExists && !destExists) {
       if (file.startsWith(".env")) {
         let content = await fs.readFile(src, "utf-8");
-        content = content.replace(/^(.*(?:SUPABASE|FIREBASE).*)$/gm, "# $1 # stripped by WebToApp");
-        if (!content.includes("VITE_LOCAL_API")) {
+        if (ctx.config.mode === "offline") {
+          content = content.replace(/^(.*(?:SUPABASE|FIREBASE).*)$/gm, "# $1 # stripped by WebToApp");
+        }
+        if (ctx.config.mode !== "online" && !content.includes("VITE_LOCAL_API")) {
           content += "\n\n# Added by WebToApp\nVITE_LOCAL_API=true\nVITE_API_PORT=3001\n";
         }
         await fs.writeFile(dest, content, "utf-8");

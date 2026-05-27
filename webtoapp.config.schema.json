@@ -136,7 +136,7 @@
     },
     "resumeFromStage": {
       "type": "string",
-      "enum": ["01-detect", "02-plan", "03-transform", "04-scaffold", "05-install", "06-build", "07-package", "07b-mobile"],
+      "enum": ["01-detect", "02-plan", "03-transform", "04-scaffold", "05-install", "06-build", "06b-parity", "07-package", "07b-mobile"],
       "description": "Resume the pipeline from this stage, skipping earlier completed stages"
     },
     "cleanLogs": {
@@ -144,11 +144,23 @@
       "default": false,
       "description": "Delete the conversion log file after a successful pipeline run"
     },
+    "behaviorParity": {
+      "type": "string",
+      "enum": ["strict", "warn", "off"],
+      "default": "strict",
+      "description": "Controls the post-build behavior parity gate. strict blocks packaging when selected-mode behavior cannot be preserved; warn logs findings; off disables the gate."
+    },
     "mobile": {
       "type": "object",
       "additionalProperties": false,
       "description": "Mobile-specific build settings. Only used when 'android' or 'ios' appears in targets.",
       "properties": {
+        "webDir": {
+          "type": "string",
+          "minLength": 1,
+          "default": "dist",
+          "description": "Directory containing built web assets, relative to the converted project"
+        },
         "android": {
           "type": "object",
           "additionalProperties": false,
@@ -160,11 +172,23 @@
               "default": 22,
               "description": "Minimum Android SDK version (22 = Android 5.1)"
             },
+            "targetSdkVersion": {
+              "type": "integer",
+              "minimum": 21,
+              "default": 35,
+              "description": "Target Android SDK version. Google Play requires API 35+ for new apps and updates."
+            },
             "buildVariant": {
               "type": "string",
               "enum": ["debug", "release"],
               "default": "debug",
-              "description": "debug: unsigned APK for testing. release: signed APK for Play Store."
+              "description": "debug: unsigned APK for testing. release: signed release artifact."
+            },
+            "artifactType": {
+              "type": "string",
+              "enum": ["apk", "aab"],
+              "default": "aab",
+              "description": "Release artifact type. Use aab for Google Play."
             },
             "keystorePath": {
               "type": "string",
@@ -177,6 +201,10 @@
             "keystorePassword": {
               "type": "string",
               "description": "Keystore password for release signing"
+            },
+            "keystoreAliasPassword": {
+              "type": "string",
+              "description": "Key password for release signing. Defaults to keystorePassword if omitted."
             }
           }
         },

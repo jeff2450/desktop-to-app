@@ -1,4 +1,5 @@
 import type { PipelineContext } from "../PipelineContext.js";
+import path from "node:path";
 
 const STAGE = "07b-mobile";
 
@@ -62,9 +63,9 @@ export async function runMobileStage(ctx: PipelineContext): Promise<void> {
     const mobileConfig = {
       appId:   ctx.config.appId,
       appName: ctx.config.name,
-      webDir:  "dist",
+      webDir:  ctx.config.mobile?.webDir ?? "dist",
       ...(ctx.config.mobile ?? {}),
-      android: ctx.config.mobile?.android,
+      android: resolveAndroidConfig(ctx),
       ios:     ctx.config.mobile?.ios,
     };
 
@@ -90,13 +91,16 @@ export async function runMobileStage(ctx: PipelineContext): Promise<void> {
 
       if (target === "ios") {
         if (process.platform !== "darwin") {
-          ctx.log(
-            "warn",
-            "iOS build skipped — iOS requires macOS with Xcode. " +
-            "Use a macOS GitHub Actions runner (macos-latest) to build iOS in CI.",
-            STAGE
-          );
-          continue;
+          const msg =
+            "iOS build requires macOS with Xcode. " +
+            "Use a macOS GitHub Actions runner (macos-latest) to build iOS in CI.";
+
+          if (mobileTargets.includes("android")) {
+            ctx.log("warn", `iOS build skipped: ${msg}`, STAGE);
+            continue;
+          }
+
+          throw new Error(msg);
         }
 
         ctx.log("info", "Building iOS app via Capacitor...", STAGE);
@@ -128,4 +132,16 @@ export async function runMobileStage(ctx: PipelineContext): Promise<void> {
     ctx.failStage(STAGE, error);
     throw error;
   }
+}
+
+function resolveAndroidConfig(ctx: PipelineContext) {
+  const android = ctx.config.mobile?.android;
+  if (!android?.keystorePath || path.isAbsolute(android.keystorePath)) {
+    return android;
+  }
+
+  return {
+    ...android,
+    keystorePath: path.resolve(ctx.sourceDir, android.keystorePath),
+  };
 }

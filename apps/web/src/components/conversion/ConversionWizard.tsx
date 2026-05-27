@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, useRef, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { conversionsApi } from "../../lib/api-client";
 
 const DESKTOP_TARGETS = [
-  { id: "windows", label: "Windows", icon: "⊞", ext: ".exe" },
+  { id: "windows", label: "Windows", icon: "⊞", ext: ".exe"      },
   { id: "linux",   label: "Linux",   icon: "🐧", ext: ".AppImage" },
-  { id: "mac",     label: "macOS",   icon: "🍎", ext: ".dmg" },
+  { id: "macos",   label: "macOS",   icon: "🍎", ext: ".dmg"      }, // ← was "mac", API expects "macos"
 ];
 
 const MOBILE_TARGETS = [
@@ -15,25 +15,32 @@ const MOBILE_TARGETS = [
   { id: "ios",     label: "iOS",     icon: "📱", ext: ".ipa" },
 ];
 
+type SourceType = "github" | "upload";
+
 export function ConversionWizard() {
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [sourceUrl, setSourceUrl] = useState("");
-  const [targets, setTargets] = useState<string[]>(["windows", "linux"]);
-  const [appId, setAppId] = useState("");
-  const [version, setVersion] = useState("1.0.0");
-  const [mode, setMode] = useState<"offline" | "online" | "hybrid">("offline");
-  const [androidVariant, setAndroidVariant] = useState<"debug" | "release">("debug");
-  const [iosTeamId, setIosTeamId] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const hasMobile = targets.some((t) => t === "android" || t === "ios");
-  const hasIos = targets.includes("ios");
+  const [sourceType, setSourceType]   = useState<SourceType>("github");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [name, setName]               = useState("");
+  const [sourceUrl, setSourceUrl]     = useState("");
+  const [targets, setTargets]         = useState<string[]>(["windows", "linux"]);
+  const [appId, setAppId]             = useState("");
+  const [version, setVersion]         = useState("1.0.0");
+  const [mode, setMode]               = useState<"offline" | "online" | "hybrid">("offline");
+  const [androidVariant, setAndroidVariant] = useState<"debug" | "release">("debug");
+  const [iosTeamId, setIosTeamId]     = useState("");
+  const [error, setError]             = useState("");
+  const [loading, setLoading]         = useState(false);
+
+  const hasMobile = targets.some(t => t === "android" || t === "ios");
+  const hasIos    = targets.includes("ios");
+  const hasMacOs  = targets.includes("macos");
 
   function toggleTarget(id: string) {
-    setTargets((prev) =>
-      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
+    setTargets(prev =>
+      prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
     );
   }
 
@@ -44,9 +51,26 @@ export function ConversionWizard() {
       const parts = url.split("/");
       const repo = parts[parts.length - 1]?.replace(/\.git$/, "");
       if (repo) {
-        setName(repo.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()));
+        setName(repo.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase()));
         setAppId(`com.github.${repo.toLowerCase()}`);
       }
+    }
+  }
+
+  function handleFileSelect(file: File) {
+    if (!file.name.endsWith(".zip")) {
+      setError("Only .zip files are accepted.");
+      return;
+    }
+    setError("");
+    setSelectedFile(file);
+    if (!name) {
+      setName(
+        file.name
+          .replace(/\.[^/.]+$/, "")
+          .replace(/-/g, " ")
+          .replace(/\b\w/g, c => c.toUpperCase())
+      );
     }
   }
 
@@ -59,26 +83,44 @@ export function ConversionWizard() {
       return;
     }
 
+    if (sourceType === "github" && !sourceUrl.trim()) {
+      setError("Enter a GitHub repository URL.");
+      return;
+    }
+
+    if (sourceType === "upload" && !selectedFile) {
+      setError("Select a .zip archive to upload.");
+      return;
+    }
+
     setLoading(true);
-    const result = await conversionsApi.create({
-      name,
-      sourceUrl,
-      sourceType: "github",
-      targets,
-      appId: appId || `com.webtoapp.${name.toLowerCase().replace(/\s+/g, "")}`,
+
+    const config = {
+      name:    name || "Untitled App",
+      appId:   appId || `com.webtoapp.${(name || "app").toLowerCase().replace(/\s+/g, "")}`,
       version,
       mode,
-      ...(hasMobile && {
-        mobile: {
-          ...(targets.includes("android") && {
-            android: { buildVariant: androidVariant },
-          }),
-          ...(hasIos && iosTeamId && {
-            ios: { developmentTeam: iosTeamId },
-          }),
-        },
-      }),
-    });
+      targets, // also sent inside config for the worker
+    };
+
+    let result;
+
+    if (sourceType === "upload") {
+      // ── Multipart upload ─────────────────────────────────────────────────
+      const data = new FormData();
+      data.append("archive",   selectedFile!);
+      data.append("config",    JSON.stringify(config));
+      data.append("platforms", JSON.stringify(targets));
+      result = await conversionsApi.create(data);
+    } else {
+      // ── JSON / GitHub URL ─────────────────────────────────────────────────
+      result = await conversionsApi.create({
+        sourceRepo: sourceUrl.trim(),
+        platforms:  targets,
+        config,
+      });
+    }
+
     setLoading(false);
 
     if (result.error) {
@@ -86,7 +128,8 @@ export function ConversionWizard() {
       return;
     }
 
-    router.push(`/dashboard/conversions/${result.data?.id}`);
+    // Route to the job detail page
+    router.push(`/jobs/${result.data?.id}`);
   }
 
   return (
@@ -97,21 +140,77 @@ export function ConversionWizard() {
         </div>
       )}
 
-      {/* GitHub URL */}
+      {/* Source type toggle */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1.5">
-          GitHub repository URL <span className="text-red-400">*</span>
-        </label>
-        <input
-          type="url"
-          required
-          value={sourceUrl}
-          onChange={(e) => handleUrlChange(e.target.value)}
-          placeholder="https://github.com/your-org/your-app"
-          className="w-full px-3 py-2.5 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 text-sm"
-        />
-        <p className="text-xs text-gray-600 mt-1">Must be a public repo, or add a GitHub token in settings for private repos.</p>
+        <label className="block text-sm font-medium text-gray-300 mb-2">Source</label>
+        <div className="flex gap-3">
+          {(["github", "upload"] as SourceType[]).map(type => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => { setSourceType(type); setError(""); }}
+              className={`flex-1 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                sourceType === type
+                  ? "border-indigo-500 bg-indigo-600/20 text-indigo-300"
+                  : "border-gray-700 bg-gray-900 text-gray-400 hover:border-gray-600"
+              }`}
+            >
+              {type === "github" ? "🔗 GitHub URL" : "📦 ZIP Upload"}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* Source input */}
+      {sourceType === "github" ? (
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1.5">
+            GitHub repository URL <span className="text-red-400">*</span>
+          </label>
+          <input
+            type="url"
+            required
+            value={sourceUrl}
+            onChange={e => handleUrlChange(e.target.value)}
+            placeholder="https://github.com/your-org/your-app"
+            className="w-full px-3 py-2.5 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 text-sm"
+          />
+          <p className="text-xs text-gray-600 mt-1">Must be a public repo, or add a GitHub token in settings for private repos.</p>
+        </div>
+      ) : (
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-1.5">
+            ZIP archive <span className="text-red-400">*</span>
+          </label>
+          <div
+            onClick={() => fileRef.current?.click()}
+            onDragOver={e => e.preventDefault()}
+            onDrop={e => {
+              e.preventDefault();
+              const file = e.dataTransfer.files?.[0];
+              if (file) handleFileSelect(file);
+            }}
+            className="border-2 border-dashed border-gray-700 rounded-xl p-8 text-center bg-gray-900/20 hover:bg-gray-900/40 transition-colors cursor-pointer"
+          >
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".zip"
+              className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleFileSelect(f); }}
+            />
+            <p className="text-2xl mb-2">📦</p>
+            <p className="text-gray-400 text-sm font-medium">
+              {selectedFile ? selectedFile.name : "Click or drag & drop a .zip file"}
+            </p>
+            {selectedFile && (
+              <p className="text-gray-600 text-xs mt-1">
+                {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* App name */}
       <div>
@@ -120,7 +219,7 @@ export function ConversionWizard() {
           type="text"
           required
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={e => setName(e.target.value)}
           placeholder="My Awesome App"
           className="w-full px-3 py-2.5 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 text-sm"
         />
@@ -133,7 +232,7 @@ export function ConversionWizard() {
           <input
             type="text"
             value={version}
-            onChange={(e) => setVersion(e.target.value)}
+            onChange={e => setVersion(e.target.value)}
             placeholder="1.0.0"
             className="w-full px-3 py-2.5 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 text-sm"
           />
@@ -143,13 +242,12 @@ export function ConversionWizard() {
           <input
             type="text"
             value={appId}
-            onChange={(e) => setAppId(e.target.value)}
+            onChange={e => setAppId(e.target.value)}
             placeholder="com.example.myapp"
             className="w-full px-3 py-2.5 bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 text-sm"
           />
         </div>
       </div>
-
 
       {/* Mode selector */}
       <div>
@@ -157,8 +255,8 @@ export function ConversionWizard() {
         <div className="grid grid-cols-3 gap-3">
           {([
             { id: "offline", label: "Offline", icon: "📴", desc: "Works without internet. All data stored locally." },
-            { id: "online",  label: "Online",  icon: "🌐", desc: "Requires internet. Cloud backend untouched." },
-            { id: "hybrid",  label: "Hybrid",  icon: "⚡", desc: "Works offline, syncs to cloud when online." },
+            { id: "online",  label: "Online",  icon: "🌐", desc: "Requires internet. Cloud backend untouched."     },
+            { id: "hybrid",  label: "Hybrid",  icon: "⚡", desc: "Works offline, syncs to cloud when online."     },
           ] as const).map(({ id, label, icon, desc }) => (
             <button
               key={id}
@@ -176,23 +274,12 @@ export function ConversionWizard() {
             </button>
           ))}
         </div>
-        {mode === "hybrid" && (
-          <p className="text-xs text-yellow-400/80 mt-2">
-            ⚡ Hybrid mode keeps your Supabase/Firebase account active for cloud sync.
-          </p>
-        )}
-        {mode === "online" && (
-          <p className="text-xs text-blue-400/80 mt-2">
-            🌐 Online mode requires internet — no code transformation happens.
-          </p>
-        )}
       </div>
 
       {/* Targets */}
       <div>
         <label className="block text-sm font-medium text-gray-300 mb-2">Target platforms</label>
 
-        {/* Desktop */}
         <p className="text-xs text-gray-500 mb-1.5 uppercase tracking-wide">Desktop</p>
         <div className="flex gap-3 mb-3">
           {DESKTOP_TARGETS.map(({ id, label, icon, ext }) => (
@@ -213,7 +300,6 @@ export function ConversionWizard() {
           ))}
         </div>
 
-        {/* Mobile */}
         <p className="text-xs text-gray-500 mb-1.5 uppercase tracking-wide">Mobile</p>
         <div className="flex gap-3">
           {MOBILE_TARGETS.map(({ id, label, icon, ext }) => (
@@ -234,20 +320,25 @@ export function ConversionWizard() {
           ))}
         </div>
 
-        {/* Mobile requirement notices */}
+        {/* Platform notices */}
+        {hasMacOs && (
+          <p className="text-xs text-yellow-400/80 mt-2">
+            🍎 macOS (.dmg) builds require a macOS worker — this target will be skipped on Linux/Windows runners.
+          </p>
+        )}
         {targets.includes("android") && (
           <p className="text-xs text-yellow-400/80 mt-2">
             🤖 Android requires Java JDK 17+ and Android Studio (ANDROID_HOME set).
           </p>
         )}
-        {targets.includes("ios") && (
+        {hasIos && (
           <p className="text-xs text-blue-400/80 mt-2">
             📱 iOS requires macOS with Xcode and CocoaPods installed.
           </p>
         )}
       </div>
 
-      {/* Mobile-specific options (shown only when a mobile target is selected) */}
+      {/* Mobile-specific options */}
       {hasMobile && (
         <div className="rounded-lg border border-gray-700 bg-gray-900/60 p-4 space-y-4">
           <p className="text-sm font-medium text-gray-300">Mobile options</p>
@@ -256,7 +347,7 @@ export function ConversionWizard() {
             <div>
               <label className="block text-xs text-gray-400 mb-1.5">Android build variant</label>
               <div className="flex gap-3">
-                {(["debug", "release"] as const).map((v) => (
+                {(["debug", "release"] as const).map(v => (
                   <button
                     key={v}
                     type="button"
@@ -287,7 +378,7 @@ export function ConversionWizard() {
               <input
                 type="text"
                 value={iosTeamId}
-                onChange={(e) => setIosTeamId(e.target.value)}
+                onChange={e => setIosTeamId(e.target.value)}
                 placeholder="ABCD1234EF"
                 className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 text-sm font-mono"
               />

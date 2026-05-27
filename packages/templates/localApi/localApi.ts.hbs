@@ -81,6 +81,11 @@ class QueryBuilder<T = unknown> {
 }
 
 const auth = {
+  async signIn(credentials?: { email: string; password: string }) {
+    if (!credentials) return { data: null, error: "Email and password are required" };
+    return this.signInWithPassword(credentials);
+  },
+
   async signInWithPassword({ email, password }: { email: string; password: string }) {
     const result = await apiFetch<{ token: string; user: unknown }>("/api/auth/login", {
       method: "POST", body: JSON.stringify({ email, password }),
@@ -96,6 +101,7 @@ const auth = {
     return apiFetch("/api/auth/register", { method: "POST", body: JSON.stringify({ email, password }) });
   },
   async signOut() { localStorage.removeItem("webtoapp_token"); return { error: null }; },
+  async getToken() { return getToken(); },
   async getSession() {
     const token = getToken();
     if (!token) return { data: { session: null }, error: null };

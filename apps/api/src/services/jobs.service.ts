@@ -4,7 +4,7 @@ import { startOfMonth } from "date-fns";
 import { prisma } from "../db/prisma.js";
 import { PlanLimitError, ApiError } from "../lib/errors.js";
 import type { WebToAppConfig } from "../lib/types.js";
-import { addJob, estimateWaitSeconds } from "./queue.service.js";
+import { addJob, estimateWaitSeconds, getQueuedBullJob } from "./queue.service.js";
 
 const PLAN_LIMITS: Record<
   Plan,
@@ -153,13 +153,17 @@ export async function cancelJob(userId: string, jobId: string): Promise<Job> {
 }
 
 export async function appendJobLog(jobId: string, line: string): Promise<void> {
-  const existing = await prisma.job.findUnique({
-    where: { id: jobId },
-    select: { logs: true },
-  });
+  try {
+    const existing = await prisma.job.findUnique({
+      where: { id: jobId },
+      select: { logs: true },
+    });
 
-  const nextLogs = existing?.logs ? `${existing.logs}\n${line}` : line;
-  await prisma.job.update({ where: { id: jobId }, data: { logs: nextLogs } });
+    const nextLogs = existing?.logs ? `${existing.logs}\n${line}` : line;
+    await prisma.job.update({ where: { id: jobId }, data: { logs: nextLogs } });
+  } catch (err) {
+    console.error(`[appendJobLog] Failed to append log line for job ${jobId}:`, err);
+  }
 }
 
 export function getPlanLimit(plan: Plan): number | null {
@@ -178,4 +182,34 @@ export const defaultConfig = {
 
 export function getPlanLabel(plan: Plan): Plan {
   return plan ?? PlanEnum.FREE;
+}
+
+export async function deleteJob(
+  userId: string,
+  jobId: string
+): Promise<{ id: string; success: boolean }> {
+  const job = await prisma.job.findFirst({ where: { id: jobId, userId } });
+
+  if (!job) {
+    throw new ApiError(404, "Job not found", "JOB_NOT_FOUND");
+  }
+
+  // If active, try to cancel it / remove from queue
+  if (job.status === "QUEUED" || job.status === "RUNNING") {
+    try {
+      const bullJob = await getQueuedBullJob(job.id);
+      if (bullJob) {
+        await bullJob.remove();
+      }
+    } catch (err) {
+      console.warn(`Failed to remove job ${job.id} from queue:`, err);
+    }
+  }
+
+  // Delete from database
+  await prisma.job.delete({
+    where: { id: job.id },
+  });
+
+  return { id: jobId, success: true };
 }

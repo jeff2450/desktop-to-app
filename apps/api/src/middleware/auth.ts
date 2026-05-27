@@ -10,12 +10,21 @@ export async function requireAuth(
   next: NextFunction
 ): Promise<void> {
   try {
+    // Primary: Authorization: Bearer <token>
+    // Fallback: ?token=<token> (used by EventSource / SSE — can't set custom headers)
     const authorization = req.headers.authorization;
-    if (!authorization?.startsWith("Bearer ")) {
+    let token: string | undefined;
+
+    if (authorization?.startsWith("Bearer ")) {
+      token = authorization.slice("Bearer ".length);
+    } else if (typeof req.query["token"] === "string" && req.query["token"]) {
+      token = req.query["token"];
+    }
+
+    if (!token) {
       throw new ApiError(401, "Missing bearer token", "UNAUTHORIZED");
     }
 
-    const token = authorization.slice("Bearer ".length);
     const payload = verifyAccessToken(token);
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
@@ -32,3 +41,4 @@ export async function requireAuth(
     next(error);
   }
 }
+
