@@ -3,15 +3,7 @@
     {
       "name": "Default",
       "files": [
-        "apps/web/.turbo/turbo-build.log",
-        "apps/web/src/app/(dashboard)/jobs/[id]/page.tsx",
-        "apps/web/src/lib/api-client.ts",
-        "packages/core/src/pipeline/stages/00-preflight.ts",
-        "packages/core/src/pipeline/stages/05-install.ts",
-        "APPLY_FIXES.md",
-        ".vscode/changelists.json",
-        "apps/web/.env.example",
-        "apps/web/src/components/billing/PayPalCheckout.tsx"
+        ".github/workflows/ci.yml"
       ]
     }
   ],
