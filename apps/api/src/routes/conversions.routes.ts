@@ -31,33 +31,42 @@ import type { Response, Request } from "express";
 /** Terminal job statuses — SSE stream closes once the job reaches one of these */
 const TERMINAL_STATUSES = new Set(["SUCCESS", "FAILED", "CANCELLED"]);
 
-const configSchema = z.object({
-  name:               z.string().min(1),
-  version:            z.string().optional(),
-  appId:              z.string().regex(/^[a-z][a-z0-9]*(\.[a-z0-9-]+)+$/i),
-  mode:               z.enum(["offline", "online", "hybrid"]),
-  targets:            z.array(z.enum(["windows", "linux", "macos", "mac", "android", "ios"])).min(1),
-  output:             z.string().optional(),
-  icon:               z.string().optional(),
-  defaultAdminEmail:  z.string().email().optional(),
-  mobile:             z.object({
-    webDir:           z.string().optional(),
-    android:          z.object({
-      minSdkVersion:         z.number().optional(),
-      targetSdkVersion:      z.number().optional(),
-      buildVariant:          z.enum(["debug", "release"]).optional(),
-      artifactType:          z.enum(["apk", "aab"]).optional(),
-      keystorePath:          z.string().optional(),
-      keystoreAlias:         z.string().optional(),
-      keystorePassword:      z.string().optional(),
-      keystoreAliasPassword: z.string().optional(),
+const configSchema = z.preprocess(
+  (val: any) => {
+    if (val && typeof val === "object") {
+      const targets = val.targets ?? val.platforms;
+      return { ...val, targets };
+    }
+    return val;
+  },
+  z.object({
+    name:               z.string().min(1),
+    version:            z.string().optional(),
+    appId:              z.string().regex(/^[a-z][a-z0-9]*(\.[a-z0-9-]+)+$/i),
+    mode:               z.enum(["offline", "online", "hybrid"]),
+    targets:            z.array(z.enum(["windows", "linux", "macos", "mac", "android", "ios"])).min(1),
+    output:             z.string().optional(),
+    icon:               z.string().optional(),
+    defaultAdminEmail:  z.string().email().optional(),
+    mobile:             z.object({
+      webDir:           z.string().optional(),
+      android:          z.object({
+        minSdkVersion:         z.number().optional(),
+        targetSdkVersion:      z.number().optional(),
+        buildVariant:          z.enum(["debug", "release"]).optional(),
+        artifactType:          z.enum(["apk", "aab"]).optional(),
+        keystorePath:          z.string().optional(),
+        keystoreAlias:         z.string().optional(),
+        keystorePassword:      z.string().optional(),
+        keystoreAliasPassword: z.string().optional(),
+      }).optional(),
+      ios:              z.object({
+        deploymentTarget:      z.string().optional(),
+        developmentTeam:       z.string().optional(),
+      }).optional(),
     }).optional(),
-    ios:              z.object({
-      deploymentTarget:      z.string().optional(),
-      developmentTeam:       z.string().optional(),
-    }).optional(),
-  }).optional(),
-});
+  })
+);
 
 const paginationSchema = z.object({
   page:     z.coerce.number().int().positive().default(1),
@@ -65,11 +74,21 @@ const paginationSchema = z.object({
 });
 
 // JSON body for git/URL-based submissions (no file upload)
-const createFromRepoSchema = z.object({
-  sourceRepo: z.string().min(1),
-  config:     configSchema,
-  platforms:  z.array(z.enum(["windows", "linux", "macos", "mac", "android", "ios"])).min(1),
-});
+const createFromRepoSchema = z.preprocess(
+  (val: any) => {
+    if (val && typeof val === "object") {
+      const sourceRepo = val.sourceRepo ?? val.sourceUrl;
+      const platforms = val.platforms ?? val.targets;
+      return { ...val, sourceRepo, platforms };
+    }
+    return val;
+  },
+  z.object({
+    sourceRepo: z.string().min(1),
+    config:     configSchema,
+    platforms:  z.array(z.enum(["windows", "linux", "macos", "mac", "android", "ios"])).min(1),
+  })
+);
 
 export const conversionsRouter: Router = Router();
 conversionsRouter.use(requireAuth);
