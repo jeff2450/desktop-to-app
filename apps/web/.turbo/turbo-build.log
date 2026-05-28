@@ -30,17 +30,17 @@ Route (app)                              Size     First Load JS
 ├ ƒ /api/billing/usage                   0 B                0 B
 ├ ƒ /api/billing/usage-chart             0 B                0 B
 ├ ƒ /api/billing/verify                  0 B                0 B
-├ ○ /billing                             111 kB          221 kB
-├ ○ /billing/success                     2.66 kB         113 kB
-├ ○ /dashboard                           5.29 kB         116 kB
+├ ○ /billing                             112 kB          221 kB
+├ ○ /billing/success                     3.98 kB         114 kB
+├ ○ /dashboard                           3.16 kB         117 kB
 ├ ○ /docs                                10.8 kB         118 kB
-├ ○ /jobs                                3.57 kB         114 kB
-├ ƒ /jobs/[id]                           6.96 kB         118 kB
-├ ○ /jobs/new                            9.02 kB         125 kB
-├ ○ /login                               5.68 kB         112 kB
+├ ○ /jobs                                4.71 kB         114 kB
+├ ƒ /jobs/[id]                           4.99 kB         118 kB
+├ ○ /jobs/new                            10.1 kB         125 kB
+├ ○ /login                               3.47 kB         113 kB
 ├ ○ /pricing                             857 B          97.1 kB
-├ ○ /register                            5.95 kB         113 kB
-└ ○ /settings                            6.07 kB         122 kB
+├ ○ /register                            3.74 kB         113 kB
+└ ○ /settings                            7.04 kB         122 kB
 + First Load JS shared by all            87.5 kB
   ├ chunks/5b8f0dd8-963e26f73fce6c0b.js  53.6 kB
   ├ chunks/749-d322f1fd78f9c17f.js       31.9 kB

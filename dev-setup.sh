@@ -46,9 +46,9 @@ done
 step "Generating Prisma client"
 pnpm --filter @webtoapp/api db:generate
 
-step "Running database migrations"
+step "Syncing database schema"
 DATABASE_URL="postgresql://webtoapp:secret@localhost:5432/webtoapp" \
-  pnpm --filter @webtoapp/api db:migrate
+  pnpm --filter @webtoapp/api db:sync
 
 step "Building packages"
 pnpm turbo build --filter @webtoapp/core --filter @webtoapp/transformers \

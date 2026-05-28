@@ -31,10 +31,11 @@ docker compose -f infra/docker/docker-compose.yml up -d postgres redis minio
 echo "Waiting for services to be healthy..."
 sleep 5
 
-# Run DB migrations
-echo -e "\nRunning database migrations..."
+# Sync DB schema
+echo -e "\nSyncing database schema..."
 export DATABASE_URL="postgresql://webtoapp:webtoapp@localhost:5432/webtoapp"
-psql $DATABASE_URL < apps/api/src/db/migrations/001_init.sql 2>/dev/null || true
+pnpm --filter @webtoapp/api db:generate
+pnpm --filter @webtoapp/api db:sync
 
 # Copy .env.example if .env doesn't exist
 if [ ! -f apps/api/.env ]; then

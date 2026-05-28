@@ -92,8 +92,8 @@ jobs:
       - name: Lint
         run: pnpm turbo lint --if-present
 
-      - name: Run migrations
-        run: psql $DATABASE_URL < apps/api/src/db/migrations/001_init.sql
+      - name: Sync database schema
+        run: pnpm --filter @webtoapp/api db:push
 
       - name: Run tests
         run: pnpm turbo test
