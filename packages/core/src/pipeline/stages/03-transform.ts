@@ -479,7 +479,8 @@ async function fixReactRouterForElectron(ctx: PipelineContext): Promise<void> {
   // Online mode uses app:// which acts as a secure http-like origin —
   // BrowserRouter works fine there. Only offline/hybrid use file:// fallback
   // paths where HashRouter is required to avoid blank page on navigation.
-  // We still apply it in online mode to be safe (HashRouter works everywhere).
+  if (ctx.config.mode === "online") return;
+
   const srcDir = path.join(ctx.outputDir, "src");
   if (!(await dirExists(srcDir))) return;
 

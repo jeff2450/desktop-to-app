@@ -215,6 +215,26 @@ describe("Pipeline Stages (00-07b) Integration and Unit Tests", () => {
       expect(clientFileContent).toContain("supabase = localApi");
       expect(clientFileContent).not.toContain("= createClient(");
     });
+
+    it("does not rewrite BrowserRouter to HashRouter in online mode", async () => {
+      await createValidFixture(sourceDir);
+
+      await fs.writeFile(
+        path.join(sourceDir, "src/RouterFile.tsx"),
+        "import { BrowserRouter, Route } from 'react-router-dom';\nconst App = () => <BrowserRouter></BrowserRouter>;",
+        "utf-8"
+      );
+
+      const ctx = makeContext({ mode: "online" });
+      
+      await runDetectStage(ctx);
+      await runPlanStage(ctx);
+      await runTransformStage(ctx);
+
+      const routerFileContent = await fs.readFile(path.join(outputDir, "src/RouterFile.tsx"), "utf-8");
+      expect(routerFileContent).toContain("BrowserRouter");
+      expect(routerFileContent).not.toContain("HashRouter");
+    });
   });
 
   describe("Stage 05 — Install", () => {
