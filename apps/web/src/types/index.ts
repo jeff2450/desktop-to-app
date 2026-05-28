@@ -2,11 +2,27 @@ export type ConversionMode = "offline" | "online" | "hybrid";
 
 export type Plan = "free" | "pro" | "team" | "ultra";
 
-
 export type ConversionStatus =
-  | "queued" | "detecting" | "planning" | "transforming"
-  | "scaffolding" | "installing" | "building" | "packaging"
-  | "done" | "failed" | "cancelled";
+  | "queued"
+  | "running"
+  | "detecting"
+  | "planning"
+  | "transforming"
+  | "scaffolding"
+  | "installing"
+  | "building"
+  | "packaging"
+  | "done"
+  | "failed"
+  | "cancelled";
+
+export interface ConversionArtifact {
+  id: string;
+  jobId?: string;
+  platform: string;
+  s3Key?: string;
+  sizeBytes: number;
+}
 
 export interface User {
   id: string;
@@ -29,6 +45,7 @@ export interface Conversion {
   detectionResult?: DetectionResult;
   planSummary?: string;
   targets: string[];
+  artifacts?: ConversionArtifact[];
   installerUrl?: string;
   installerSize?: number;
   errorMessage?: string;
@@ -87,7 +104,14 @@ export interface BillingPlan {
 }
 
 export interface SseEvent {
-  type: "status" | "log" | "completed" | "failed" | "ping" | "progress";
+  type:
+    | "status"
+    | "log"
+    | "completed"
+    | "failed"
+    | "ping"
+    | "progress"
+    | "done";
   status?: ConversionStatus;
   stage?: string;
   message?: string;

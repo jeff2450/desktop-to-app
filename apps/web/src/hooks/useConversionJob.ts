@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { SseEvent, ConversionStatus } from "../types";
 import { getToken } from "../lib/auth";
+import { normalizeConversionStatus } from "../lib/api-client";
 
 const API_BASE = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3000";
 
@@ -15,7 +16,7 @@ export interface JobState {
 }
 
 /**
- * Hook that opens an SSE connection to /api/conversions/:id/logs
+ * Hook that opens an SSE connection to /api/conversions/:id/stream
  * and maintains live job state (status, logs, installer URL).
  *
  * Automatically reconnects on disconnect (up to 5 attempts).
@@ -41,7 +42,7 @@ export function useConversionJob(conversionId: string | null): JobState {
     if (!conversionId) return;
 
     const token = getToken();
-    const url = `${API_BASE}/api/conversions/${conversionId}/logs${token ? `?token=${token}` : ""}`;
+    const url = `${API_BASE}/api/conversions/${conversionId}/stream${token ? `?token=${token}` : ""}`;
 
     const es = new EventSource(url);
     esRef.current = es;
@@ -60,13 +61,18 @@ export function useConversionJob(conversionId: string | null): JobState {
         const next = { ...s };
 
         if (event.type === "status" && event.status) {
-          next.status = event.status;
+          next.status = normalizeConversionStatus(event.status);
         }
 
-        if (event.type === "log" && event.message) {
+        const logMessage = event.message ?? event.line;
+        if (event.type === "log" && logMessage) {
           next.logs = [
             ...s.logs,
-            { stage: event.stage ?? "", message: event.message, ts: Date.now() },
+            {
+              stage: event.stage ?? "",
+              message: logMessage,
+              ts: Date.now(),
+            },
           ].slice(-500); // keep last 500 lines
         }
 
@@ -80,6 +86,11 @@ export function useConversionJob(conversionId: string | null): JobState {
         if (event.type === "failed") {
           next.status = "failed";
           next.error = event.error ?? "Conversion failed";
+          es.close();
+          next.isConnected = false;
+        }
+
+        if (event.type === "done") {
           es.close();
           next.isConnected = false;
         }

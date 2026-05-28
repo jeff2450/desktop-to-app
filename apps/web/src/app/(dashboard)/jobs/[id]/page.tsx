@@ -4,29 +4,29 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { ConversionLog } from "@/components/conversion/ConversionLog";
-import { conversionsApi, downloadsApi } from "@/lib/api-client";
+import { conversionsApi } from "@/lib/api-client";
 import type { Conversion, ConversionStatus } from "@/types";
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle, 
-  CardDescription 
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { 
-  Download, 
-  Terminal as TerminalIcon, 
-  Settings, 
-  Clock, 
+import {
+  Download,
+  Terminal as TerminalIcon,
+  Settings,
+  Clock,
   AlertTriangle,
   CheckCircle2,
   XCircle,
   RefreshCw,
   Trash2,
   ArrowLeft,
-  Timer
+  Timer,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -47,17 +47,18 @@ const STAGE_ORDER: ConversionStatus[] = [
 ];
 
 const STAGE_LABELS: Record<string, string> = {
-  queued:      "Queued",
-  detecting:   "Detecting stack",
-  planning:    "Planning transforms",
-  transforming:"Applying transforms",
+  queued: "Queued",
+  detecting: "Detecting stack",
+  planning: "Planning transforms",
+  transforming: "Applying transforms",
   scaffolding: "Scaffolding app",
-  installing:  "Installing dependencies",
-  building:    "Building",
-  packaging:   "Packaging installer",
-  done:        "Complete",
-  failed:      "Failed",
-  cancelled:   "Cancelled",
+  installing: "Installing dependencies",
+  building: "Building",
+  packaging: "Packaging installer",
+  done: "Complete",
+  failed: "Failed",
+  cancelled: "Cancelled",
+  running: "Running",
 };
 
 function stageProgress(status: ConversionStatus): number {
@@ -69,18 +70,21 @@ function stageProgress(status: ConversionStatus): number {
 }
 
 const ACTIVE_STATUSES: ConversionStatus[] = [
-  "queued", "detecting", "planning", "transforming",
-  "scaffolding", "installing", "building", "packaging",
+  "queued",
+  "detecting",
+  "planning",
+  "transforming",
+  "scaffolding",
+  "installing",
+  "building",
+  "packaging",
 ];
 const TERMINAL_STATUSES: ConversionStatus[] = ["done", "failed", "cancelled"];
 
-function getNormalizedStatus(status: string): ConversionStatus {
-  const lower = status.toLowerCase();
-  if (lower === "success") return "done";
-  return lower as ConversionStatus;
-}
-
-function getStageIndexByProgress(status: ConversionStatus, progress: number): number {
+function getStageIndexByProgress(
+  status: ConversionStatus,
+  progress: number,
+): number {
   if (status === "done" || progress >= 100) return 8;
   if (status === "failed" || status === "cancelled") return -1;
   if (progress < 10) return 0;
@@ -154,13 +158,15 @@ export default function JobDetailPage() {
 
     const es = conversionsApi.streamLogs(id, (event) => {
       if (event.type === "log" && event.line) {
-        setLogLines(prev => [...prev, event.line!]);
+        setLogLines((prev) => [...prev, event.line!]);
       }
       if (event.type === "status" && event.status) {
-        setJob(prev => prev ? { ...prev, status: event.status as ConversionStatus } : prev);
+        setJob((prev) =>
+          prev ? { ...prev, status: event.status as ConversionStatus } : prev,
+        );
       }
       if (event.type === "progress" && typeof event.progress === "number") {
-        setJob(prev => prev ? { ...prev, progress: event.progress } : prev);
+        setJob((prev) => (prev ? { ...prev, progress: event.progress } : prev));
       }
       if (event.type === "done") {
         setSseConnected(false);
@@ -259,25 +265,40 @@ export default function JobDetailPage() {
       <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center">
         <AlertTriangle className="w-16 h-16 text-zinc-800 mb-4" />
         <h2 className="text-xl font-bold text-white">Job Not Found</h2>
-        <Button variant="link" onClick={() => router.push("/jobs")}>Back to My Jobs</Button>
+        <Button variant="link" onClick={() => router.push("/jobs")}>
+          Back to My Jobs
+        </Button>
       </div>
     );
   }
 
-  const normStatus = getNormalizedStatus(job.status);
-  const progress = typeof job.progress === "number" ? job.progress : stageProgress(normStatus);
-  const isActive = ACTIVE_STATUSES.includes(normStatus) || (normStatus as string) === "running" || normStatus === "queued";
-  const estimatedMinutes = job.estimatedWait ? Math.ceil(job.estimatedWait / 60) : null;
+  const normStatus = job.status;
+  const progress =
+    typeof job.progress === "number" ? job.progress : stageProgress(normStatus);
+  const isActive =
+    ACTIVE_STATUSES.includes(normStatus) || normStatus === "running";
+  const estimatedMinutes = job.estimatedWait
+    ? Math.ceil(job.estimatedWait / 60)
+    : null;
+  const artifacts = job.artifacts ?? [];
 
-  const activeLabel = STAGE_LABELS[normStatus] || ((normStatus as string) === "running" ? getActiveStageLabelByProgress(progress) : STAGE_LABELS[normStatus] || job.status);
+  const activeLabel =
+    normStatus === "running"
+      ? getActiveStageLabelByProgress(progress)
+      : STAGE_LABELS[normStatus] || job.status;
 
   return (
     <div className="min-h-screen bg-zinc-950">
       <TopBar title={job.name} />
-      
+
       <div className="p-8 space-y-8 max-w-7xl mx-auto">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/jobs")} className="text-zinc-500 hover:text-white">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.push("/jobs")}
+            className="text-zinc-500 hover:text-white"
+          >
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div className="flex items-center gap-3 flex-1 flex-wrap">
@@ -286,8 +307,7 @@ export default function JobDetailPage() {
             {/* Estimated wait time */}
             {isActive && estimatedMinutes !== null && estimatedMinutes > 0 && (
               <span className="flex items-center gap-1 text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 rounded-full px-2.5 py-1">
-                <Timer className="w-3 h-3" />
-                ~{estimatedMinutes} min estimated
+                <Timer className="w-3 h-3" />~{estimatedMinutes} min estimated
               </span>
             )}
           </div>
@@ -297,13 +317,12 @@ export default function JobDetailPage() {
         {(isActive || normStatus === "done") && (
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs text-zinc-500">
-              <span className="font-medium uppercase tracking-widest">{activeLabel}</span>
+              <span className="font-medium uppercase tracking-widest">
+                {activeLabel}
+              </span>
               <span>{progress}%</span>
             </div>
-            <Progress
-              value={progress}
-              className="h-2 bg-zinc-900"
-            />
+            <Progress value={progress} className="h-2 bg-zinc-900" />
             {/* Stage markers */}
             <div className="flex justify-between px-0.5">
               {STAGE_ORDER.slice(0, -1).map((stage, i) => {
@@ -312,11 +331,16 @@ export default function JobDetailPage() {
                 const isCurrent = i === idx;
                 return (
                   <div key={stage} className="flex flex-col items-center gap-1">
-                    <div className={cn(
-                      "w-1.5 h-1.5 rounded-full transition-colors",
-                      isCurrent ? "bg-indigo-500 ring-2 ring-indigo-500/30" :
-                      isPast    ? "bg-emerald-500" : "bg-zinc-700"
-                    )} />
+                    <div
+                      className={cn(
+                        "w-1.5 h-1.5 rounded-full transition-colors",
+                        isCurrent
+                          ? "bg-indigo-500 ring-2 ring-indigo-500/30"
+                          : isPast
+                            ? "bg-emerald-500"
+                            : "bg-zinc-700",
+                      )}
+                    />
                   </div>
                 );
               })}
@@ -334,65 +358,123 @@ export default function JobDetailPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-6 space-y-4">
-                <SummaryItem label="Source" value={job.sourceUrl || "Uploaded ZIP"} />
-                <SummaryItem label="Targets" value={job.targets.join(", ").toUpperCase()} />
-                <SummaryItem label="Created" value={new Date(job.createdAt).toLocaleString()} />
+                <SummaryItem
+                  label="Source"
+                  value={job.sourceUrl || "Uploaded ZIP"}
+                />
+                <SummaryItem
+                  label="Targets"
+                  value={job.targets.join(", ").toUpperCase()}
+                />
+                <SummaryItem
+                  label="Created"
+                  value={new Date(job.createdAt).toLocaleString()}
+                />
                 <SummaryItem label="Job ID" value={job.id} />
               </CardContent>
             </Card>
 
-            <Card className={cn(
-              "border-2",
-              job.status === "done" ? "bg-emerald-500/5 border-emerald-500/20" : "bg-zinc-900/50 border-zinc-800"
-            )}>
+            <Card
+              className={cn(
+                "border-2",
+                job.status === "done" && artifacts.length > 0
+                  ? "bg-emerald-500/5 border-emerald-500/20"
+                  : "bg-zinc-900/50 border-zinc-800",
+              )}
+            >
               <CardHeader>
-                <CardTitle className="text-sm font-bold uppercase tracking-widest text-zinc-400">Artifacts</CardTitle>
+                <CardTitle className="text-sm font-bold uppercase tracking-widest text-zinc-400">
+                  Artifacts
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {job.status === "done" ? (
+                {job.status === "done" && artifacts.length > 0 ? (
                   <div className="space-y-3">
-                    {job.targets.map(target => (
-                      <div key={target} className="flex items-center justify-between p-3 bg-zinc-950 border border-zinc-800 rounded-xl group hover:border-indigo-500/50 transition-colors">
+                    {artifacts.map((artifact) => (
+                      <div
+                        key={artifact.id}
+                        className="flex items-center justify-between p-3 bg-zinc-950 border border-zinc-800 rounded-xl group hover:border-indigo-500/50 transition-colors"
+                      >
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center font-bold text-[10px] text-zinc-500">
-                            {target?.[0]?.toUpperCase()}
+                            {artifact.platform?.[0]?.toUpperCase()}
                           </div>
                           <div>
-                            <p className="text-xs font-bold text-white uppercase">{target}</p>
-                            <p className="text-[10px] text-zinc-500">Production Installer</p>
+                            <p className="text-xs font-bold text-white uppercase">
+                              {artifact.platform}
+                            </p>
+                            <p className="text-[10px] text-zinc-500">
+                              {artifactLabel(
+                                artifact.s3Key,
+                                artifact.sizeBytes,
+                              )}
+                            </p>
                           </div>
                         </div>
-                        <Button size="sm" onClick={() => handleDownload(target)} className="bg-emerald-600 hover:bg-emerald-500 text-[10px] h-8 font-bold">
+                        <Button
+                          size="sm"
+                          onClick={() => handleDownload(artifact.platform)}
+                          className="bg-emerald-600 hover:bg-emerald-500 text-[10px] h-8 font-bold"
+                        >
                           <Download className="w-3 h-3 mr-1" /> Download
                         </Button>
                       </div>
                     ))}
                   </div>
+                ) : job.status === "done" ? (
+                  <div className="text-center py-6">
+                    <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
+                    <p className="text-sm text-zinc-400 font-medium">
+                      No artifacts were produced
+                    </p>
+                    <p className="text-xs text-zinc-600 mt-1 max-w-[220px] mx-auto">
+                      Check the build log for skipped platforms or worker
+                      constraints.
+                    </p>
+                  </div>
                 ) : job.status === "failed" ? (
                   <div className="text-center py-6">
                     <XCircle className="w-12 h-12 text-rose-500 mx-auto mb-3" />
-                    <p className="text-sm text-zinc-400 font-medium">Build failed</p>
-                    <p className="text-xs text-zinc-600 mt-1 max-w-[180px] mx-auto">{job.errorMessage || "An unknown error occurred during the pipeline."}</p>
-                    <Button variant="outline" size="sm" className="mt-4 border-zinc-800 text-zinc-400 hover:text-white" onClick={() => router.push("/jobs/new")}>
+                    <p className="text-sm text-zinc-400 font-medium">
+                      Build failed
+                    </p>
+                    <p className="text-xs text-zinc-600 mt-1 max-w-[180px] mx-auto">
+                      {job.errorMessage ||
+                        "An unknown error occurred during the pipeline."}
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-4 border-zinc-800 text-zinc-400 hover:text-white"
+                      onClick={() => router.push("/jobs/new")}
+                    >
                       <RefreshCw className="w-3 h-3 mr-1" /> Retry
                     </Button>
                   </div>
                 ) : (
                   <div className="text-center py-12">
                     <Clock className="w-10 h-10 text-zinc-700 mx-auto mb-3 animate-pulse" />
-                    <p className="text-xs text-zinc-500 uppercase font-bold tracking-widest">Building artifacts...</p>
-                    <p className="text-[10px] text-zinc-600 mt-2">Available once the pipeline completes.</p>
+                    <p className="text-xs text-zinc-500 uppercase font-bold tracking-widest">
+                      Building artifacts...
+                    </p>
+                    <p className="text-[10px] text-zinc-600 mt-2">
+                      Available once the pipeline completes.
+                    </p>
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               className="w-full text-zinc-600 hover:text-rose-400 hover:bg-rose-500/5 disabled:opacity-50"
               disabled={isDeleting}
               onClick={async () => {
-                if (confirm(`Are you sure you want to delete "${job.name}" and all of its artifacts?`)) {
+                if (
+                  confirm(
+                    `Are you sure you want to delete "${job.name}" and all of its artifacts?`,
+                  )
+                ) {
                   setIsDeleting(true);
                   try {
                     const res = await conversionsApi.delete(id);
@@ -409,7 +491,9 @@ export default function JobDetailPage() {
                 }
               }}
             >
-              <Trash2 className={cn("w-4 h-4 mr-2", isDeleting && "animate-spin")} />
+              <Trash2
+                className={cn("w-4 h-4 mr-2", isDeleting && "animate-spin")}
+              />
               {isDeleting ? "Deleting..." : "Delete Job History"}
             </Button>
           </div>
@@ -424,29 +508,47 @@ export default function JobDetailPage() {
   );
 }
 
-function SummaryItem({ label, value }: { label: string, value: string }) {
+function SummaryItem({ label, value }: { label: string; value: string }) {
   return (
     <div className="space-y-1">
-      <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">{label}</p>
-      <p className="text-sm font-medium text-zinc-300 truncate" title={value}>{value}</p>
+      <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">
+        {label}
+      </p>
+      <p className="text-sm font-medium text-zinc-300 truncate" title={value}>
+        {value}
+      </p>
     </div>
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const norm = getNormalizedStatus(status);
+function artifactLabel(s3Key: string | undefined, sizeBytes: number): string {
+  const fileName = s3Key?.split("/").pop() ?? "Production installer";
+  return sizeBytes > 0 ? `${fileName} - ${formatBytes(sizeBytes)}` : fileName;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function StatusBadge({ status }: { status: ConversionStatus }) {
   const styles: Record<string, string> = {
-    done:      "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
-    failed:    "bg-rose-500/10 text-rose-500 border-rose-500/20",
+    done: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
+    failed: "bg-rose-500/10 text-rose-500 border-rose-500/20",
     cancelled: "bg-zinc-800 text-zinc-500 border-zinc-700",
-    default:   "bg-indigo-500/10 text-indigo-400 border-indigo-500/20 animate-pulse",
+    default:
+      "bg-indigo-500/10 text-indigo-400 border-indigo-500/20 animate-pulse",
   };
-  
-  const style = styles[norm] ?? styles.default;
-  
+
+  const style = styles[status] ?? styles.default;
+
   return (
-    <Badge variant="outline" className={cn("px-2 py-0.5 text-[10px] font-bold uppercase", style)}>
-      {STAGE_LABELS[norm] ?? status}
+    <Badge
+      variant="outline"
+      className={cn("px-2 py-0.5 text-[10px] font-bold uppercase", style)}
+    >
+      {STAGE_LABELS[status] ?? status}
     </Badge>
   );
 }
