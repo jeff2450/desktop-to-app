@@ -48,8 +48,6 @@ jobs:
       DATABASE_URL: postgresql://webtoapp:webtoapp@localhost:5432/webtoapp
       REDIS_URL: redis://localhost:6379
       JWT_SECRET: ci-test-secret
-      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-      TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
     steps:
       - uses: actions/checkout@v4
