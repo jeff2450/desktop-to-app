@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
+import { ConversionLog } from "@/components/conversion/ConversionLog";
 import { conversionsApi, downloadsApi } from "@/lib/api-client";
 import type { Conversion, ConversionStatus } from "@/types";
 import { 
@@ -414,94 +415,8 @@ export default function JobDetailPage() {
           </div>
 
           {/* Right Column: Live Logs */}
-          <div className="lg:col-span-2 space-y-6">
-            <Card className="bg-zinc-900/50 border-zinc-800 h-full flex flex-col">
-              <CardHeader className="flex flex-row items-center justify-between border-b border-zinc-800/50 bg-zinc-900/30">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-zinc-950 flex items-center justify-center">
-                    <TerminalIcon className="w-4 h-4 text-emerald-500" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm font-bold text-white tracking-tight">Pipeline Console</CardTitle>
-                    <CardDescription className="text-[10px] uppercase tracking-tighter">
-                      {sseConnected ? "SSE · Live" : isActive ? "Polling · 3 s" : "Build Output"}
-                    </CardDescription>
-                  </div>
-                </div>
-                {isActive && (
-                  <div className="flex items-center gap-2 px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
-                    <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                    <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">
-                      {sseConnected ? "Streaming" : "Polling"}
-                    </span>
-                  </div>
-                )}
-              </CardHeader>
-              <CardContent className="p-0 flex-1 relative bg-black font-mono text-xs leading-relaxed overflow-hidden">
-                <div className="absolute inset-0 p-6 overflow-y-auto custom-scrollbar">
-                  <div className="space-y-1">
-                    {logLines.length === 0 ? (
-                      <div className="text-zinc-600">
-                        {isActive
-                          ? "Waiting for pipeline output…"
-                          : job.status === "done"
-                          ? "Build completed — no log lines captured."
-                          : "No log output available."}
-                      </div>
-                    ) : (
-                      logLines.map((line, i) => {
-                        // Parse for display
-                        const tsMatch = line.match(/^\[(\d{4}-[^\]]+)\]\s*/);
-                        const rest = tsMatch ? line.slice(tsMatch[0].length) : line;
-                        const stageMatch = rest.match(/^\[([^\]]+)\]\s*/);
-                        const stage = stageMatch ? stageMatch[1] : "";
-                        const message = stageMatch ? rest.slice(stageMatch[0].length) : rest;
-                        const ts = tsMatch
-                          ? new Date(tsMatch[1]!).toLocaleTimeString()
-                          : "";
-
-                        const stageColor =
-                          stage?.startsWith("06") || stage === "BUILD" ? "text-pink-400" :
-                          stage?.startsWith("01") || stage === "DETECTOR" ? "text-blue-400" :
-                          stage?.startsWith("03") || stage === "TRANSFORM" ? "text-yellow-400" :
-                          stage?.startsWith("04") || stage === "SCAFFOLD" ? "text-orange-400" :
-                          stage?.startsWith("07") || stage === "PACKAGE" ? "text-green-400" :
-                          stage?.startsWith("05") ? "text-purple-400" :
-                          "text-zinc-500";
-
-                        return (
-                          <div key={i} className="text-zinc-300 flex gap-3">
-                            {ts && <span className="text-zinc-600 flex-shrink-0 text-[10px] mt-0.5">{ts}</span>}
-                            {stage && <span className={cn("flex-shrink-0 font-bold text-[10px] mt-0.5 uppercase", stageColor)}>[{stage}]</span>}
-                            <span className="break-all">{message || line}</span>
-                          </div>
-                        );
-                      })
-                    )}
-
-                    {job.status === "done" && (
-                      <div className="mt-4 pt-4 border-t border-zinc-800">
-                        <div className="text-emerald-500 font-bold">✨ BUILD SUCCESSFUL</div>
-                        {job.completedAt && job.createdAt && (
-                          <div className="text-zinc-400">
-                            Total time: {Math.round((new Date(job.completedAt).getTime() - new Date(job.createdAt).getTime()) / 1000)}s
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {job.status === "failed" && (
-                      <div className="mt-4 pt-4 border-t border-zinc-800">
-                        <div className="text-rose-500 font-bold">✖ BUILD FAILED</div>
-                        <div className="text-rose-400/70">{job.errorMessage || "Error: Process exited with code 1"}</div>
-                      </div>
-                    )}
-
-                    <div ref={logEndRef} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          <div className="lg:col-span-2">
+            <ConversionLog logs={logLines} isConnected={sseConnected} />
           </div>
         </div>
       </div>

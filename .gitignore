@@ -26,3 +26,7 @@ apps/api/outputs/
 # IDE
 .idea/
 .vscode/settings.json
+
+# Test app temp directories
+test-app-tmp/
+test-app-tmp-desktop/

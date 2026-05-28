@@ -36,10 +36,27 @@ const configSchema = z.object({
   version:            z.string().optional(),
   appId:              z.string().regex(/^[a-z][a-z0-9]*(\.[a-z0-9-]+)+$/i),
   mode:               z.enum(["offline", "online", "hybrid"]),
-  targets:            z.array(z.enum(["windows", "linux", "macos"])).min(1),
+  targets:            z.array(z.enum(["windows", "linux", "macos", "mac", "android", "ios"])).min(1),
   output:             z.string().optional(),
   icon:               z.string().optional(),
   defaultAdminEmail:  z.string().email().optional(),
+  mobile:             z.object({
+    webDir:           z.string().optional(),
+    android:          z.object({
+      minSdkVersion:         z.number().optional(),
+      targetSdkVersion:      z.number().optional(),
+      buildVariant:          z.enum(["debug", "release"]).optional(),
+      artifactType:          z.enum(["apk", "aab"]).optional(),
+      keystorePath:          z.string().optional(),
+      keystoreAlias:         z.string().optional(),
+      keystorePassword:      z.string().optional(),
+      keystoreAliasPassword: z.string().optional(),
+    }).optional(),
+    ios:              z.object({
+      deploymentTarget:      z.string().optional(),
+      developmentTeam:       z.string().optional(),
+    }).optional(),
+  }).optional(),
 });
 
 const paginationSchema = z.object({
@@ -51,7 +68,7 @@ const paginationSchema = z.object({
 const createFromRepoSchema = z.object({
   sourceRepo: z.string().min(1),
   config:     configSchema,
-  platforms:  z.array(z.enum(["windows", "linux", "macos"])).min(1),
+  platforms:  z.array(z.enum(["windows", "linux", "macos", "mac", "android", "ios"])).min(1),
 });
 
 export const conversionsRouter: Router = Router();
@@ -89,7 +106,7 @@ conversionsRouter.post("/", async (req: Request, res: Response, next) => {
       const config = configSchema.parse(parsedConfig);
       const platformsRaw = req.body["platforms"];
       const platforms = z
-        .array(z.enum(["windows", "linux", "macos"]))
+        .array(z.enum(["windows", "linux", "macos", "mac", "android", "ios"]))
         .min(1)
         .parse(
           typeof platformsRaw === "string" ? JSON.parse(platformsRaw) : platformsRaw
@@ -153,13 +170,20 @@ conversionsRouter.get("/:id", async (req: Request, res: Response, next) => {
 
     // Enrich with any live Redis log lines not yet flushed to DB
     const liveLines = await getLogLines(job.id);
+    const parsedLines = liveLines.map(line => {
+      try {
+        return JSON.parse(line);
+      } catch {
+        return line;
+      }
+    });
     const progress = await getJobProgress(job.id);
 
     res.json({
       ...job,
       progress,
       // Prefer real-time Redis buffer while job is running; fall back to DB logs
-      liveLogLines: liveLines.length > 0 ? liveLines : undefined,
+      liveLogLines: parsedLines.length > 0 ? parsedLines : undefined,
     });
   } catch (error) {
     next(error);
@@ -197,7 +221,9 @@ conversionsRouter.get("/:id/stream", async (req: Request, res: Response, next) =
     let sentCount = 0;
     const initialLines = await getLogLines(jobId);
     for (const line of initialLines) {
-      send({ type: "log", line });
+      let parsed = line;
+      try { parsed = JSON.parse(line); } catch {}
+      send({ type: "log", line: parsed });
     }
     sentCount = initialLines.length;
 
@@ -231,7 +257,9 @@ conversionsRouter.get("/:id/stream", async (req: Request, res: Response, next) =
         const allLines = await getLogLines(jobId);
         if (allLines.length > sentCount) {
           for (const line of allLines.slice(sentCount)) {
-            send({ type: "log", line });
+            let parsed = line;
+            try { parsed = JSON.parse(line); } catch {}
+            send({ type: "log", line: parsed });
           }
           sentCount = allLines.length;
         }

@@ -12,7 +12,8 @@
     "db:migrate": "prisma migrate deploy",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "worker": "tsx src/workers/conversion.worker.ts"
+    "worker": "tsx src/workers/conversion.worker.ts",
+    "dev:worker": "tsx watch src/workers/conversion.worker.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.600.0",

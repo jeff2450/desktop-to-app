@@ -1,0 +1,112 @@
+
+<style>
+  .wrap { padding: 1.5rem 0; font-family: var(--font-sans); }
+  .section-label { font-size: 12px; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 1.25rem; }
+  .overall { display: flex; align-items: center; gap: 20px; padding: 1.25rem; background: var(--color-background-secondary); border-radius: var(--border-radius-lg); margin-bottom: 1.75rem; }
+  .big-score { font-size: 52px; font-weight: 500; color: var(--color-text-primary); line-height: 1; }
+  .big-label { font-size: 18px; font-weight: 500; color: var(--color-text-primary); }
+  .big-sub { font-size: 13px; color: var(--color-text-secondary); margin-top: 4px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 1.75rem; }
+  .card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 1rem 1.1rem; }
+  .card-label { font-size: 12px; color: var(--color-text-secondary); margin: 0 0 6px; }
+  .card-score { font-size: 22px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 6px; }
+  .bar-track { height: 6px; background: var(--color-background-secondary); border-radius: 99px; overflow: hidden; }
+  .bar-fill { height: 6px; border-radius: 99px; }
+  .notes { display: flex; flex-direction: column; gap: 10px; }
+  .note { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-tertiary); }
+  .note-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+  .note-text { font-size: 13px; color: var(--color-text-secondary); line-height: 1.6; }
+  .note-text strong { color: var(--color-text-primary); font-weight: 500; }
+  .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: var(--border-radius-md); margin-left: 6px; font-weight: 500; }
+  .b-good { background: #EAF3DE; color: #3B6D11; }
+  .b-warn { background: #FAEEDA; color: #854F0B; }
+  .b-info { background: #E6F1FB; color: #185FA5; }
+  .b-red  { background: #FCEBEB; color: #A32D2D; }
+</style>
+<div class="wrap">
+  <p class="section-label">WebToApp — code review</p>
+  <div class="overall">
+    <div class="big-score">7.8</div>
+    <div>
+      <div class="big-label">Solid foundation <span class="badge b-good">Beta-ready</span></div>
+      <div class="big-sub">Feature-complete architecture · not yet production-proven · some rough edges</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="card-label">Architecture</div>
+      <div class="card-score">9 / 10</div>
+      <div class="bar-track"><div class="bar-fill" style="width:90%; background:#3B6D11;"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Code quality</div>
+      <div class="card-score">8 / 10</div>
+      <div class="bar-track"><div class="bar-fill" style="width:80%; background:#185FA5;"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Test coverage</div>
+      <div class="card-score">7 / 10</div>
+      <div class="bar-track"><div class="bar-fill" style="width:70%; background:#185FA5;"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Documentation</div>
+      <div class="card-score">8.5 / 10</div>
+      <div class="bar-track"><div class="bar-fill" style="width:85%; background:#3B6D11;"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-label">DevOps / CI</div>
+      <div class="card-score">7.5 / 10</div>
+      <div class="bar-track"><div class="bar-fill" style="width:75%; background:#185FA5;"></div></div>
+    </div>
+    <div class="card">
+      <div class="card-label">Production-readiness</div>
+      <div class="card-score">6 / 10</div>
+      <div class="bar-track"><div class="bar-fill" style="width:60%; background:#854F0B;"></div></div>
+    </div>
+  </div>
+
+  <p class="section-label" style="margin-bottom:1rem;">Findings</p>
+  <div class="notes">
+    <div class="note">
+      <span class="note-icon" style="color:#3B6D11;"><i class="ti ti-circle-check" aria-hidden="true"></i></span>
+      <span class="note-text"><strong>Monorepo structure is exceptional.</strong> Clean separation into core / detectors / transformers / builder / cli / templates is textbook. Each package has a single clear job and its own tsconfig.</span>
+    </div>
+    <div class="note">
+      <span class="note-icon" style="color:#3B6D11;"><i class="ti ti-circle-check" aria-hidden="true"></i></span>
+      <span class="note-text"><strong>8-stage pipeline with resume + rollback.</strong> Backup-before-run, rollback on failure, state persistence, and <code>--dry-run</code> are all wired end-to-end. Most indie tools skip these entirely.</span>
+    </div>
+    <div class="note">
+      <span class="note-icon" style="color:#3B6D11;"><i class="ti ti-circle-check" aria-hidden="true"></i></span>
+      <span class="note-text"><strong>AST-based transformers with confidence scoring.</strong> Using ts-morph for real AST transforms (not raw regex) and emitting per-file confidence percentages + warnings is a professional touch.</span>
+    </div>
+    <div class="note">
+      <span class="note-icon" style="color:#3B6D11;"><i class="ti ti-circle-check" aria-hidden="true"></i></span>
+      <span class="note-text"><strong>Good test suite for transformers.</strong> 1,466 lines across 10 test files covering Supabase, Firebase, Auth0, Vue, edge cases, and an integration test. CI badge is green.</span>
+    </div>
+    <div class="note">
+      <span class="note-icon" style="color:#854F0B;"><i class="ti ti-alert-triangle" aria-hidden="true"></i></span>
+      <span class="note-text"><strong>SaaS layer has a critical field mismatch.</strong> <code>ConversionWizard</code> sends <code>{ sourceUrl, targets }</code> but the API expects <code>{ sourceRepo, platforms, config: {...} }</code> — submitting a job right now returns 400/500.</span>
+    </div>
+    <div class="note">
+      <span class="note-icon" style="color:#854F0B;"><i class="ti ti-alert-triangle" aria-hidden="true"></i></span>
+      <span class="note-text"><strong>Infrastructure never starts automatically.</strong> Redis, Postgres, BullMQ worker, and the API server all need to be started manually. The <code>docker-compose.yml</code> is there but not wired to a single <code>npm run dev</code>.</span>
+    </div>
+    <div class="note">
+      <span class="note-icon" style="color:#854F0B;"><i class="ti ti-alert-triangle" aria-hidden="true"></i></span>
+      <span class="note-text"><strong>Log format contract is broken.</strong> The worker writes plain strings to Redis; <code>ConversionLog.tsx</code> expects structured <code>{ stage, message, ts }</code> objects. Live log streaming will silently break in the UI.</span>
+    </div>
+    <div class="note">
+      <span class="note-icon" style="color:#185FA5;"><i class="ti ti-info-circle" aria-hidden="true"></i></span>
+      <span class="note-text"><strong>Session 7 transformers are partial.</strong> Firebase Firestore, Auth0, and Vue transformers are implemented and tested but self-documented as <code>⚠ partial</code>. Complex patterns (nested transactions, custom rules) need manual review.</span>
+    </div>
+    <div class="note">
+      <span class="note-icon" style="color:#185FA5;"><i class="ti ti-info-circle" aria-hidden="true"></i></span>
+      <span class="note-text"><strong>Test coverage gap on pipeline stages.</strong> Transformers are well tested; the 8 pipeline stages (preflight, detect, plan, scaffold…) have very limited unit tests. A bad stage refactor would fail silently.</span>
+    </div>
+    <div class="note">
+      <span class="note-icon" style="color:#185FA5;"><i class="ti ti-info-circle" aria-hidden="true"></i></span>
+      <span class="note-text"><strong>Test artifacts committed to git.</strong> <code>test-app-tmp/</code> and <code>test-app-tmp-desktop/</code> (including a <code>build-error-linux.log</code>) are checked in. These should be <code>.gitignore</code>d.</span>
+    </div>
+  </div>
+</div>

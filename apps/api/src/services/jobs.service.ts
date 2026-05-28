@@ -10,10 +10,10 @@ const PLAN_LIMITS: Record<
   Plan,
   { monthlyLimit: number | null; platforms: string[]; priority: number }
 > = {
-  FREE:    { monthlyLimit: 1,    platforms: ["windows", "linux", "macos"], priority: 10 },
-  STARTER: { monthlyLimit: 10,   platforms: ["windows", "linux", "macos"], priority: 5  },
-  PRO:     { monthlyLimit: 20,   platforms: ["windows", "linux", "macos"], priority: 3  },
-  ULTRA:   { monthlyLimit: 50,   platforms: ["windows", "linux", "macos"], priority: 1  },
+  FREE:    { monthlyLimit: 1,    platforms: ["windows", "linux", "macos", "mac", "android", "ios"], priority: 10 },
+  STARTER: { monthlyLimit: 10,   platforms: ["windows", "linux", "macos", "mac", "android", "ios"], priority: 5  },
+  PRO:     { monthlyLimit: 20,   platforms: ["windows", "linux", "macos", "mac", "android", "ios"], priority: 3  },
+  ULTRA:   { monthlyLimit: 50,   platforms: ["windows", "linux", "macos", "mac", "android", "ios"], priority: 1  },
 };
 
 

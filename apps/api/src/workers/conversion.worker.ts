@@ -25,11 +25,23 @@ import { sendBuildComplete, sendBuildFailed } from "../services/email.service.js
 import { env } from "../config/env.js";
 import type { WebToAppConfig } from "../lib/types.js";
 
-const PLATFORM_TARGET_MAP: Record<string, "windows" | "linux" | "mac"> = {
+const PLATFORM_TARGET_MAP: Record<string, "windows" | "linux" | "mac" | "android" | "ios"> = {
   windows: "windows",
   linux:   "linux",
   macos:   "mac",
+  mac:     "mac",
+  android: "android",
+  ios:     "ios",
 };
+
+function isPlatformBuildable(platform: string): boolean {
+  const host = process.platform;
+  if (platform === "windows") return host === "win32";
+  if (platform === "linux") return host === "linux";
+  if (platform === "macos" || platform === "mac" || platform === "ios") return host === "darwin";
+  if (platform === "android") return true; // Android build uses capacitor which runs on any desktop OS
+  return false;
+}
 
 const CURRENT_WORKER_PLATFORM =
   process.platform === "win32" ? "windows" :
@@ -73,13 +85,16 @@ async function runWorkerJob(payload: ConversionQueuePayload): Promise<void> {
 
   const tempRoot = await fsp.mkdtemp(path.join(os.tmpdir(), `webtoapp-${jobRecord.id}-`));
 
-  const log = async (msg: string): Promise<void> => {
-    const line = `[${new Date().toISOString()}] ${msg}`;
-    // Stream to Redis for real-time polling AND persist to DB
-    await Promise.all([
-      pushLogLine(jobRecord.id, line),
-      appendJobLog(jobRecord.id, line),
-    ]);
+  const log = async (msg: string, stageName = ""): Promise<void> => {
+    const ts = new Date().toISOString();
+    const line = `[${ts}] ${stageName ? `[${stageName}] ` : ""}${msg}`;
+    await appendJobLog(jobRecord.id, line);
+    const structuredLog = JSON.stringify({
+      ts: new Date(ts).getTime(),
+      stage: stageName,
+      message: msg,
+    });
+    await pushLogLine(jobRecord.id, structuredLog);
   };
 
   try {
@@ -93,8 +108,8 @@ async function runWorkerJob(payload: ConversionQueuePayload): Promise<void> {
 
     const rawConfig = jobRecord.config as unknown as WebToAppConfig;
     const requestedPlatforms = jobRecord.platforms;
-    const buildablePlatforms = requestedPlatforms.filter((platform) => platform === CURRENT_WORKER_PLATFORM);
-    const skippedPlatforms = requestedPlatforms.filter((platform) => platform !== CURRENT_WORKER_PLATFORM);
+    const buildablePlatforms = requestedPlatforms.filter(isPlatformBuildable);
+    const skippedPlatforms = requestedPlatforms.filter((platform) => !isPlatformBuildable(platform));
 
     if (skippedPlatforms.length > 0) {
       await log(
@@ -145,21 +160,25 @@ async function runWorkerJob(payload: ConversionQueuePayload): Promise<void> {
           version: rawConfig.version ?? "1.0.0",
           source: sourceDir,
           output: outputDir,
-          targets: [PLATFORM_TARGET_MAP[platform] ?? "linux"],
+          targets: [PLATFORM_TARGET_MAP[platform] ?? platform as any],
           mode: rawConfig.mode,
           appId: rawConfig.appId,
           backend: { type: "express", port: 3001 },
           auth: { type: "local", defaultAdmin: rawConfig.defaultAdminEmail },
           database: { type: "sqlite" },
           cleanLogs: false,
+          mobile: rawConfig.mobile,
         },
         {
           onLog: async (entry) => {
             const line = `[${entry.timestamp.toISOString()}] ${entry.stage ? `[${entry.stage}] ` : ""}${entry.message}`;
-            await Promise.all([
-              pushLogLine(jobRecord.id, line),
-              appendJobLog(jobRecord.id, line),
-            ]);
+            await appendJobLog(jobRecord.id, line);
+            const structuredLog = JSON.stringify({
+              ts: entry.timestamp.getTime(),
+              stage: entry.stage || "",
+              message: entry.message,
+            });
+            await pushLogLine(jobRecord.id, structuredLog);
             await ensureNotCancelled(jobRecord.id);
 
             // Advance progress when a new pipeline stage starts
@@ -345,6 +364,9 @@ function getContentType(fileName: string): string {
   if (fileName.endsWith(".AppImage")) return "application/octet-stream";
   if (fileName.endsWith(".deb"))      return "application/vnd.debian.binary-package";
   if (fileName.endsWith(".rpm"))      return "application/x-rpm";
+  if (fileName.endsWith(".apk"))      return "application/vnd.android.package-archive";
+  if (fileName.endsWith(".aab"))      return "application/octet-stream";
+  if (fileName.endsWith(".ipa"))      return "application/octet-stream";
   return "application/octet-stream";
 }
 

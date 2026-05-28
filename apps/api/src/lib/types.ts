@@ -25,8 +25,25 @@ export interface WebToAppConfig {
   version?:           string;
   appId:              string;
   mode:               "offline" | "online" | "hybrid";
-  targets:            Array<"windows" | "linux" | "macos">;
+  targets:            Array<"windows" | "linux" | "macos" | "mac" | "android" | "ios">;
   output?:            string;
   icon?:              string;
   defaultAdminEmail?: string;
+  mobile?: {
+    webDir?: string;
+    android?: {
+      minSdkVersion?: number;
+      targetSdkVersion?: number;
+      buildVariant?: "debug" | "release";
+      artifactType?: "apk" | "aab";
+      keystorePath?: string;
+      keystoreAlias?: string;
+      keystorePassword?: string;
+      keystoreAliasPassword?: string;
+    };
+    ios?: {
+      deploymentTarget?: string;
+      developmentTeam?: string;
+    };
+  };
 }

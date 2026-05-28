@@ -101,6 +101,14 @@ export function ConversionWizard() {
       version,
       mode,
       targets, // also sent inside config for the worker
+      mobile: targets.some(t => t === "android" || t === "ios") ? {
+        android: targets.includes("android") ? {
+          buildVariant: androidVariant,
+        } : undefined,
+        ios: targets.includes("ios") && iosTeamId ? {
+          developmentTeam: iosTeamId,
+        } : undefined,
+      } : undefined,
     };
 
     let result;
