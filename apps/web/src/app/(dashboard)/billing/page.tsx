@@ -259,7 +259,8 @@ function getPlanTier(plan: Plan): number {
     case 'free': return 0;
     case 'pro': return 1;
     case 'team': return 2;
-    case 'enterprise': return 3;
+    case 'ultra': return 3;
+
     default: return 0;
   }
 }
@@ -269,7 +270,8 @@ function PricingCard({ plan, currentPlan, onUpgrade, loading }: { plan: BillingP
   const isPro = plan.id === 'pro';
   const isTeam = plan.id === 'team';
   const isFree = plan.id === 'free';
-  const isEnterprise = plan.id === 'enterprise';
+  const isUltra = plan.id === 'ultra';
+
   const isHigherTier = currentPlan && getPlanTier(plan.id) > getPlanTier(currentPlan);
   const isLowerTier = currentPlan && getPlanTier(plan.id) < getPlanTier(currentPlan);
 
@@ -291,9 +293,11 @@ function PricingCard({ plan, currentPlan, onUpgrade, loading }: { plan: BillingP
             "w-14 h-14 rounded-2xl flex items-center justify-center",
             isPro ? "bg-indigo-500/20 text-indigo-400" : 
             isTeam ? "bg-cyan-500/20 text-cyan-400" : 
-            isEnterprise ? "bg-emerald-500/20 text-emerald-400" : "bg-zinc-800 text-zinc-500"
+            isUltra ? "bg-purple-500/20 text-purple-400" : "bg-zinc-800 text-zinc-500"
+
           )}>
-            {isPro ? <Zap className="w-8 h-8" /> : isTeam ? <Crown className="w-8 h-8" /> : isEnterprise ? <ShieldCheck className="w-8 h-8" /> : <Check className="w-8 h-8" />}
+            {isPro ? <Zap className="w-8 h-8" /> : isTeam ? <Crown className="w-8 h-8" /> : isUltra ? <ShieldCheck className="w-8 h-8" /> : <Check className="w-8 h-8" />}
+
           </div>
         </div>
         <CardTitle className="text-2xl font-black">{plan.name}</CardTitle>
@@ -322,7 +326,8 @@ function PricingCard({ plan, currentPlan, onUpgrade, loading }: { plan: BillingP
       <CardFooter>
         <Button 
           onClick={onUpgrade}
-          disabled={isCurrent || loading || isEnterprise || isFree}
+          disabled={isCurrent || loading || isFree}
+
           className={cn(
             "w-full rounded-xl py-6 font-bold transition-all",
             isCurrent ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 cursor-default" :
@@ -334,8 +339,8 @@ function PricingCard({ plan, currentPlan, onUpgrade, loading }: { plan: BillingP
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 
            isCurrent ? "Current Plan" : 
            isFree ? "Included" :
-           isEnterprise ? "Contact Sales" : 
            isHigherTier ? `Upgrade to ${plan.name}` :
+
            isLowerTier ? `Downgrade to ${plan.name}` :
            `Switch to ${plan.name}`}
         </Button>

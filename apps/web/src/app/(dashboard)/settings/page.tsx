@@ -71,7 +71,8 @@ export default function SettingsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState("");
 
   const plan = user?.plan ?? "free";
-  const canUseApiKeys = ["pro", "team", "enterprise"].includes(plan);
+  const canUseApiKeys = ["pro", "team", "ultra"].includes(plan);
+
 
   useEffect(() => {
     if (user) {
@@ -350,7 +351,8 @@ export default function SettingsPage() {
                 <CardContent className="space-y-4">
                    {!canUseApiKeys && (
                     <div className="p-4 bg-amber-500/10 rounded-2xl border border-amber-500/20 text-sm text-amber-100">
-                      API keys are available on Pro, Team, and Enterprise plans.
+                      API keys are available on Pro, Team, and Ultra plans.
+
                     </div>
                    )}
                    {canUseApiKeys && apiKeys.length === 0 && (

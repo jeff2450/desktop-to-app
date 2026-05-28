@@ -36,10 +36,12 @@ export async function createOrder(userId: string, plan: Plan) {
   
   // Define prices based on plans
   const prices: Record<Plan, string> = {
-    FREE: "0",
+    FREE:    "0",
     STARTER: "9",
-    PRO: "29",
+    PRO:     "15",
+    ULTRA:   "24",
   };
+
 
   const response = await fetch(`${PAYPAL_API}/v2/checkout/orders`, {
     method: "POST",

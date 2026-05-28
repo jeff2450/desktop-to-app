@@ -5,7 +5,8 @@ export interface User {
   id: string;
   email: string;
   name?: string | null;
-  plan: "free" | "pro" | "team" | "enterprise";
+  plan: "free" | "pro" | "team" | "ultra";
+
 }
 
 interface AuthState {

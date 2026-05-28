@@ -19,9 +19,9 @@ const MOCK_PLANS: BillingPlan[] = [
     id: "pro",
     name: "Pro",
     price: 9,
-    conversionsPerMonth: 20,
+    conversionsPerMonth: 10,
     features: [
-      "20 conversions per month",
+      "10 conversions per month",
       "Windows, Linux & macOS builds",
       "Priority support",
       "Advanced templates",
@@ -31,32 +31,32 @@ const MOCK_PLANS: BillingPlan[] = [
   {
     id: "team",
     name: "Team",
-    price: 29,
-    conversionsPerMonth: 9999, // unlimited
+    price: 15,
+    conversionsPerMonth: 20,
     features: [
-      "Unlimited conversions",
+      "20 conversions per month",
       "All platforms + architectures",
       "Priority queue processing",
       "Team collaboration tools",
-      "Advanced analytics",
-      "Custom integrations"
+      "Advanced analytics"
     ]
   },
   {
-    id: "enterprise",
-    name: "Enterprise",
-    price: null,
-    conversionsPerMonth: 9999,
+    id: "ultra",
+    name: "Ultra",
+    price: 24,
+    conversionsPerMonth: 50,
     features: [
-      "Everything in Team",
-      "Dedicated support",
-      "Custom deployment options",
-      "SLA guarantees",
-      "On-premise deployment",
-      "White-label solutions"
+      "50 conversions per month",
+      "All platforms + architectures",
+      "Ultra priority queue",
+      "CI/CD API access",
+      "Custom integrations",
+      "Dedicated support"
     ]
   }
 ];
+
 
 function getBaseUrl(): string {
   return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -148,7 +148,8 @@ export const billingService = {
     const apiBase = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
     
     // Convert web plan to API plan
-    const apiPlan = planId === "pro" ? "STARTER" : planId === "team" ? "PRO" : planId.toUpperCase();
+    const apiPlan = planId === "pro" ? "STARTER" : planId === "team" ? "PRO" : planId === "ultra" ? "ULTRA" : planId.toUpperCase();
+
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -179,8 +180,9 @@ export const billingService = {
   },
 
   async capturePaypalOrder(userId: string, orderId: string, planId: Plan, authHeader: string | null = null): Promise<any> {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-    const apiPlan = planId === "pro" ? "STARTER" : planId === "team" ? "PRO" : planId.toUpperCase();
+    const apiBase = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    const apiPlan = planId === "pro" ? "STARTER" : planId === "team" ? "PRO" : planId === "ultra" ? "ULTRA" : planId.toUpperCase();
+
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",

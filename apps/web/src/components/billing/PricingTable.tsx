@@ -16,22 +16,18 @@ export function PricingTable({ plans, currentPlan }: Props) {
     if (planId === "free" || planId === currentPlan) return;
     setLoading(planId);
 
-    if (planId === "enterprise") {
-      window.open("mailto:sales@webtoapp.dev?subject=Enterprise plan", "_blank");
-      setLoading(null);
-      return;
-    }
-
     const result = await billingApi.checkout(planId);
     setLoading(null);
     if (result.data?.url) window.location.href = result.data.url;
+
   }
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       {plans.map((plan) => {
         const isCurrent = plan.id === currentPlan;
-        const isPaid = plan.id !== "free" && plan.id !== "enterprise";
+        const isPaid = plan.id !== "free";
+
 
         return (
           <div
@@ -79,9 +75,8 @@ export function PricingTable({ plans, currentPlan }: Props) {
                 ? "Redirecting…"
                 : isCurrent
                 ? "Current"
-                : plan.id === "enterprise"
-                ? "Contact sales"
                 : `Upgrade to ${plan.name}`}
+
             </button>
           </div>
         );
