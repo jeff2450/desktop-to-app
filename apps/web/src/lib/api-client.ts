@@ -212,7 +212,7 @@ export const conversionsApi = {
    */
   streamLogs: (
     id: string,
-    onEvent: (event: { type: string; line?: string; status?: string }) => void
+    onEvent: (event: { type: string; line?: string; status?: string; progress?: number }) => void
   ): EventSource | null => {
     if (typeof window === "undefined" || typeof EventSource === "undefined") return null;
     // EventSource can't send Authorization headers — pass token as ?token= query param

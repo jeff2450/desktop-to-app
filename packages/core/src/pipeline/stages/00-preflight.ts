@@ -120,6 +120,30 @@ export async function runPreflightStage(ctx: PipelineContext): Promise<void> {
     failures.push("config.targets is empty — specify at least one platform: windows, linux, or mac.");
   }
 
+  // ── Cross-platform build warning ────────────────────────────────
+  // electron-builder cannot cross-compile desktop targets without the native
+  // OS toolchain (e.g. mksquashfs for Linux AppImage, Xcode for macOS .dmg).
+  // Warn early so the user knows which targets will actually be built.
+  if (ctx.config.targets && ctx.config.targets.length > 0) {
+    const currentPlatform =
+      process.platform === "win32" ? "windows" :
+      process.platform === "darwin" ? "mac" : "linux";
+
+    const desktopTargets = ctx.config.targets.filter(
+      (t) => t === "windows" || t === "linux" || t === "mac"
+    );
+    const crossTargets = desktopTargets.filter((t) => t !== currentPlatform);
+
+    if (crossTargets.length > 0) {
+      warnings.push(
+        `Cross-platform targets requested: ${crossTargets.join(", ")}. ` +
+        `On this ${currentPlatform} machine, only the ${currentPlatform} installer will be built. ` +
+        `To build ${crossTargets.join("/")} installers, run on the target OS or use a CI matrix ` +
+        `(see .github/workflows/publish-cli.yml for an example).`
+      );
+    }
+  }
+
   // ── Mobile config checks ────────────────────────────────────────
   await validateMobilePreflight(ctx, failures, warnings);
 

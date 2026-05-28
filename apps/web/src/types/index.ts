@@ -1,6 +1,7 @@
 export type ConversionMode = "offline" | "online" | "hybrid";
 
-export type Plan = "free" | "pro" | "team" | "enterprise";
+export type Plan = "free" | "pro" | "team" | "ultra";
+
 
 export type ConversionStatus =
   | "queued" | "detecting" | "planning" | "transforming"

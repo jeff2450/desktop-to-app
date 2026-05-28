@@ -24,6 +24,10 @@ async function getAccessToken() {
   });
 
   const data = (await response.json()) as any;
+  if (!data.access_token) {
+    console.error("[paypal] Failed to get access token:", JSON.stringify(data));
+    throw new ApiError(503, "PayPal authentication failed — check credentials", "PAYPAL_AUTH_FAILED");
+  }
   return data.access_token;
 }
 
@@ -60,7 +64,8 @@ export async function createOrder(userId: string, plan: Plan) {
 
   const data = (await response.json()) as any;
   if (!response.ok) {
-    throw new ApiError(500, data.message || "Failed to create PayPal order", "PAYPAL_ORDER_FAILED");
+    console.error("[paypal] Create order failed:", JSON.stringify(data));
+    throw new ApiError(500, data.message || data.error_description || "Failed to create PayPal order", "PAYPAL_ORDER_FAILED");
   }
 
   return data;

@@ -6,16 +6,25 @@ import type { Plan } from "@/types";
 export async function POST(request: NextRequest) {
   try {
     const user = await auth(request);
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user) {
+      return NextResponse.json(
+        { error: "You must be logged in to complete this purchase" },
+        { status: 401 }
+      );
+    }
 
-    const { plan } = await request.json();
+    const body = await request.json();
+    const { plan } = body;
     if (!plan) return NextResponse.json({ error: "Plan is required" }, { status: 400 });
 
     const authHeader = request.headers.get("authorization");
+    console.log("[paypal/create-order] userId:", user.id, "plan:", plan, "hasAuth:", !!authHeader);
+
     const order = await billingService.createPaypalOrder(user.id, plan as Plan, authHeader);
     return NextResponse.json(order);
-  } catch (error) {
-    console.error("PayPal Create Order Error:", error);
-    return NextResponse.json({ error: "Failed to create order" }, { status: 500 });
+  } catch (error: any) {
+    const message = error?.message ?? "Failed to create PayPal order";
+    console.error("PayPal Create Order Error:", message, error);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

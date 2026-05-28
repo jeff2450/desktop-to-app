@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Loader2, AlertCircle, CheckCircle2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { getClientToken } from "@/lib/api-client";
 
 interface PayPalCheckoutProps {
   planId: string;
@@ -35,7 +36,7 @@ export function PayPalCheckout({ planId, planName, price, onClose, onSuccess }: 
 
     const script = document.createElement("script");
     const clientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "test";
-    script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=USD&components=buttons&enable-funding=venmo,paylater,card`;
+    script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=USD&intent=capture&components=buttons`;
     script.async = true;
     script.onload = () => {
       setScriptLoaded(true);
@@ -67,12 +68,40 @@ export function PayPalCheckout({ planId, planName, price, onClose, onSuccess }: 
         },
         createOrder: async () => {
           try {
+            // getClientToken() holds the in-memory access token set after login/refresh.
+            // On hard page refresh the memory is cleared — read from auth store state as fallback.
+            const token = getClientToken();
             const res = await fetch("/api/billing/paypal/create-order", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+              },
               body: JSON.stringify({ plan: planId }),
             });
+
+            if (!res.ok) {
+              const errorBody = await res.text();
+              console.error("Create order failed:", res.status, errorBody);
+              // Surfacing the real server error helps diagnose auth/plan issues
+              let friendlyMsg = "Failed to create PayPal order";
+              try {
+                const parsed = JSON.parse(errorBody);
+                if (parsed?.error) friendlyMsg = parsed.error;
+              } catch { /* ignore JSON parse errors */ }
+              setError(friendlyMsg);
+              throw new Error(friendlyMsg);
+            }
+
             const data = await res.json();
+            console.log("PayPal create-order response:", data);
+
+            if (!data.id) {
+              const msg = "No PayPal order ID returned from server";
+              setError(msg);
+              throw new Error(msg);
+            }
+
             return data.id;
           } catch (err) {
             console.error("Create order error:", err);
@@ -81,9 +110,13 @@ export function PayPalCheckout({ planId, planName, price, onClose, onSuccess }: 
         },
         onApprove: async (data: any) => {
           try {
+            const token = getClientToken();
             const res = await fetch("/api/billing/paypal/capture-order", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+              },
               body: JSON.stringify({ orderID: data.orderID, plan: planId }),
             });
             const result = await res.json();

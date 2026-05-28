@@ -63,6 +63,34 @@ export async function runInstallStage(ctx: PipelineContext): Promise<void> {
     }
 
     ctx.log("info", "npm install complete", STAGE);
+
+    // ── Auto-fix non-breaking vulnerabilities in production deps ──
+    // Runs npm audit fix with --omit=dev so only runtime deps are patched,
+    // and without --force so breaking changes are never applied automatically.
+    // Failure here is non-fatal — we warn and continue.
+    try {
+      ctx.log("info", "Running npm audit fix (production deps only)...", STAGE);
+      const auditResult = await execAsync(
+        cmd("npm audit fix --omit=dev"),
+        {
+          cwd: ctx.outputDir,
+          env: { ...process.env, NODE_ENV: "development" },
+        }
+      );
+      if (auditResult.stdout) {
+        auditResult.stdout.split("\n").filter(Boolean).forEach((l) =>
+          ctx.log("debug", l, STAGE)
+        );
+      }
+      ctx.log("info", "npm audit fix complete", STAGE);
+    } catch {
+      ctx.log(
+        "warn",
+        "npm audit fix reported issues — run `npm audit` in the output project to review. Continuing...",
+        STAGE
+      );
+    }
+
     ctx.completeStage(STAGE);
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));

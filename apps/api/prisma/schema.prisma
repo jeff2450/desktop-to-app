@@ -60,7 +60,9 @@ enum Plan {
   FREE
   STARTER
   PRO
+  ULTRA
 }
+
 
 enum JobStatus {
   QUEUED

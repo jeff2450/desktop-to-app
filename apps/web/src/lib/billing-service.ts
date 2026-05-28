@@ -145,7 +145,7 @@ export const billingService = {
   },
 
   async createPaypalOrder(userId: string, planId: Plan, authHeader: string | null = null): Promise<{ id: string }> {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    const apiBase = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
     
     // Convert web plan to API plan
     const apiPlan = planId === "pro" ? "STARTER" : planId === "team" ? "PRO" : planId.toUpperCase();
@@ -158,6 +158,8 @@ export const billingService = {
       headers["Authorization"] = authHeader;
     }
 
+    console.log("[billing-service] createPaypalOrder", { apiBase, planId, apiPlan, hasAuth: !!authHeader });
+
     const response = await fetch(`${apiBase}/api/billing/paypal/create`, {
       method: "POST",
       headers,
@@ -165,7 +167,12 @@ export const billingService = {
     });
 
     if (!response.ok) {
-      throw new Error("Failed to create order via API");
+      let errMsg = `PayPal API error (HTTP ${response.status})`;
+      try {
+        const errBody = await response.json();
+        if (errBody?.error) errMsg = errBody.error;
+      } catch { /* ignore */ }
+      throw new Error(errMsg);
     }
 
     return response.json();

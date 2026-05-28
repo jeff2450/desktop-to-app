@@ -265,10 +265,10 @@ export default function JobDetailPage() {
 
   const normStatus = getNormalizedStatus(job.status);
   const progress = typeof job.progress === "number" ? job.progress : stageProgress(normStatus);
-  const isActive = ACTIVE_STATUSES.includes(normStatus) || normStatus === "running" || normStatus === "queued";
+  const isActive = ACTIVE_STATUSES.includes(normStatus) || (normStatus as string) === "running" || normStatus === "queued";
   const estimatedMinutes = job.estimatedWait ? Math.ceil(job.estimatedWait / 60) : null;
 
-  const activeLabel = STAGE_LABELS[normStatus] || (normStatus === "running" ? getActiveStageLabelByProgress(progress) : STAGE_LABELS[normStatus] || job.status);
+  const activeLabel = STAGE_LABELS[normStatus] || ((normStatus as string) === "running" ? getActiveStageLabelByProgress(progress) : STAGE_LABELS[normStatus] || job.status);
 
   return (
     <div className="min-h-screen bg-zinc-950">
