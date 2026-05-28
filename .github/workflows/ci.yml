@@ -110,7 +110,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage
-          path: '**/coverage/'
+          path: "**/coverage/"
           retention-days: 7
           if-no-files-found: ignore
 
@@ -127,3 +127,69 @@ jobs:
 
       - name: Typecheck all packages
         run: pnpm turbo typecheck
+
+  e2e-smoke:
+    name: E2E Smoke - Native Package
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: ci
+
+    env:
+      NODE_ENV: test
+      RUN_E2E_TEST: "true"
+      ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
+      ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
+      NPM_CONFIG_CACHE: ${{ github.workspace }}/.cache/npm
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install Linux packaging dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential fakeroot dpkg rpm libarchive-tools ruby ruby-dev
+          sudo gem install --no-document fpm
+
+      - name: Get pnpm store path
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-e2e-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-e2e-${{ runner.os }}-
+            pnpm-store-${{ runner.os }}-
+
+      - name: Cache native packaging downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/electron
+            .cache/electron-builder
+            .cache/npm
+          key: native-package-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            native-package-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build core package dependencies
+        run: pnpm turbo build --filter=@webtoapp/core...
+
+      - name: Run E2E native package smoke test
+        run: pnpm --filter @webtoapp/core test:e2e

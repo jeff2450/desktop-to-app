@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **CI (2026-05-28)** — native package smoke coverage now runs in a dedicated GitHub Actions job with `RUN_E2E_TEST=true`, cached Electron/npm downloads, and Linux packaging dependencies installed before `electron-builder`
+- **Docs (2026-05-28)** — README now includes a conversion-run screenshot captured from the local `test-app-tmp` fixture
 - **Tests** — new `SupabaseRealtimeTransformer.test.ts`: covers `postgres_changes` channel rewrite, `broadcast` replacement, presence warnings, `removeChannel`, and edge cases
 - **Tests** — new `SupabaseStorageTransformer.test.ts`: covers `upload`, `download`, `getPublicUrl`, `remove`, `list`, multi-operation files, and warning on unsupported calls
 - **Tests** — `transformer-edge-cases.test.ts` contract loop expanded from 2 to 6 transformers (added `FirestoreTransformer`, `FirebaseAuthTransformer`, `Auth0Transformer`, `VueTransformer`) with realistic inputs for each
@@ -17,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Repo hygiene** — `.turbo/cache/` is excluded via `.gitignore` (line 24: `.turbo/cache/`); the cache directory is not tracked by git
 - Windows code-signing support via `electron-builder`
 - macOS notarization support via `electron-builder` and `entitlements.mac.plist`
+
+### Changed
+- **API validation (2026-05-28)** — route `z.preprocess` adapters now use `unknown` plus record guards instead of `any` casts when normalizing `targets`, `platforms`, and `sourceUrl`
 
 ### Planned
 - Capacitor integration for iOS and Android

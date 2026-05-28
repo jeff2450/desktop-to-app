@@ -22,6 +22,12 @@ npx webtoapp convert     # run the full pipeline
 npx webtoapp doctor
 ```
 
+## Demo run
+
+![Terminal screenshot of WebToApp converting a sample React and Supabase app into a Windows installer](./docs/assets/conversion-run.png)
+
+Captured from `test-app-tmp-desktop/webtoapp-conversion.log`: the sample app is detected, transformed, scaffolded, built, and packaged as `Pharmacy Tracker Setup 1.0.0.exe`.
+
 ---
 
 ## How it works

@@ -31,10 +31,14 @@ import type { Response, Request } from "express";
 /** Terminal job statuses — SSE stream closes once the job reaches one of these */
 const TERMINAL_STATUSES = new Set(["SUCCESS", "FAILED", "CANCELLED"]);
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 const configSchema = z.preprocess(
-  (val: any) => {
-    if (val && typeof val === "object") {
-      const targets = val.targets ?? val.platforms;
+  (val: unknown) => {
+    if (isRecord(val)) {
+      const targets = val["targets"] ?? val["platforms"];
       return { ...val, targets };
     }
     return val;
@@ -75,10 +79,10 @@ const paginationSchema = z.object({
 
 // JSON body for git/URL-based submissions (no file upload)
 const createFromRepoSchema = z.preprocess(
-  (val: any) => {
-    if (val && typeof val === "object") {
-      const sourceRepo = val.sourceRepo ?? val.sourceUrl;
-      const platforms = val.platforms ?? val.targets;
+  (val: unknown) => {
+    if (isRecord(val)) {
+      const sourceRepo = val["sourceRepo"] ?? val["sourceUrl"];
+      const platforms = val["platforms"] ?? val["targets"];
       return { ...val, sourceRepo, platforms };
     }
     return val;

@@ -4,10 +4,14 @@ import type { AuthenticatedRequest } from "../lib/types.js";
 import { requireAuth } from "../middleware/auth.js";
 import { cancelJob, deleteJob, createJob, getJob, listJobs } from "../services/jobs.service.js";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 const configSchema = z.preprocess(
-  (val: any) => {
-    if (val && typeof val === "object") {
-      const targets = val.targets ?? val.platforms;
+  (val: unknown) => {
+    if (isRecord(val)) {
+      const targets = val["targets"] ?? val["platforms"];
       return { ...val, targets };
     }
     return val;
@@ -25,10 +29,10 @@ const configSchema = z.preprocess(
 );
 
 const createJobSchema = z.preprocess(
-  (val: any) => {
-    if (val && typeof val === "object") {
-      const sourceRepo = val.sourceRepo ?? val.sourceUrl;
-      const platforms = val.platforms ?? val.targets;
+  (val: unknown) => {
+    if (isRecord(val)) {
+      const sourceRepo = val["sourceRepo"] ?? val["sourceUrl"];
+      const platforms = val["platforms"] ?? val["targets"];
       return { ...val, sourceRepo, platforms };
     }
     return val;

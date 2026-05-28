@@ -5,8 +5,11 @@ import * as os from "node:os";
 import { ConversionPipeline } from "../pipeline/ConversionPipeline.js";
 
 // Determine if we should run this slow E2E test.
-// Skips locally by default to keep vitest fast.
-const shouldRun = process.env.CI === "true" || process.env.RUN_E2E_TEST === "true";
+// It is opt-in so normal unit-test runs stay fast, including CI unit tests.
+const shouldRun = process.env.RUN_E2E_TEST === "true";
+const smokeIt = shouldRun ? it : it.skip;
+
+const INSTALLER_EXTENSIONS = [".exe", ".appimage", ".dmg"] as const;
 
 describe("E2E / Smoke Test - Conversion Pipeline", () => {
   let sourceDir: string;
@@ -27,111 +30,19 @@ describe("E2E / Smoke Test - Conversion Pipeline", () => {
     );
   });
 
-  // Set the timeout to 10 minutes (600,000 ms) because npm install + electron-builder compilation is slow.
-  it(
-    "should feed a tiny React+Supabase fixture through the full pipeline and produce a native desktop package",
-    { timeout: 600000 },
+  // Set the timeout to 15 minutes because npm install + electron-builder packaging is slow.
+  smokeIt(
+    "feeds a tiny React+Supabase fixture through the full pipeline and produces a native installer",
+    { timeout: 900000 },
     async () => {
-      if (!shouldRun) {
-        console.log("Skipping E2E test (neither CI nor RUN_E2E_TEST=true is set).");
-        return;
-      }
-
       console.log(`Starting E2E test.`);
       console.log(`Source: ${sourceDir}`);
       console.log(`Output: ${outputDir}`);
 
-      // 1. Create a tiny, valid React + Supabase project structure.
-      await fs.mkdir(path.join(sourceDir, "src"), { recursive: true });
-
-      // package.json
-      await fs.writeFile(
-        path.join(sourceDir, "package.json"),
-        JSON.stringify(
-          {
-            name: "e2e-test-app",
-            version: "1.0.0",
-            author: "E2E Test Runner",
-            dependencies: {
-              react: "^18.2.0",
-              "react-dom": "^18.2.0",
-              "@supabase/supabase-js": "^2.39.0",
-            },
-            devDependencies: {
-              vite: "^5.0.0",
-              "@vitejs/plugin-react": "^4.2.0",
-              typescript: "^5.0.0",
-            },
-            scripts: {
-              build: "vite build",
-            },
-          },
-          null,
-          2
-        ),
-        "utf-8"
-      );
-
-      // index.html
-      await fs.writeFile(
-        path.join(sourceDir, "index.html"),
-        `<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>E2E App</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>`,
-        "utf-8"
-      );
-
-      // src/main.tsx
-      await fs.writeFile(
-        path.join(sourceDir, "src/main.tsx"),
-        `import React from "react";
-import ReactDOM from "react-dom/client";
-import { createClient } from "@supabase/supabase-js";
-
-// Supabase client creation
-const supabase = createClient("https://xyz.supabase.co", "anonKey");
-
-// Query that triggers table detection for "todos"
-const fetchTodos = async () => {
-  const { data } = await supabase.from("todos").select("*");
-  console.log("todos:", data);
-};
-
-const App = () => {
-  React.useEffect(() => {
-    fetchTodos();
-  }, []);
-
-  return (
-    <div>
-      <h1>WebToApp E2E Test</h1>
-    </div>
-  );
-};
-
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);`,
-        "utf-8"
-      );
+      await createReactSupabaseFixture(sourceDir);
 
       // 2. Initialize the pipeline targeting the native platform of the environment
-      const currentPlatform =
-        process.platform === "win32"
-          ? "windows"
-          : process.platform === "darwin"
-          ? "mac"
-          : "linux";
+      const currentPlatform = currentDesktopTarget();
 
       console.log(`E2E native build target: ${currentPlatform}`);
 
@@ -167,7 +78,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       // Assert status is success
       expect(result.status).toBe("success");
 
-      // Assert installer was generated
+      // Assert the pipeline surfaced an installer path and that the file exists.
       expect(result.installerPath).toBeDefined();
       expect(typeof result.installerPath).toBe("string");
 
@@ -178,18 +89,164 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 
       expect(installerExists).toBe(true);
 
-      // Verify file extension based on platform
-      const ext = path.extname(result.installerPath!).toLowerCase();
-      console.log(`Generated installer: ${result.installerPath}`);
+      const installerArtifacts = await findInstallerArtifacts(path.join(outputDir, "release"));
+      const artifactExtensions = installerArtifacts.map((artifactPath) =>
+        path.extname(artifactPath).toLowerCase()
+      );
 
       if (currentPlatform === "windows") {
-        expect(ext).toBe(".exe");
+        expect(artifactExtensions).toContain(".exe");
       } else if (currentPlatform === "linux") {
-        // AppImage, deb, snap etc.
-        expect([".appimage", ".deb", ".snap", ".rpm"]).toContain(ext);
+        expect(artifactExtensions).toContain(".appimage");
       } else if (currentPlatform === "mac") {
-        expect([".dmg", ".zip", ".pkg"]).toContain(ext);
+        expect(artifactExtensions).toContain(".dmg");
       }
+
+      expect(
+        artifactExtensions.some((extension) =>
+          INSTALLER_EXTENSIONS.includes(extension as (typeof INSTALLER_EXTENSIONS)[number])
+        )
+      ).toBe(true);
+
+      console.log(`Generated installer: ${result.installerPath}`);
+      console.log(`Release artifacts: ${installerArtifacts.join(", ")}`);
     }
   );
 });
+
+function currentDesktopTarget(): "windows" | "linux" | "mac" {
+  if (process.platform === "win32") return "windows";
+  if (process.platform === "darwin") return "mac";
+  return "linux";
+}
+
+async function createReactSupabaseFixture(rootDir: string): Promise<void> {
+  await fs.mkdir(path.join(rootDir, "src"), { recursive: true });
+  await fs.mkdir(path.join(rootDir, "supabase", "migrations"), { recursive: true });
+
+  await fs.writeFile(
+    path.join(rootDir, "package.json"),
+    JSON.stringify(
+      {
+        name: "e2e-test-app",
+        version: "1.0.0",
+        author: "E2E Test Runner",
+        dependencies: {
+          "@supabase/supabase-js": "^2.39.0",
+          react: "^18.2.0",
+          "react-dom": "^18.2.0",
+        },
+        devDependencies: {
+          "@vitejs/plugin-react": "^4.2.0",
+          typescript: "^5.0.0",
+          vite: "^5.0.0",
+        },
+        scripts: {
+          build: "vite build",
+        },
+      },
+      null,
+      2
+    ),
+    "utf-8"
+  );
+
+  await fs.writeFile(
+    path.join(rootDir, "index.html"),
+    `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>E2E App</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>`,
+    "utf-8"
+  );
+
+  await fs.writeFile(
+    path.join(rootDir, "tsconfig.json"),
+    JSON.stringify(
+      {
+        compilerOptions: {
+          baseUrl: ".",
+          paths: {
+            "@/*": ["./src/*"],
+          },
+        },
+      },
+      null,
+      2
+    ),
+    "utf-8"
+  );
+
+  await fs.writeFile(
+    path.join(rootDir, "supabase", "migrations", "0001_todos.sql"),
+    `create table todos (
+  id integer primary key,
+  title text not null,
+  complete boolean not null default false
+);
+`,
+    "utf-8"
+  );
+
+  await fs.writeFile(
+    path.join(rootDir, "src/main.tsx"),
+    `import React from "react";
+import ReactDOM from "react-dom/client";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient("https://xyz.supabase.co", "anonKey");
+
+const fetchTodos = async () => {
+  const { data } = await supabase.from("todos").select("*");
+  console.log("todos:", data);
+};
+
+const App = () => {
+  React.useEffect(() => {
+    fetchTodos();
+  }, []);
+
+  return (
+    <div>
+      <h1>WebToApp E2E Test</h1>
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+`,
+    "utf-8"
+  );
+}
+
+async function findInstallerArtifacts(releaseDir: string): Promise<string[]> {
+  const artifacts: string[] = [];
+  const entries = await fs.readdir(releaseDir, { withFileTypes: true }).catch(() => []);
+
+  for (const entry of entries) {
+    const entryPath = path.join(releaseDir, entry.name);
+    if (entry.isDirectory()) {
+      const nestedArtifacts = await findInstallerArtifacts(entryPath);
+      artifacts.push(...nestedArtifacts);
+      continue;
+    }
+
+    const extension = path.extname(entry.name).toLowerCase();
+    if (INSTALLER_EXTENSIONS.includes(extension as (typeof INSTALLER_EXTENSIONS)[number])) {
+      artifacts.push(entryPath);
+    }
+  }
+
+  return artifacts;
+}
