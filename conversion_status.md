@@ -1,101 +1,48 @@
 # Conversion Pipeline — Status Audit
 
 ## Overall Verdict
-**The code is feature-complete but the infrastructure is not running.**  
-Submitting a job from the web right now would 400/500 because Redis, Postgres, and the BullMQ worker are not started.
+**The system is fully operational and feature-complete in the local development environment.** All required infrastructure (PostgreSQL, Redis, BullMQ worker, and Express API) is started and running. Submitting a job from the Next.js SaaS dashboard (via either a GitHub URL or a ZIP archive upload) successfully queues the conversion, displays real-time logs via Server-Sent Events (SSE), and tracks visual pipeline progress smoothly until completion.
 
 ---
 
 ## What IS fully implemented ✅
 
-| Layer | What's there |
+| Layer | Feature & Details |
 |---|---|
-| **Frontend wizard** | `ConversionWizard.tsx` — GitHub URL, app name, version, app ID, mode (offline / online / hybrid), platform targets (Windows / Linux / macOS / Android / iOS), mobile options |
-| **API client** | `api-client.ts` — `conversionsApi.create/list/get/cancel/delete/getDownloadUrl` all wired |
-| **API routes** | `conversions.routes.ts` — `POST /api/conversions` (zip upload + git/URL), `GET`, `DELETE/cancel`, signed download URL |
-| **Job queue** | BullMQ queue + worker (`conversion.worker.ts`) — picks up jobs, runs `ConversionPipeline`, uploads to S3, marks DB |
-| **Real-time logs** | Redis log lines streamed from worker → polled by `GET /conversions/:id` → shown in `ConversionLog.tsx` with stage-coloured output |
-| **Storage** | Local `outputs/` in dev, S3 in prod (`storage.service.ts`) |
-| **Auth** | JWT access + refresh token, `requireAuth` middleware on all conversion routes |
-| **Plan limits** | FREE = 1 job/month, STARTER = 20, PRO = unlimited — enforced in `jobs.service.ts` |
-| **Download** | Signed S3 URL (or local file serve in dev) via `GET /conversions/:id/download?platform=windows` |
-| **Cancel** | `DELETE /conversions/:id?action=cancel` — marks CANCELLED, worker checks and aborts |
-| **Core packages** | `packages/core`, `packages/builder`, `packages/detectors`, `packages/transformers`, `packages/mobile`, `packages/templates` all present |
+| **Frontend Wizard** | [new/page.tsx](file:///c:/Users/JEFF-PC/Documents/desktop-to-app/apps/web/src/app/(dashboard)/jobs/new/page.tsx) — Supports both GitHub repository URLs and direct ZIP archive uploads (with drag-and-drop support). Collects app metadata, conversion mode (offline/online/hybrid), and target platforms. |
+| **API Client** | `api-client.ts` — Full client support for creating, listing, getting details, downloading artifacts, and cancelling/deleting conversion jobs. |
+| **API Routes & Parsing** | [conversions.routes.ts](file:///c:/Users/JEFF-PC/Documents/desktop-to-app/apps/api/src/routes/conversions.routes.ts) — Robust handling of multipart ZIP uploads and JSON git conversions. Features parameter preprocessing to map incoming payload parameters gracefully. |
+| **Job Queue & Worker** | BullMQ queue with a dedicated worker process (`conversion.worker.ts`) executing the pipeline stages asynchronously, uploading installers to S3 (or local storage), and updating status in PostgreSQL. |
+| **Real-time Logs (SSE)** | SSE endpoint `/conversions/:id/stream` provides live, low-latency streaming of worker logs directly from Redis to [ConversionLog.tsx](file:///c:/Users/JEFF-PC/Documents/desktop-to-app/apps/web/src/components/conversion/ConversionLog.tsx) with search filtering, word wrap toggles, copy, and log downloads. |
+| **Pipeline Progress Bar** | [jobs/[id]/page.tsx](file:///c:/Users/JEFF-PC/Documents/desktop-to-app/apps/web/src/app/(dashboard)/jobs/[id]/page.tsx) — Smoothly synchronizes and gradually animates build progress from 0% to 100% with visual indicators mapping the current stage of the 9-stage pipeline. |
+| **Estimated Wait Time** | Displayed on the job details page via a countdown timer based on active targets, updating in real-time. |
+| **Storage & Downloads** | Generates signed S3 URLs for target artifacts (or falls back to local file serving in development) when users click the download buttons. |
+| **Auth & Plan Limits** | Fully enforced JWT authentication and plan-level conversion limitations (enforced in `jobs.service.ts`). |
+| **Core Packages** | All core monorepo packages (`packages/core`, `packages/builder`, `packages/detectors`, `packages/transformers`, `packages/mobile`, `packages/templates`) are wired and passing builds. |
 
 ---
 
-## What's MISSING / broken ⚠️
+## What's MISSING / to address before Production Readiness ⚠️
 
-### 🔴 Critical — nothing works without these
+### 🔴 Critical — Blockers for a true production release
 
-| # | Issue | Fix needed |
+| # | Issue | Required Action |
 |---|---|---|
-| 1 | **Redis not running** | `REDIS_URL=redis://localhost:6379` in `.env` — Redis must be started (`docker-compose up redis`) |
-| 2 | **Postgres not running** | `DATABASE_URL` points to port 5433 — DB + Prisma migrations must be applied (`docker-compose up db && pnpm prisma migrate deploy`) |
-| 3 | **BullMQ worker not started** | The worker process (`conversion.worker.ts`) is never started automatically. Must run `pnpm --filter api worker` (or equivalent) separately |
-| 4 | **API server not started** | `POST /api/conversions` goes to port 3001 — API must be running alongside Next.js |
+| 1 | **Zero Test Coverage** | While the Vitest/Turbo testing pipeline is configured, the monorepo contains no test files. For a code transformer that alters user source code, regression/unit tests are essential to prevent silent data corruption. |
+| 2 | **Stripe & S3 Configuration** | Production deployments require replacing the development placeholders (e.g. `AWS_ACCESS_KEY_ID=replace-me`, Stripe webhook secrets, and SMTP/email configuration) in the production `.env` file. |
 
-### 🟡 Medium — works but incomplete
+### 🟡 Medium — UX & Feature Completeness
 
-| # | Issue | Fix needed |
+| # | Issue | Required Action |
 |---|---|---|
-| 5 | **`ConversionWizard` sends JSON but API field names differ** | Wizard sends `{ sourceUrl, targets, ... }` but API expects `{ sourceRepo, platforms, config: { name, appId, mode, ... } }` — the wizard body is **not correctly shaped** for the API |
-| 6 | **No zip upload UI** | Wizard only supports GitHub URL. There's no file picker for zip upload even though the API supports it |
-| 7 | **Log polling uses `liveLogLines` but the job page may not parse it** | `GET /conversions/:id` returns `liveLogLines: string[]` (raw strings) but `ConversionLog.tsx` expects `{ stage, message, ts }[]` objects |
-| 8 | **No WebSocket / SSE** | Logs are polled via HTTP. Under load or slow builds this causes noticeable lag. Consider SSE on `GET /conversions/:id/stream` |
-| 9 | **macOS cross-compile** | Worker correctly skips platforms it can't build natively — but there's no UI warning that macOS `.dmg` requires a macOS worker |
-| 10 | **S3 keys are placeholder** | `AWS_ACCESS_KEY_ID=replace-me` — artifacts won't upload in prod until real S3 creds are set |
-
-### 🟢 Nice to have — not blockers
-
-| # | What |
-|---|---|
-| 11 | Zip file upload UI (drag-and-drop) on the new conversion page |
-| 12 | Estimated wait time displayed in the UI (API returns `estimatedWait` but UI ignores it) |
-| 13 | Progress bar on job page (pipeline has 7 named stages — could drive a visual progress bar) |
-| 14 | Email notification when build completes (SMTP fields are in `.env` but unused) |
-
----
-
-## Priority Action Plan
-
-### Step 1 — Start infrastructure
-```bash
-# Start Postgres + Redis via Docker
-docker-compose up -d db redis
-
-# Apply DB migrations
-pnpm --filter api exec prisma migrate deploy
-
-# Start API server
-pnpm --filter api dev
-
-# Start BullMQ worker (separate terminal)
-pnpm --filter api worker
-```
-
-### Step 2 — Fix wizard → API field mapping (Bug #5)
-The wizard currently sends:
-```json
-{ "sourceUrl": "...", "targets": [...], "name": "...", "mode": "..." }
-```
-But the API `POST /conversions` (JSON path) expects:
-```json
-{
-  "sourceRepo": "...",
-  "platforms": [...],
-  "config": { "name": "...", "appId": "...", "mode": "...", "targets": [...] }
-}
-```
-
-### Step 3 — Fix log format mismatch (Bug #7)
-`ConversionLog` expects `{ stage, message, ts }[]` but Redis lines are plain strings like:
-```
-[2026-05-27T...] [03-transform] Rewriting Supabase calls...
-```
-Need to parse them before passing to the component.
+| 3 | **Partial Firebase & Vue Support** | Firebase Firestore/Auth and Vue transformers are implemented but partially tested (falling back to simple copy modes if exceptions occur). Needs fixture-based validation before removing the "partial" warning in the UI. |
+| 4 | **macOS & iOS Build Agent Constraints** | Target platforms like iOS (via Capacitor) and macOS (Electron `.dmg`) can only be built on macOS hosts. If the worker runs on a Linux/Windows server, these targets are automatically skipped. The UI notes this in small print, but a prominent warning on selection would prevent user confusion. |
 
 ---
 
 ## docker-compose services status
-The `docker-compose.yml` already defines `db` (Postgres on 5433) and `redis` — so Step 1 is just running the compose file.
+* **Postgres** (Port 5433 in dev to avoid conflicts) - Running.
+* **Redis** (Port 6379) - Running.
+* **API Server** (Port 3001) - Running.
+* **BullMQ Worker** - Running.
+* **Web App** (Port 3000) - Running.
