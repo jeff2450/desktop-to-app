@@ -3,7 +3,27 @@
     {
       "name": "Default",
       "files": [
-        ".github/workflows/ci.yml"
+        "apps/api/src/routes/conversions.routes.ts",
+        "apps/api/src/services/paypal.service.ts",
+        "apps/web/.turbo/turbo-build.log",
+        "apps/web/src/app/(dashboard)/dashboard/page.tsx",
+        "apps/web/src/app/(dashboard)/jobs/[id]/page.tsx",
+        "apps/web/src/components/conversion/ConversionLog.tsx",
+        "apps/web/src/components/conversion/JobStatusCard.tsx",
+        "apps/web/src/hooks/useConversionJob.ts",
+        ".vscode/changelists.json",
+        "apps/api/.turbo/turbo-typecheck.log",
+        "apps/web/.turbo/turbo-typecheck.log",
+        "packages/builder/.turbo/turbo-build.log",
+        "packages/builder/.turbo/turbo-typecheck.log",
+        "packages/cli/.turbo/turbo-typecheck.log",
+        "packages/core/.turbo/turbo-typecheck.log",
+        "packages/detectors/.turbo/turbo-typecheck.log",
+        "packages/mobile/.turbo/turbo-build.log",
+        "packages/transformers/.turbo/turbo-build.log",
+        "packages/transformers/.turbo/turbo-typecheck.log",
+        "clean.js",
+        "packages/mobile/.turbo/turbo-typecheck.log"
       ]
     }
   ],

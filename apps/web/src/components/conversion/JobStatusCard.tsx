@@ -75,7 +75,9 @@ interface Props {
 
 export function JobStatusCard({ conversion, compact = false }: Props) {
   const cfg = STATUS_CONFIG[conversion.status] ?? STATUS_CONFIG.queued;
-  const progress = STAGE_PROGRESS[conversion.status] ?? 0;
+  const progress = typeof conversion.progress === "number"
+    ? conversion.progress
+    : STAGE_PROGRESS[conversion.status] ?? 0;
   const isActive = !["done", "failed", "cancelled"].includes(conversion.status);
 
   if (compact) {
@@ -88,7 +90,7 @@ export function JobStatusCard({ conversion, compact = false }: Props) {
         <span className="flex-1 text-sm text-white truncate">
           {conversion.name}
         </span>
-        <span className={`text-xs ${cfg.color}`}>{cfg.label}</span>
+        <span className={`text-xs ${cfg.color}`}>{cfg.label} {isActive && `(${progress}%)`}</span>
         <span className="text-xs text-gray-600">
           {conversion.targets.join(", ")}
         </span>
@@ -118,11 +120,17 @@ export function JobStatusCard({ conversion, compact = false }: Props) {
       </div>
 
       {isActive && (
-        <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-indigo-500 rounded-full transition-all duration-700"
-            style={{ width: `${progress}%` }}
-          />
+        <div className="space-y-1.5">
+          <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-indigo-500 rounded-full transition-all duration-700"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <div className="flex justify-between items-center text-[10px] text-gray-500 font-mono">
+            <span>Progress</span>
+            <span>{progress}%</span>
+          </div>
         </div>
       )}
 

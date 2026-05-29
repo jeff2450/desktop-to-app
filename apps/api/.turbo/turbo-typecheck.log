@@ -1,4 +1,4 @@
 
-> @webtoapp/api@1.0.0 typecheck C:\Users\JEFF-PC\Desktop\web-2-app\webtoapp\apps\api
-> tsc --noEmit
+> @webtoapp/api@1.0.0 typecheck C:\Users\JEFF-PC\Documents\desktop-to-app\apps\api
+> tsc --noEmit -p tsconfig.json
 

@@ -33,7 +33,7 @@ async function getAccessToken() {
 
 export async function createOrder(userId: string, plan: Plan) {
   const accessToken = await getAccessToken();
-  
+
   // Define prices based on plans
   const prices: Record<Plan, string> = {
     FREE:    "0",
@@ -100,33 +100,48 @@ export async function captureOrder(userId: string, orderId: string, plan: Plan) 
 
 export async function handleWebhook(event: any) {
   const eventType = event.event_type;
-  
+
   if (eventType === "CHECKOUT.ORDER.APPROVED") {
     const orderId = event.resource.id;
     const userId = event.resource.purchase_units[0]?.custom_id;
     const description = event.resource.purchase_units[0]?.description;
-    
+
     if (!userId) return;
 
     // Detect plan from description
-    const plan = description?.includes("PRO") ? Plan.PRO : 
-                 description?.includes("STARTER") ? Plan.STARTER : 
-                 Plan.FREE;
+    const plan = description?.includes("PRO") ? Plan.PRO
+                 : description?.includes("STARTER") ? Plan.STARTER
+                 : description?.includes("ULTRA") ? Plan.ULTRAs 
+                 : Plan.FREE;
 
-    // We don't capture here because the client should capture. 
-    // But if we wanted to be robust, we could capture if it hasn't been captured yet.
-    // For now, let's just log it.
-    console.log(`[paypal-webhook] Order approved for user ${userId}, plan ${plan}`);
+    try {
+      await captureOrder(userId, orderId, plan);
+      console.log(`[paypal-webhook] Order ${orderId} successfully captured & approved for user ${userId}, plan ${plan}`);
+    } catch (err: any) {
+      if (err.message?.includes("ORDER_ALREADY_CAPTURED") || err.message?.includes("already been captured")) {
+        console.log(`[paypal-webhook] Order ${orderId} was already captured.`);
+      } else {
+        console.error(`[paypal-webhook] Failed to capture order ${orderId}:`, err.message || err);
+      }
+    }
   }
 
   if (eventType === "PAYMENT.CAPTURE.COMPLETED") {
     const userId = event.resource.custom_id || event.resource.purchase_units?.[0]?.custom_id;
-    // PayPal webhooks for capture often have custom_id in different places depending on how it was created
-    
+
     if (userId) {
        console.log(`[paypal-webhook] Payment completed for user ${userId}`);
-       // The plan update usually happens during capture in our captureOrder function,
-       // but webhooks ensure it happens even if the client disconnects.
+       const description = event.resource.description || event.resource.purchase_units?.[0]?.description || "";
+       const plan = description.includes("PRO") ? Plan.PRO
+                    : description.includes("STARTER") ? Plan.STARTER
+                    : description.includes("ULTRA") ? Plan.ULTRA
+                    : Plan.FREE;
+
+       await prisma.user.update({
+         where: { id: userId },
+         data: { plan },
+       });
+       console.log(`[paypal-webhook] Fallback plan update completed for user ${userId} to plan ${plan}`);
     }
   }
 }

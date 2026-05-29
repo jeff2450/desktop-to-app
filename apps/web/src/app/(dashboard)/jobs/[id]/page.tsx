@@ -123,6 +123,116 @@ export default function JobDetailPage() {
   const esRef = useRef<EventSource | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const lastJobIdRef = useRef<string | null>(null);
+  const lastEstimatedWaitRef = useRef<number | null>(null);
+
+  const [displayProgress, setDisplayProgress] = useState(0);
+  const progressRef = useRef(0);
+  const statusRef = useRef<ConversionStatus | null>(null);
+  const isActiveRef = useRef(false);
+
+  // Sync displayProgress with backend progress, but smoothly
+  useEffect(() => {
+    if (job) {
+      const normStatus = job.status;
+      const progressVal = typeof job.progress === "number" ? job.progress : stageProgress(normStatus);
+      const isActiveVal = ACTIVE_STATUSES.includes(normStatus) || normStatus === "running";
+
+      progressRef.current = progressVal;
+      statusRef.current = normStatus;
+      isActiveRef.current = isActiveVal;
+
+      if (!isActiveVal) {
+        setDisplayProgress(normStatus === "done" ? 100 : 0);
+      }
+    }
+  }, [job?.status, job?.progress]);
+
+  // Continuous ticking interval for smooth gradual movement & fast catchups
+  useEffect(() => {
+    let lastCreepTime = Date.now();
+
+    const timer = setInterval(() => {
+      const currentProgress = progressRef.current;
+      const currentStatus = statusRef.current;
+      const currentIsActive = isActiveRef.current;
+
+      if (!currentIsActive) {
+        if (currentStatus === "done") {
+          setDisplayProgress(100);
+        } else {
+          setDisplayProgress(0);
+        }
+        return;
+      }
+
+      setDisplayProgress((prev) => {
+        if (!currentIsActive) return prev;
+
+        if (prev === 0 && currentProgress > 0) {
+          return currentProgress;
+        }
+
+        if (prev < currentProgress) {
+          // Catch up phase: increment every 100ms
+          const diff = currentProgress - prev;
+          const step = diff > 20 ? 2 : 1;
+          return Math.min(prev + step, currentProgress);
+        } else {
+          // Slow creep phase: increment by 1% every 2000ms
+          const now = Date.now();
+          if (now - lastCreepTime >= 2000) {
+            lastCreepTime = now;
+            const maxCreepLimit = Math.min(currentProgress + 8, 98);
+            if (prev < maxCreepLimit) {
+              return prev + 1;
+            }
+          }
+          return prev;
+        }
+      });
+    }, 100);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // Sync countdown with job.estimatedWait, without overriding ticking progress on job updates
+  useEffect(() => {
+    if (!job) {
+      setCountdown(null);
+      lastJobIdRef.current = null;
+      lastEstimatedWaitRef.current = null;
+      return;
+    }
+
+    const currentWait = typeof job.estimatedWait === "number" ? job.estimatedWait : null;
+
+    if (job.id !== lastJobIdRef.current || currentWait !== lastEstimatedWaitRef.current) {
+      lastJobIdRef.current = job.id;
+      lastEstimatedWaitRef.current = currentWait;
+      setCountdown(currentWait);
+    }
+  }, [job?.id, job?.estimatedWait]);
+
+  // Tick the countdown down every second if active
+  useEffect(() => {
+    const normStatus = job?.status;
+    const isActive = normStatus && (ACTIVE_STATUSES.includes(normStatus) || normStatus === "running");
+    if (!isActive) return;
+
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev !== null && prev > 0) {
+          return prev - 1;
+        }
+        return prev;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [job?.status]);
+
   // ── Fetch initial job state ────────────────────────────────────────────────
   const fetchJob = useCallback(async () => {
     try {
@@ -277,9 +387,6 @@ export default function JobDetailPage() {
     typeof job.progress === "number" ? job.progress : stageProgress(normStatus);
   const isActive =
     ACTIVE_STATUSES.includes(normStatus) || normStatus === "running";
-  const estimatedMinutes = job.estimatedWait
-    ? Math.ceil(job.estimatedWait / 60)
-    : null;
   const artifacts = job.artifacts ?? [];
 
   const activeLabel =
@@ -305,9 +412,10 @@ export default function JobDetailPage() {
             <h2 className="text-2xl font-bold text-white">{job.name}</h2>
             <StatusBadge status={job.status} />
             {/* Estimated wait time */}
-            {isActive && estimatedMinutes !== null && estimatedMinutes > 0 && (
+            {isActive && countdown !== null && countdown > 0 && (
               <span className="flex items-center gap-1 text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 rounded-full px-2.5 py-1">
-                <Timer className="w-3 h-3" />~{estimatedMinutes} min estimated
+                <Timer className="w-3 h-3 animate-pulse text-indigo-400" />
+                ~{formatCountdown(countdown)} remaining
               </span>
             )}
           </div>
@@ -320,13 +428,13 @@ export default function JobDetailPage() {
               <span className="font-medium uppercase tracking-widest">
                 {activeLabel}
               </span>
-              <span>{progress}%</span>
+              <span>{displayProgress}%</span>
             </div>
-            <Progress value={progress} className="h-2 bg-zinc-900" />
+            <Progress value={displayProgress} className="h-2 bg-zinc-900" />
             {/* Stage markers */}
             <div className="flex justify-between px-0.5">
               {STAGE_ORDER.slice(0, -1).map((stage, i) => {
-                const idx = getStageIndexByProgress(normStatus, progress);
+                const idx = getStageIndexByProgress(normStatus, displayProgress);
                 const isPast = i < idx;
                 const isCurrent = i === idx;
                 return (
@@ -551,4 +659,11 @@ function StatusBadge({ status }: { status: ConversionStatus }) {
       {STAGE_LABELS[status] ?? status}
     </Badge>
   );
+}
+
+function formatCountdown(seconds: number): string {
+  if (seconds < 0) return "0:00";
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }

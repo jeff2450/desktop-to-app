@@ -207,9 +207,17 @@ conversionsRouter.get("/", async (req: Request, res: Response, next) => {
     const authReq = req as unknown as AuthenticatedRequest;
     const query = paginationSchema.parse(req.query);
     const result = await listJobs({ userId: authReq.auth.userId, ...query });
+
+    const data = await Promise.all(
+      result.data.map(async (job) => {
+        const progress = await getJobProgress(job.id);
+        return serializeConversion(job, { progress });
+      })
+    );
+
     res.json({
       ...result,
-      data: result.data.map((job) => serializeConversion(job)),
+      data,
     });
   } catch (error) {
     next(error);

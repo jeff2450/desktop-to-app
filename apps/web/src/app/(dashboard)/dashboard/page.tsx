@@ -175,34 +175,42 @@ export default function DashboardPage() {
               ))
             ) : activeJobs.length > 0 ? (
               <div className="space-y-4">
-                {activeJobs.map((job) => (
-                  <Link key={job.id} href={`/jobs/${job.id}`}>
-                    <div className="group bg-zinc-900/50 border border-zinc-800 p-5 rounded-2xl hover:border-indigo-500/50 transition-all flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center relative">
-                          <Clock className="w-6 h-6 text-indigo-400 animate-pulse" />
+                {activeJobs.map((job) => {
+                  const jobProgress = job.progress ?? 0;
+                  return (
+                    <Link key={job.id} href={`/jobs/${job.id}`}>
+                      <div className="group bg-zinc-900/50 border border-zinc-800 p-5 rounded-2xl hover:border-indigo-500/50 transition-all flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center relative">
+                            <Clock className="w-6 h-6 text-indigo-400 animate-pulse" />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-white group-hover:text-indigo-400 transition-colors">
+                              {job.name}
+                            </h4>
+                            <p className="text-xs text-zinc-500 uppercase font-medium tracking-tighter">
+                              Status: {job.status}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="font-bold text-white group-hover:text-indigo-400 transition-colors">
-                            {job.name}
-                          </h4>
-                          <p className="text-xs text-zinc-500 uppercase font-medium tracking-tighter">
-                            Status: {job.status}
-                          </p>
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-2">
+                            <div className="w-32 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-indigo-500 animate-progress-flow transition-all duration-500"
+                                style={{ width: `${jobProgress}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-zinc-500 font-mono w-8 text-right">
+                              {jobProgress}%
+                            </span>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-zinc-600" />
                         </div>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <div className="w-32 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-indigo-500 animate-progress-flow"
-                            style={{ width: "40%" }}
-                          />
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-zinc-600" />
-                      </div>
-                    </div>
-                  </Link>
-                ))}
+                    </Link>
+                  );
+                })}
               </div>
             ) : (
               <div className="p-12 border border-dashed border-zinc-800 rounded-3xl text-center">

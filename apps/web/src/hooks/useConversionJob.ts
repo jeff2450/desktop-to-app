@@ -73,7 +73,7 @@ export function useConversionJob(conversionId: string | null): JobState {
               message: logMessage,
               ts: Date.now(),
             },
-          ].slice(-500); // keep last 500 lines
+          ].slice(-5000); // keep last 5000 lines
         }
 
         if (event.type === "completed") {
