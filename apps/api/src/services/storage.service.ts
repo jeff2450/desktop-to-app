@@ -12,10 +12,10 @@ import { env, useS3 } from "../config/env.js";
 // ─── Lazy S3 client (only constructed when credentials present) ─────────────
 let _s3: import("@aws-sdk/client-s3").S3Client | null = null;
 
-function getS3(): import("@aws-sdk/client-s3").S3Client {
+async function getS3(): Promise<import("@aws-sdk/client-s3").S3Client> {
   if (_s3) return _s3;
   if (!useS3) throw new Error("S3 is not configured");
-  const { S3Client } = require("@aws-sdk/client-s3");
+  const { S3Client } = await import("@aws-sdk/client-s3");
   _s3 = new S3Client({
     region: env.AWS_REGION,
     credentials: {
@@ -23,7 +23,7 @@ function getS3(): import("@aws-sdk/client-s3").S3Client {
       secretAccessKey: env.AWS_SECRET_ACCESS_KEY!,
     },
   });
-  return _s3!;
+  return _s3;
 }
 
 // ─── Ensure local outputs directory exists ──────────────────────────────────
@@ -42,7 +42,7 @@ export async function uploadArtifact(
   if (useS3) {
     const { Upload } = await import("@aws-sdk/lib-storage");
     const upload = new Upload({
-      client: getS3(),
+      client: await getS3(),
       params: {
         Bucket: env.S3_BUCKET!,
         Key: key,
@@ -74,7 +74,7 @@ export async function generateSignedUrl(key: string, expiresIn = 3600): Promise<
     const { GetObjectCommand } = await import("@aws-sdk/client-s3");
     const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
     return getSignedUrl(
-      getS3(),
+      await getS3(),
       new GetObjectCommand({ Bucket: env.S3_BUCKET!, Key: key }),
       { expiresIn }
     );
@@ -87,7 +87,7 @@ export async function generateSignedUrl(key: string, expiresIn = 3600): Promise<
 export async function deleteObject(key: string): Promise<void> {
   if (useS3) {
     const { DeleteObjectCommand } = await import("@aws-sdk/client-s3");
-    await getS3().send(new DeleteObjectCommand({ Bucket: env.S3_BUCKET!, Key: key }));
+    await (await getS3()).send(new DeleteObjectCommand({ Bucket: env.S3_BUCKET!, Key: key }));
     return;
   }
 

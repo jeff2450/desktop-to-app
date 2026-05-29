@@ -366,6 +366,12 @@ export default function NewJobPage() {
                     <ModeOption value="online" label="Online" desc="WebView wrapper" />
                     <ModeOption value="hybrid" label="Hybrid" desc="Partial caching" />
                   </RadioGroup>
+                  <p className="text-[10px] text-zinc-500 flex items-start gap-1">
+                    <Info className="w-3.5 h-3.5 mt-[2px] shrink-0 text-indigo-400" />
+                    <span>
+                      Note: Firebase Firestore, Auth0, and Vue transformers are currently partially tested. If your application relies on these, we recommend using <strong>Online</strong> mode for full cloud fidelity.
+                    </span>
+                  </p>
                 </div>
 
                 <div className="space-y-4">

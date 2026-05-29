@@ -111,7 +111,7 @@ export async function handleWebhook(event: any) {
     // Detect plan from description
     const plan = description?.includes("PRO") ? Plan.PRO
                  : description?.includes("STARTER") ? Plan.STARTER
-                 : description?.includes("ULTRA") ? Plan.ULTRAs 
+                 : description?.includes("ULTRA") ? Plan.ULTRA
                  : Plan.FREE;
 
     try {
