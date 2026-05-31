@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { billingApi } from "@/lib/api-client";
 import type { UsageStats, BillingPlan, SubscriptionInfo, UsageChartData, Plan } from "@/types";
@@ -20,10 +19,8 @@ import {
   Zap, 
   ShieldCheck, 
   Crown,
-  ArrowRight,
   Loader2
 } from "lucide-react";
-import { PayPalCheckout } from "@/components/billing/PayPalCheckout";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { 
@@ -43,8 +40,6 @@ export default function BillingPage() {
   const [plans, setPlans] = useState<BillingPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [checkoutPlan, setCheckoutPlan] = useState<BillingPlan | null>(null);
-  const [paymentSuccess, setPaymentSuccess] = useState(false);
 
 
   useEffect(() => {
@@ -69,23 +64,21 @@ export default function BillingPage() {
     fetchData();
   }, []);
 
-  const handleUpgrade = (planId: string) => {
-    const selected = plans.find(p => p.id === planId);
-    if (selected) {
-      setCheckoutPlan(selected);
+  const handleUpgrade = async (planId: Plan) => {
+    setActionLoading(planId);
+    try {
+      const result = await billingApi.checkout(planId);
+      if (result.data?.url) {
+        window.location.href = result.data.url;
+        return;
+      }
+      alert(result.error || "Failed to start checkout");
+    } catch (err) {
+      console.error("Checkout error:", err);
+      alert("Failed to start checkout");
+    } finally {
+      setActionLoading(null);
     }
-  };
-
-  const onPaymentSuccess = async () => {
-    setPaymentSuccess(true);
-    setCheckoutPlan(null);
-    // Refresh usage
-    const [u, s] = await Promise.all([
-      billingApi.usage(),
-      billingApi.subscription()
-    ]);
-    if (u.data) setUsage(u.data);
-    if (s.data) setSubscription(s.data);
   };
 
   const handlePortal = async () => {
@@ -120,31 +113,6 @@ export default function BillingPage() {
   return (
     <div className="min-h-screen bg-zinc-950">
       <TopBar title="Plans & Billing" />
-
-      {checkoutPlan && (
-        <PayPalCheckout 
-          planId={checkoutPlan.id}
-          planName={checkoutPlan.name}
-          price={checkoutPlan.price || 0}
-          onClose={() => setCheckoutPlan(null)}
-          onSuccess={onPaymentSuccess}
-        />
-      )}
-
-      {paymentSuccess && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-           <Card className="bg-zinc-900 border-zinc-800 p-8 text-center max-w-md w-full animate-in fade-in zoom-in duration-300">
-              <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                 <Check className="w-10 h-10 text-emerald-500" />
-              </div>
-              <h2 className="text-2xl font-black text-white mb-2">Payment Successful!</h2>
-              <p className="text-zinc-500 mb-8">Your account has been upgraded via PayPal. You now have full access to all features.</p>
-              <Button onClick={() => setPaymentSuccess(false)} className="w-full bg-indigo-600 hover:bg-indigo-500 rounded-xl py-6 font-bold">
-                 Return to Dashboard
-              </Button>
-           </Card>
-        </div>
-      )}
 
       
       <div className="p-8 space-y-12 max-w-7xl mx-auto">

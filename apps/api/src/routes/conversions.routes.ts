@@ -431,7 +431,15 @@ conversionsRouter.get(
         );
       }
 
-      const url = await generateSignedUrl(artifact.s3Key);
+      let url = await generateSignedUrl(artifact.s3Key);
+      if (!useS3) {
+        const token = req.headers.authorization?.startsWith("Bearer ")
+          ? req.headers.authorization.slice("Bearer ".length)
+          : (req.query["token"] as string | undefined);
+        if (token) {
+          url += `?token=${encodeURIComponent(token)}`;
+        }
+      }
       res.json({ url, platform, sizeBytes: artifact.sizeBytes });
     } catch (error) {
       next(error);
@@ -439,7 +447,7 @@ conversionsRouter.get(
   },
 );
 
-// ─── GET /downloads/local/:key — dev-only local file serving ─────────────────
+// ─── GET /api/conversions/local-file/:key — dev-only local file serving ────────
 
 conversionsRouter.get(
   "/local-file/:key",

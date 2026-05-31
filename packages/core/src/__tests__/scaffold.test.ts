@@ -126,6 +126,11 @@ function makeScaffoldCtx(sourceDir: string, outputDir: string, workDir: string) 
         generatorType: "jwt-auth",
         templateVars: { defaultAdmin: "admin@test.local" },
       },
+      {
+        outputPath: "src/lib/localApi.ts",
+        generatorType: "local-api-client",
+        templateVars: { port: 3001, tables: ["users", "products"], framework: "react" },
+      },
     ],
     dependenciesToAdd: {},
     dependenciesToRemove: [],
@@ -156,6 +161,8 @@ describe("runScaffoldStage — electron/main.cjs", () => {
       // Must register app:// as privileged scheme
       expect(mainContent).toContain("registerSchemesAsPrivileged");
       expect(mainContent).toContain("app://");
+      expect(mainContent).toContain("mainWindow.loadURL('app://./')");
+      expect(mainContent).not.toContain("mainWindow.loadURL('app://./index.html')");
 
       // Must wait for backend before creating the window
       expect(mainContent).toContain("waitForBackend");
@@ -203,6 +210,38 @@ describe("runScaffoldStage — backend/server.cjs", () => {
       // Must register table routes
       expect(serverContent).toContain("users");
       expect(serverContent).toContain("products");
+
+      // Must expose a deterministic fallback for unported Supabase Edge Functions
+      expect(serverContent).toContain("/api/functions/:name");
+    } finally {
+      await Promise.all([sourceDir, outputDir, workDir].map((d) =>
+        fs.rm(d, { recursive: true, force: true, maxRetries: 3 })
+      ));
+    }
+  });
+});
+
+describe("runScaffoldStage — src/lib/localApi.ts", () => {
+  it("generates a functions.invoke bridge for hybrid and offline builds", async () => {
+    const sourceDir = await fs.mkdtemp(path.join(os.tmpdir(), "scaffold-src-"));
+    const outputDir = await fs.mkdtemp(path.join(os.tmpdir(), "scaffold-out-"));
+    const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "scaffold-work-"));
+
+    try {
+      await createMinimalFixture(sourceDir, outputDir);
+      const ctx = makeScaffoldCtx(sourceDir, outputDir, workDir);
+
+      await runScaffoldStage(ctx);
+
+      const localApiContent = await fs.readFile(
+        path.join(outputDir, "src/lib/localApi.ts"),
+        "utf-8"
+      );
+
+      expect(localApiContent).toContain("functions");
+      expect(localApiContent).toContain("VITE_SUPABASE_URL");
+      expect(localApiContent).toContain("/functions/v1/");
+      expect(localApiContent).toContain("/api/functions/");
     } finally {
       await Promise.all([sourceDir, outputDir, workDir].map((d) =>
         fs.rm(d, { recursive: true, force: true, maxRetries: 3 })

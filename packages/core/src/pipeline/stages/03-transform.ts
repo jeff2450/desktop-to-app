@@ -434,14 +434,21 @@ async function fixOrphanedSupabaseClient(ctx: PipelineContext): Promise<void> {
         await walkAndFix(fullPath);
       } else if (/\.(ts|tsx)$/.test(entry.name)) {
         let content = await fs.readFile(fullPath, "utf-8");
+        const rel = path.relative(ctx.outputDir, fullPath);
 
         // Check if the file still calls createClient (sign the transformer left it broken)
         const hasOrphanedCreateClient = /createClient\s*\(/.test(content) &&
           !content.includes("from '@supabase/supabase-js'") &&
           !content.includes('from "@supabase/supabase-js"');
 
-        if (hasOrphanedCreateClient) {
-          const rel = path.relative(ctx.outputDir, fullPath);
+        const isSupabaseClientModule =
+          /(?:^|[\\/])src[\\/]integrations[\\/]supabase[\\/]client\.tsx?$/i.test(rel) ||
+          /(?:^|[\\/])src[\\/]lib[\\/]supabase(?:Client)?\.tsx?$/i.test(rel);
+        const hasRemovedEnvPlaceholder = /undefined\s*\/\*\s*removed by WebToApp\s*\*\//.test(content);
+        const hasSupabaseClientArtifacts =
+          /@supabase\/supabase-js|createClient\s*\(|VITE_SUPABASE|SUPABASE_URL|SUPABASE_ANON|Supabase client replaced/i.test(content);
+
+        if (hasOrphanedCreateClient || (isSupabaseClientModule && (hasRemovedEnvPlaceholder || hasSupabaseClientArtifacts))) {
           // Write a clean replacement that satisfies all import sites:
           //   import { supabase } from '...'    → works
           //   import type { Database } from '...'  → works

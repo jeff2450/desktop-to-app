@@ -1,0 +1,522 @@
+name: Mobile Build
+
+# ─── Triggers ──────────────────────────────────────────────────────────────────
+#
+#  • Every push/PR to main or develop:
+#      - mobile-unit-tests  (fast, ~30s — always)
+#      - gradle-health-check (JDK17 + dry-run Gradle, ~2 min — always)
+#
+#  • Push to main only:
+#      - build-android (full APK compile, ~5-8 min)
+#
+#  • workflow_dispatch:
+#      - platform: android → build-android
+#      - platform: ios     → build-ios
+#      - platform: both    → build-android + build-ios
+#
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'packages/mobile/**'
+      - 'apps/**'
+      - 'packages/core/src/pipeline/stages/07b-mobile.ts'
+      - '.github/workflows/mobile-build.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'packages/mobile/**'
+      - 'packages/core/src/pipeline/stages/07b-mobile.ts'
+      - '.github/workflows/mobile-build.yml'
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to build a full release artifact for'
+        required: true
+        default: 'android'
+        type: choice
+        options:
+          - android
+          - ios
+          - both
+
+concurrency:
+  group: mobile-${{ github.ref }}-${{ github.event.inputs.platform || 'auto' }}
+  cancel-in-progress: true
+
+# ─── Job: mobile-unit-tests ───────────────────────────────────────────────────
+#
+# Runs the Vitest unit test suite for @webtoapp/mobile.
+# No Android SDK or JDK required — just Node.js + pnpm.
+# Runs on every push and pull request.
+#
+jobs:
+  mobile-unit-tests:
+    name: Mobile Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: $(pnpm store path --silent)
+          key: pnpm-store-mobile-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-mobile-${{ runner.os }}-
+            pnpm-store-${{ runner.os }}-
+
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-mobile-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-mobile-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build @webtoapp/mobile and its dependencies
+        run: pnpm turbo build --filter=@webtoapp/mobile...
+
+      - name: Run unit tests
+        run: pnpm --filter @webtoapp/mobile test
+
+  # ─── Job: gradle-health-check ───────────────────────────────────────────────
+  #
+  # Validates that Gradle can resolve dependencies with JDK 17 using a
+  # minimal fixture app. Runs `./gradlew assembleDebug --dry-run` — this
+  # catches Gradle version mismatches, missing SDK packages, and broken
+  # dependency resolution without doing a full compile (~2 min).
+  #
+  # Runs on every push and pull request — gives fast feedback without the cost
+  # of a full build.
+  #
+  gradle-health-check:
+    name: Gradle Health Check (JDK 17 + dry-run)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: mobile-unit-tests
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+
+      # ── Critical: JDK 17 exactly — Capacitor 6 Gradle stack fails on JDK >21
+      - name: Set up Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Confirm JDK version is exactly 17
+        run: |
+          JAVA_MAJOR=$(java -version 2>&1 | grep -oP '(?<=version ")(\d+)' | head -1)
+          echo "Detected Java major version: $JAVA_MAJOR"
+          if [ "$JAVA_MAJOR" != "17" ]; then
+            echo "ERROR: Expected JDK 17, got JDK $JAVA_MAJOR. Capacitor 6 requires JDK 17."
+            exit 1
+          fi
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses || true
+
+      - name: Install required Android SDK packages
+        run: |
+          sdkmanager \
+            "platforms;android-35" \
+            "build-tools;34.0.0" \
+            "platform-tools" \
+            --sdk_root=$ANDROID_HOME
+
+      - name: Install pnpm dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build mobile package
+        run: pnpm turbo build --filter=@webtoapp/mobile...
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: $(pnpm store path --silent)
+          key: pnpm-store-android-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-android-${{ runner.os }}-
+
+      # Set up the test fixture — minimal Capacitor app that webtoapp would produce
+      - name: Create minimal Capacitor test fixture
+        run: |
+          mkdir -p /tmp/cap-fixture/dist
+          echo '{"appId": "com.webtoapp.test","appName": "Test","webDir": "dist","server": {"androidScheme": "https"}}' > /tmp/cap-fixture/capacitor.config.json
+          echo '<!DOCTYPE html><html><body><h1>Test</h1></body></html>' > /tmp/cap-fixture/dist/index.html
+          echo '{"name":"cap-fixture","version":"1.0.0","scripts":{"build":"echo dist ready"}}' > /tmp/cap-fixture/package.json
+          npm install --prefix /tmp/cap-fixture @capacitor/core @capacitor/cli @capacitor/android --legacy-peer-deps
+
+      - name: Add Android platform to fixture
+        working-directory: /tmp/cap-fixture
+        run: npx cap add android
+
+      - name: Sync Capacitor into Android project
+        working-directory: /tmp/cap-fixture
+        run: npx cap sync android
+
+      - name: Make gradlew executable
+        run: chmod +x /tmp/cap-fixture/android/gradlew
+
+      # Cache Gradle wrapper + dependencies between runs
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('/tmp/cap-fixture/android/**/*.gradle*', '/tmp/cap-fixture/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Gradle dry-run (assembleDebug --dry-run)
+        working-directory: /tmp/cap-fixture/android
+        run: ./gradlew assembleDebug --dry-run --no-daemon --stacktrace
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+          JAVA_HOME: ${{ env.JAVA_HOME }}
+
+      - name: Print Gradle environment summary
+        if: always()
+        run: |
+          echo "## Gradle Health Check Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Java version | $(java -version 2>&1 | head -1) |" >> $GITHUB_STEP_SUMMARY
+          echo "| ANDROID_HOME | $ANDROID_HOME |" >> $GITHUB_STEP_SUMMARY
+          echo "| Gradle version | $(/tmp/cap-fixture/android/gradlew --version --no-daemon 2>/dev/null | grep Gradle | head -1 || echo 'n/a') |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload Gradle logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-health-check-logs
+          path: |
+            /tmp/cap-fixture/android/.gradle/
+            ~/.gradle/daemon/
+          retention-days: 3
+
+  # ─── Job: build-android ─────────────────────────────────────────────────────
+  #
+  # Full Android debug APK build. Runs:
+  #  - On every push to main (for continuous build assurance)
+  #  - On workflow_dispatch with platform: android or both
+  #
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: gradle-health-check
+    if: >
+      github.event_name == 'workflow_dispatch' && (
+        github.event.inputs.platform == 'android' ||
+        github.event.inputs.platform == 'both'
+      ) ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+
+      - name: Set up Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses || true
+
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager \
+            "platforms;android-35" \
+            "build-tools;34.0.0" \
+            "platform-tools" \
+            --sdk_root=$ANDROID_HOME
+
+      - name: Install pnpm dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: $(pnpm store path --silent)
+          key: pnpm-store-build-android-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-android-${{ runner.os }}-
+            pnpm-store-${{ runner.os }}-
+
+      - name: Build web & mobile packages
+        run: pnpm turbo build --filter=@webtoapp/mobile...
+
+      # Build the test fixture app (simulates a converted app output from webtoapp)
+      - name: Create and prepare Capacitor test app
+        run: |
+          mkdir -p /tmp/android-build/dist
+          echo '<!DOCTYPE html><html><body><h1>WebToApp Mobile CI</h1></body></html>' > /tmp/android-build/dist/index.html
+          cat > /tmp/android-build/capacitor.config.json << 'EOF'
+          {
+            "appId": "com.webtoapp.ci.test",
+            "appName": "WebToApp CI",
+            "webDir": "dist",
+            "server": { "androidScheme": "https" }
+          }
+          EOF
+          echo '{"name":"webtoapp-ci-app","version":"1.0.0","scripts":{"build":"echo ok"}}' > /tmp/android-build/package.json
+          npm install --prefix /tmp/android-build \
+            @capacitor/core \
+            @capacitor/cli \
+            @capacitor/android \
+            --legacy-peer-deps
+
+      - name: Add Android platform
+        working-directory: /tmp/android-build
+        run: npx cap add android
+
+      - name: Sync Capacitor
+        working-directory: /tmp/android-build
+        run: npx cap sync android
+
+      - name: Make gradlew executable
+        run: chmod +x /tmp/android-build/android/gradlew
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-build-${{ runner.os }}-${{ hashFiles('/tmp/android-build/android/**/*.gradle*') }}
+          restore-keys: |
+            gradle-build-${{ runner.os }}-
+            gradle-${{ runner.os }}-
+
+      - name: Build debug APK
+        working-directory: /tmp/android-build/android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+          JAVA_HOME: ${{ env.JAVA_HOME }}
+
+      - name: Locate APK
+        id: find-apk
+        run: |
+          APK_PATH=$(find /tmp/android-build/android/app/build/outputs/apk -name "*.apk" | head -1)
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          echo "APK built at: $APK_PATH"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: webtoapp-debug-${{ github.sha }}
+          path: ${{ steps.find-apk.outputs.apk_path }}
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Build summary
+        if: always()
+        run: |
+          echo "## Android Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f "${{ steps.find-apk.outputs.apk_path }}" ]; then
+            SIZE=$(du -sh "${{ steps.find-apk.outputs.apk_path }}" | cut -f1)
+            echo "| | |" >> $GITHUB_STEP_SUMMARY
+            echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+            echo "| ✅ Status | Build succeeded |" >> $GITHUB_STEP_SUMMARY
+            echo "| 📦 APK size | $SIZE |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🔑 Variant | debug |" >> $GITHUB_STEP_SUMMARY
+            echo "| ☕ Java | $(java -version 2>&1 | head -1) |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ APK not found — build may have failed." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload Gradle logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-build-failure-logs-${{ github.sha }}
+          path: |
+            /tmp/android-build/android/.gradle/
+            ~/.gradle/daemon/
+          retention-days: 5
+
+  # ─── Job: build-ios ─────────────────────────────────────────────────────────
+  #
+  # Builds a simulator (unsigned) iOS app using xcodebuild.
+  # Only runs on workflow_dispatch with platform: ios or both.
+  # Requires macOS runner (Xcode available by default on macos-latest).
+  #
+  build-ios:
+    name: Build iOS (Simulator)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    needs: mobile-unit-tests
+    if: >
+      github.event_name == 'workflow_dispatch' && (
+        github.event.inputs.platform == 'ios' ||
+        github.event.inputs.platform == 'both'
+      )
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+
+      - name: Install pnpm dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build mobile package
+        run: pnpm turbo build --filter=@webtoapp/mobile...
+
+      - name: Install CocoaPods
+        run: |
+          gem install cocoapods --no-document
+          pod --version
+
+      - name: Create Capacitor test fixture
+        run: |
+          mkdir -p /tmp/ios-build/dist
+          echo '<!DOCTYPE html><html><body><h1>WebToApp iOS CI</h1></body></html>' > /tmp/ios-build/dist/index.html
+          cat > /tmp/ios-build/capacitor.config.json << 'EOF'
+          {
+            "appId": "com.webtoapp.ci.test",
+            "appName": "WebToApp CI",
+            "webDir": "dist",
+            "server": { "androidScheme": "https" }
+          }
+          EOF
+          echo '{"name":"webtoapp-ios-ci","version":"1.0.0","scripts":{"build":"echo ok"}}' > /tmp/ios-build/package.json
+          npm install --prefix /tmp/ios-build \
+            @capacitor/core \
+            @capacitor/cli \
+            @capacitor/ios \
+            --legacy-peer-deps
+
+      - name: Add iOS platform
+        working-directory: /tmp/ios-build
+        run: npx cap add ios || true  # non-fatal if platform already added
+
+      - name: Sync Capacitor
+        working-directory: /tmp/ios-build
+        run: npx cap sync ios
+
+      - name: Install CocoaPods dependencies
+        working-directory: /tmp/ios-build/ios/App
+        run: pod install
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: /tmp/ios-build/ios/App/Pods
+          key: pods-${{ runner.os }}-${{ hashFiles('/tmp/ios-build/ios/App/Podfile.lock') }}
+          restore-keys: |
+            pods-${{ runner.os }}-
+
+      - name: Build for iOS Simulator (no code signing)
+        run: |
+          xcodebuild \
+            -workspace /tmp/ios-build/ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty || true
+
+      - name: Check build succeeded
+        run: |
+          DERIVED=$(find ~/Library/Developer/Xcode/DerivedData -name "App.app" -type d | head -1 || true)
+          if [ -n "$DERIVED" ]; then
+            echo "✅ iOS build succeeded: $DERIVED"
+            echo "## iOS Build Summary" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| | |" >> $GITHUB_STEP_SUMMARY
+            echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+            echo "| ✅ Status | Build succeeded (simulator) |" >> $GITHUB_STEP_SUMMARY
+            echo "| 📁 App bundle | $DERIVED |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🍎 Xcode | $(xcodebuild -version | head -1) |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ iOS .app bundle not found. Build may have failed." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: Upload xcodebuild log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log-${{ github.sha }}
+          path: ~/Library/Developer/Xcode/DerivedData/**/Logs/Build
+          retention-days: 5
+          if-no-files-found: ignore

@@ -82,6 +82,16 @@ app.use('/api/auth', authRouter);
 app.use('/api/{{this}}', {{this}}Router);
 {{/each}}
 
+// Supabase Edge Function compatibility fallback.
+// Hybrid clients call Supabase directly when cloud env vars are available.
+// Offline clients land here unless a project-specific local function route is added.
+app.post('/api/functions/:name', (req, res) => {
+  res.status(501).json({
+    data: null,
+    error: `Supabase Edge Function "${req.params.name}" is not available in this offline build. Add a local backend route for this function or build in hybrid/online mode.`,
+  });
+});
+
 // ─── SSE subscribe (replaces Supabase Realtime) ───────────────────────────────
 
 const subscribers = new Map(); // table → Set<res>

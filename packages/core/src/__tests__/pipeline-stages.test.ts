@@ -180,6 +180,17 @@ describe("Pipeline Stages (00-07b) Integration and Unit Tests", () => {
         "const client = createClient('URL', 'KEY');",
         "utf-8"
       );
+      await fs.mkdir(path.join(sourceDir, "src/integrations/supabase"), { recursive: true });
+      await fs.writeFile(
+        path.join(sourceDir, "src/integrations/supabase/client.ts"),
+        [
+          "import { createClient } from '@supabase/supabase-js';",
+          "const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;",
+          "const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;",
+          "export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);",
+        ].join("\n"),
+        "utf-8"
+      );
 
       const ctx = makeContext({ mode: "offline" });
       
@@ -200,6 +211,13 @@ describe("Pipeline Stages (00-07b) Integration and Unit Tests", () => {
           transformerType: "supabase-auth",
           confidence: 0.9,
           reason: "supabase-client tests",
+        },
+        {
+          sourcePath: "src/integrations/supabase/client.ts",
+          outputPath: "src/integrations/supabase/client.ts",
+          transformerType: "supabase-query",
+          confidence: 0.9,
+          reason: "supabase integration client tests",
         }
       ];
 
@@ -214,6 +232,11 @@ describe("Pipeline Stages (00-07b) Integration and Unit Tests", () => {
       const clientFileContent = await fs.readFile(path.join(outputDir, "src/supabase-client.ts"), "utf-8");
       expect(clientFileContent).toContain("supabase = localApi");
       expect(clientFileContent).not.toContain("= createClient(");
+
+      const integrationClientContent = await fs.readFile(path.join(outputDir, "src/integrations/supabase/client.ts"), "utf-8");
+      expect(integrationClientContent).toContain("supabase = localApi");
+      expect(integrationClientContent).not.toContain("removed by WebToApp");
+      expect(integrationClientContent).not.toContain("VITE_SUPABASE");
     });
 
     it("does not rewrite BrowserRouter to HashRouter in online mode", async () => {

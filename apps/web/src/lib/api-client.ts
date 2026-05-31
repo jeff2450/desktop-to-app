@@ -425,32 +425,4 @@ export const billingApi = {
     }),
   portal: () =>
     request<{ url: string }>("/api/billing/portal", { method: "POST" }),
-  createPaypalOrder: (plan: string) => {
-    const apiPlan =
-      plan === "pro"
-        ? "STARTER"
-        : plan === "team"
-          ? "PRO"
-          : plan === "ultra"
-            ? "ULTRA"
-            : plan.toUpperCase();
-    return request<{ id: string }>("/api/billing/paypal/create", {
-      method: "POST",
-      body: JSON.stringify({ plan: apiPlan }),
-    });
-  },
-  capturePaypalOrder: (orderID: string, plan: string) => {
-    const apiPlan =
-      plan === "pro"
-        ? "STARTER"
-        : plan === "team"
-          ? "PRO"
-          : plan === "ultra"
-            ? "ULTRA"
-            : plan.toUpperCase();
-    return request<any>("/api/billing/paypal/capture", {
-      method: "POST",
-      body: JSON.stringify({ orderID, plan: apiPlan }),
-    });
-  },
 };

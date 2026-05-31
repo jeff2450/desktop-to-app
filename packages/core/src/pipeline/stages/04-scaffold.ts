@@ -359,7 +359,7 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:${devPort}');
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadURL('app://./index.html');
+    mainWindow.loadURL('app://./');
   }
 
   mainWindow.once('ready-to-show', () => mainWindow.show());
@@ -465,7 +465,7 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:${devPort}');
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadURL('app://./index.html'); // use app:// not file:// to allow backend fetch
+    mainWindow.loadURL('app://./'); // use app:// not file:// to allow backend fetch
   }
 
   mainWindow.once('ready-to-show', () => mainWindow.show());
@@ -644,6 +644,16 @@ app.use('/api/auth', authRouter);
 
 // Table routes
 ${routeUses}
+
+// Supabase Edge Function compatibility fallback.
+// Hybrid clients call Supabase directly when cloud env vars are available.
+// Offline clients land here unless a project-specific local function route is added.
+app.post('/api/functions/:name', (req, res) => {
+  res.status(501).json({
+    data: null,
+    error: \`Supabase Edge Function "\${req.params.name}" is not available in this offline build. Add a local backend route for this function or build in hybrid/online mode.\`,
+  });
+});
 
 // Health check
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', app: '${appName}' }));
@@ -1051,6 +1061,8 @@ function generateLocalApiClient(vars: Record<string, unknown>): string {
  */
 
 const BASE_URL = \`http://127.0.0.1:${port}\`;
+const SUPABASE_URL = import.meta.env?.VITE_SUPABASE_URL ?? '';
+const SUPABASE_ANON_KEY = import.meta.env?.VITE_SUPABASE_ANON_KEY ?? '';
 
 function getToken(): string | null {
   return localStorage.getItem('webtoapp_token');
@@ -1301,6 +1313,40 @@ const storage = {
 
 // ─── Subscribe (replaces Supabase Realtime) ───────────────────────────────────
 
+type FunctionInvokeOptions = {
+  body?: unknown;
+  headers?: Record<string, string>;
+  method?: string;
+};
+
+const functions = {
+  async invoke<T = unknown>(name: string, options: FunctionInvokeOptions = {}) {
+    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+      try {
+        const res = await fetch(\`\${SUPABASE_URL.replace(/\\/$/, '')}/functions/v1/\${name}\`, {
+          method: options.method ?? 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: \`Bearer \${SUPABASE_ANON_KEY}\`,
+            ...(options.headers ?? {}),
+          },
+          body: options.body === undefined ? undefined : JSON.stringify(options.body),
+        });
+        const json = await res.json().catch(() => null);
+        return { data: res.ok ? (json as T) : null, error: res.ok ? null : json?.error ?? \`HTTP \${res.status}\` };
+      } catch {
+        // Hybrid mode can still fall back to the local backend below.
+      }
+    }
+
+    return apiFetch<T>(\`/api/functions/\${encodeURIComponent(name)}\`, {
+      method: 'POST',
+      body: JSON.stringify(options),
+    });
+  },
+};
+
 function subscribe(table: string, callback: (payload: unknown) => void) {
   const url = \`\${BASE_URL}/api/\${table}/subscribe\`;
   const es = new EventSource(url);
@@ -1317,6 +1363,7 @@ export const localApi = {
   },
   auth,
   storage,
+  functions,
   subscribe,
 };
 

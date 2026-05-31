@@ -16,7 +16,6 @@ import {
   sendPaymentFailedEmail,
   stripe
 } from "../services/billing.service.js";
-import * as paypalService from "../services/paypal.service.js";
 import { getPlanLimit } from "../services/jobs.service.js";
 
 const checkoutSchema = z.object({
@@ -259,42 +258,3 @@ async function handleStripeEvent(event: Stripe.Event): Promise<void> {
       break;
   }
 }
-
-billingRouter.post("/paypal/create", requireAuth, async (req, res, next) => {
-  try {
-    const { plan } = z.object({ plan: z.nativeEnum(Plan) }).parse(req.body);
-    const authReq = req as unknown as AuthenticatedRequest;
-    
-    const order = await paypalService.createOrder(authReq.auth.userId, plan);
-    res.json(order);
-  } catch (error) {
-    next(error);
-  }
-});
-
-billingRouter.post("/paypal/capture", requireAuth, async (req, res, next) => {
-  try {
-    const { orderID, plan } = z.object({ 
-      orderID: z.string(), 
-      plan: z.nativeEnum(Plan) 
-    }).parse(req.body);
-    const authReq = req as unknown as AuthenticatedRequest;
-
-    const result = await paypalService.captureOrder(authReq.auth.userId, orderID, plan);
-    res.json(result);
-  } catch (error) {
-    next(error);
-  }
-});
-
-billingRouter.post("/paypal/webhooks", async (req, res, next) => {
-  try {
-    // PayPal sends JSON body
-    await paypalService.handleWebhook(req.body);
-    res.status(200).send("OK");
-  } catch (error) {
-    console.error("[paypal-webhook] Error:", error);
-    res.status(200).send("OK"); // Always 200 to PayPal
-  }
-});
-

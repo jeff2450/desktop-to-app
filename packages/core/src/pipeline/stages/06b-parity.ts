@@ -171,8 +171,9 @@ async function scanSourceForUnsupportedFeatures(ctx: PipelineContext, findings: 
     });
 
     addMatches(findings, content, rel, /\bsupabase\s*\.\s*functions\s*\.\s*invoke\s*\(/g, {
+      level: "warn",
       message: "Supabase Edge Function calls cannot be preserved in offline mode.",
-      suggestion: "Port the function into the generated backend or use online mode.",
+      suggestion: "The generated localApi.functions.invoke() shim will return a clear error. Port the function into the generated backend or use online mode for full behavior.",
     });
 
     addMatches(
@@ -408,11 +409,11 @@ function addMatches(
   content: string,
   file: string,
   pattern: RegExp,
-  details: Pick<Finding, "message" | "suggestion">
+  details: Pick<Finding, "message" | "suggestion"> & Partial<Pick<Finding, "level">>
 ): void {
   for (const match of content.matchAll(pattern)) {
     findings.push({
-      level: "error",
+      level: details.level ?? "error",
       file,
       line: lineNumber(content, match.index ?? 0),
       ...details,

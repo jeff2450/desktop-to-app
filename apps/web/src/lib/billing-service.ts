@@ -141,72 +141,7 @@ export const billingService = {
   async createCheckout(userId: string, plan: Plan): Promise<string> {
     const baseUrl = getBaseUrl();
     // Return a mock success redirect
-    return `${baseUrl}/billing?payment=success&plan=${plan}`;
-  },
-
-  async createPaypalOrder(userId: string, planId: Plan, authHeader: string | null = null): Promise<{ id: string }> {
-    const apiBase = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-    
-    // Convert web plan to API plan
-    const apiPlan = planId === "pro" ? "STARTER" : planId === "team" ? "PRO" : planId === "ultra" ? "ULTRA" : planId.toUpperCase();
-
-
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-
-    if (authHeader) {
-      headers["Authorization"] = authHeader;
-    }
-
-    console.log("[billing-service] createPaypalOrder", { apiBase, planId, apiPlan, hasAuth: !!authHeader });
-
-    const response = await fetch(`${apiBase}/api/billing/paypal/create`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ plan: apiPlan, userId }),
-    });
-
-    if (!response.ok) {
-      let errMsg = `PayPal API error (HTTP ${response.status})`;
-      try {
-        const errBody = await response.json();
-        if (errBody?.error) errMsg = errBody.error;
-      } catch { /* ignore */ }
-      throw new Error(errMsg);
-    }
-
-    return response.json();
-  },
-
-  async capturePaypalOrder(userId: string, orderId: string, planId: Plan, authHeader: string | null = null): Promise<any> {
-    const apiBase = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-    const apiPlan = planId === "pro" ? "STARTER" : planId === "team" ? "PRO" : planId === "ultra" ? "ULTRA" : planId.toUpperCase();
-
-
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-
-    if (authHeader) {
-      headers["Authorization"] = authHeader;
-    }
-
-    const response = await fetch(`${apiBase}/api/billing/paypal/capture`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ orderID: orderId, plan: apiPlan, userId }),
-    });
-
-    if (!response.ok) {
-      throw new Error("Failed to capture order via API");
-    }
-
-    const result = await response.json();
-    if (result.status === "COMPLETED") {
-       mockUserPlans.set(userId, planId);
-    }
-    return result;
+    return `${baseUrl}/billing/success?plan=${plan}`;
   },
 
   async verifyPayment(userId: string, transactionId: string, txRef: string, plan: Plan): Promise<any> {

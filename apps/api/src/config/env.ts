@@ -22,11 +22,6 @@ const envSchema = z.object({
   STRIPE_PRICE_PRO: z.string().min(1).optional(),
   DASHBOARD_URL: z.string().url().optional(),
   
-  // PayPal
-  PAYPAL_CLIENT_ID: z.string().optional(),
-  PAYPAL_CLIENT_SECRET: z.string().optional(),
-
-
   // Email — optional
   RESEND_API_KEY: z.string().optional(),
   SMTP_HOST: z.string().optional(),

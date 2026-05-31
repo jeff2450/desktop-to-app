@@ -16,9 +16,13 @@ packages/mobile/
 │   ├── ios-builder.ts        — Full iOS build pipeline (macOS only)
 │   ├── stage-08-mobile.ts    — Drop-in pipeline stage for packages/core
 │   ├── mobile-doctor-cli.ts  — CLI extension for `npx webtoapp doctor --android`
-│   └── index.ts              — Public exports
+│   ├── index.ts              — Public exports
+│   └── __tests__/
+│       ├── doctor.test.ts         — Environment check unit tests
+│       ├── java-env.test.ts       — JDK version parsing + discovery tests
+│       └── capacitor-config.test.ts — Config generation + package.json patching tests
 ├── webtoapp.config.example.json  — Updated config with android target
-├── mobile-build.yml              — GitHub Actions workflow
+├── mobile-build.yml              — Reference copy (see .github/workflows/mobile-build.yml)
 ├── package.json
 └── tsconfig.json
 ```
@@ -99,9 +103,38 @@ npx webtoapp doctor --ios
 
 ---
 
-## Step 6 — Copy GitHub Actions workflow
+## Step 6 — CI/CD Workflow (`.github/workflows/mobile-build.yml`)
 
-Copy `mobile-build.yml` to `.github/workflows/mobile-build.yml` in your repo.
+The canonical workflow is already deployed at `.github/workflows/mobile-build.yml`
+(the `packages/mobile/mobile-build.yml` file is now a reference copy only).
+
+The workflow has **4 jobs**:
+
+| Job | Trigger | Runner | Duration |
+|-----|---------|--------|----------|
+| `mobile-unit-tests` | Every push & PR | ubuntu-latest | ~30s |
+| `gradle-health-check` | Every push & PR (needs unit tests) | ubuntu-latest | ~2 min |
+| `build-android` | Push to `main` + `workflow_dispatch` | ubuntu-latest | ~5–8 min |
+| `build-ios` | `workflow_dispatch` (ios/both) only | macos-latest | ~15–20 min |
+
+### Running unit tests locally
+
+```bash
+# Run mobile unit tests only
+pnpm --filter @webtoapp/mobile test
+
+# Watch mode during development
+pnpm --filter @webtoapp/mobile test:watch
+
+# Full monorepo test suite (includes mobile)
+pnpm turbo test
+```
+
+### Triggering a full build via `workflow_dispatch`
+
+1. Go to **Actions → Mobile Build → Run workflow**
+2. Select platform: `android`, `ios`, or `both`
+3. The APK artifact is uploaded as `webtoapp-debug-<sha>` (retained 14 days)
 
 ---
 

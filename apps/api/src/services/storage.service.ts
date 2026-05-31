@@ -80,8 +80,8 @@ export async function generateSignedUrl(key: string, expiresIn = 3600): Promise<
     );
   }
 
-  // Local: return a direct download path (the API must handle /downloads/local/:key)
-  return `/downloads/local/${encodeURIComponent(key)}`;
+  // Local: return a direct download path (handled by /api/conversions/local-file/:key)
+  return `/api/conversions/local-file/${encodeURIComponent(key)}`;
 }
 
 export async function deleteObject(key: string): Promise<void> {

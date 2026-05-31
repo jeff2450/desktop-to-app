@@ -44,7 +44,7 @@ function createWindow() {
     show: false,
   });
 
-  mainWindow.loadURL(isDev ? 'http://localhost:{{devPort}}' : 'app://./index.html');
+  mainWindow.loadURL(isDev ? 'http://localhost:{{devPort}}' : 'app://./');
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
@@ -200,7 +200,7 @@ function createWindow() {
   });
 
   // Use app:// (not file://) so fetch() to http://127.0.0.1 is not blocked as mixed content
-  mainWindow.loadURL(isDev ? 'http://localhost:{{devPort}}' : 'app://./index.html');
+  mainWindow.loadURL(isDev ? 'http://localhost:{{devPort}}' : 'app://./');
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();

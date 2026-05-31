@@ -125,6 +125,26 @@ describe("runParityStage", () => {
     await expect(runParityStage(ctx)).rejects.toThrow(/Behavior parity gate blocked/i);
   });
 
+  it("warns but does not block offline packaging for Supabase Edge Function calls", async () => {
+    await writeFile(sourceDir, "src/App.tsx", "await supabase.functions.invoke('generate-notes');");
+    await writeFile(outputDir, "src/App.tsx", "await localApi.functions.invoke('generate-notes');");
+    await writeFile(outputDir, "src/lib/localApi.ts", "export const localApi = { functions: { invoke: async () => ({ data: null, error: 'offline' }) } };");
+    await writeBuiltDist(outputDir);
+
+    const ctx = new PipelineContext({
+      config: config(sourceDir, outputDir),
+      sourceDir,
+      outputDir,
+      workDir: tmpRoot,
+    });
+    ctx.detection = detection(sourceDir, "src/App.tsx");
+    ctx.plan = plan({
+      dependenciesToRemove: ["@supabase/supabase-js"],
+    });
+
+    await expect(runParityStage(ctx)).resolves.toBeUndefined();
+  });
+
   it("passes online mode when source code and cloud env values are preserved", async () => {
     const appSource = "export function App() { return <div>Hello</div>; }";
     await writeFile(sourceDir, "src/App.tsx", appSource);

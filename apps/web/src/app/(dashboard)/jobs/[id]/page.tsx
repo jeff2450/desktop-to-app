@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { ConversionLog } from "@/components/conversion/ConversionLog";
-import { conversionsApi } from "@/lib/api-client";
+import { conversionsApi, getClientToken } from "@/lib/api-client";
 import type { Conversion, ConversionStatus } from "@/types";
 import {
   Card,
@@ -125,6 +125,7 @@ export default function JobDetailPage() {
   const [job, setJob] = useState<Conversion | null>(null);
   const [loading, setLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const [logLines, setLogLines] = useState<string[]>([]);
   const [sseConnected, setSseConnected] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
@@ -373,13 +374,27 @@ export default function JobDetailPage() {
   }, [logLines.length]);
 
   const handleDownload = async (platform: string) => {
+    setDownloadError(null);
+    // If auth hasn't bootstrapped yet the token is null — give a clear message
+    if (!getClientToken()) {
+      setDownloadError("Session not ready. Please wait a moment and try again.");
+      return;
+    }
     try {
       const res = await conversionsApi.getDownloadUrl(id, platform);
+      if (res.error) {
+        setDownloadError(
+          res.error === "UNAUTHORIZED"
+            ? "Your session has expired. Please refresh the page and log in again."
+            : `Download failed: ${res.error}`
+        );
+        return;
+      }
       if (res.data?.url) {
         window.open(res.data.url, "_blank");
       }
     } catch (err) {
-      alert("Failed to get download URL");
+      setDownloadError("Unexpected error while generating download link. Please try again.");
     }
   };
 
@@ -554,6 +569,12 @@ export default function JobDetailPage() {
                         </Button>
                       </div>
                     ))}
+                    {downloadError && (
+                      <p className="text-[11px] text-red-400 flex items-center gap-1.5 mt-1 px-1">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                        {downloadError}
+                      </p>
+                    )}
                   </div>
                 ) : job.status === "done" ? (
                   <div className="text-center py-6">
