@@ -46,11 +46,30 @@ export async function runScaffoldStage(ctx: PipelineContext): Promise<void> {
     let generated = 0;
 
     let validIconDest: string | undefined;
+    let iconSrcPath: string | undefined;
     if (ctx.config.icon) {
+      iconSrcPath = path.join(ctx.sourceDir, ctx.config.icon);
       const ext = path.extname(ctx.config.icon).toLowerCase();
       validIconDest = ext === ".ico" ? "assets/icon.ico" : "assets/icon.png";
     } else if (ctx.detection?.iconPath && ctx.detection.iconPath.toLowerCase().endsWith(".png")) {
+      iconSrcPath = path.join(ctx.sourceDir, ctx.detection.iconPath);
       validIconDest = "assets/icon.png";
+    }
+
+    if (iconSrcPath && validIconDest && validIconDest.endsWith(".png")) {
+      const dims = await getPngDimensions(iconSrcPath);
+      if (dims && (dims.width < 256 || dims.height < 256)) {
+        ctx.log(
+          "warn",
+          `App icon (${dims.width}x${dims.height}) is too small. electron-builder requires Windows icons to be at least 256x256. Falling back to default app icon to avoid build failure.`,
+          STAGE
+        );
+        ctx.config.icon = undefined;
+        if (ctx.detection) {
+          ctx.detection.iconPath = undefined;
+        }
+        validIconDest = undefined;
+      }
     }
 
     for (const filePlan of filesToGenerate) {
@@ -1859,5 +1878,38 @@ async function copyAppIcon(ctx: PipelineContext): Promise<void> {
     ctx.log("info", `Copied auto-detected icon: ${iconSrc} → assets/icon.png`, STAGE);
   } catch {
     ctx.log("warn", `Could not copy icon from ${iconSrc}`, STAGE);
+  }
+}
+
+/** Helper to read the dimensions of a PNG file by parsing the IHDR chunk. */
+async function getPngDimensions(filePath: string): Promise<{ width: number; height: number } | null> {
+  try {
+    const handle = await fs.open(filePath, "r");
+    const buffer = Buffer.alloc(24);
+    await handle.read(buffer, 0, 24, 0);
+    await handle.close();
+
+    // Check PNG signature: 89 50 4E 47 0D 0A 1A 0A
+    if (
+      buffer[0] !== 0x89 ||
+      buffer[1] !== 0x50 ||
+      buffer[2] !== 0x4e ||
+      buffer[3] !== 0x47 ||
+      buffer[4] !== 0x0d ||
+      buffer[5] !== 0x0a ||
+      buffer[6] !== 0x1a ||
+      buffer[7] !== 0x0a
+    ) {
+      return null;
+    }
+
+    // Width is at offset 16 (4 bytes, Big Endian)
+    const width = buffer.readInt32BE(16);
+    // Height is at offset 20 (4 bytes, Big Endian)
+    const height = buffer.readInt32BE(20);
+
+    return { width, height };
+  } catch {
+    return null;
   }
 }

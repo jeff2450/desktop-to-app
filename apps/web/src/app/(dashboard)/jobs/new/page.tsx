@@ -164,10 +164,31 @@ export default function NewJobPage() {
       setFieldError("Icon must be a PNG, JPG, or ICO file.");
       return;
     }
-    setFieldError(null);
-    setIconFile(file);
-    const url = URL.createObjectURL(file);
-    setIconPreview(url);
+
+    if (ext === "ico") {
+      setFieldError(null);
+      setIconFile(file);
+      const url = URL.createObjectURL(file);
+      setIconPreview(url);
+    } else {
+      const img = new window.Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        if (img.width < 256 || img.height < 256) {
+          setFieldError(`Icon must be at least 256x256 pixels. Uploaded image is ${img.width}x${img.height}px.`);
+          URL.revokeObjectURL(objectUrl);
+        } else {
+          setFieldError(null);
+          setIconFile(file);
+          setIconPreview(objectUrl);
+        }
+      };
+      img.onerror = () => {
+        setFieldError("Invalid image file. Failed to load.");
+        URL.revokeObjectURL(objectUrl);
+      };
+      img.src = objectUrl;
+    }
   };
 
   const clearIcon = () => {
