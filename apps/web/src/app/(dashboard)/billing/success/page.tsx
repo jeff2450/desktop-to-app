@@ -39,10 +39,50 @@ export default function BillingSuccessPage() {
 function BillingSuccessContent() {
   const searchParams = useSearchParams();
   const plan = (searchParams.get("plan") || "pro") as Plan;
+  const txRef =
+    searchParams.get("txRef") ||
+    searchParams.get("orderReference") ||
+    searchParams.get("order_reference");
+  const transactionId =
+    searchParams.get("transactionId") ||
+    searchParams.get("paymentReference") ||
+    searchParams.get("payment_reference") ||
+    txRef;
 
-  const [message] = useState("Your payment was processed successfully.");
-  const isChecking = false;
-  const isFailed = false;
+  const [message, setMessage] = useState("Your payment was processed successfully.");
+  const [isChecking, setIsChecking] = useState(Boolean(txRef));
+  const [isFailed, setIsFailed] = useState(false);
+
+  useEffect(() => {
+    if (!txRef || !transactionId) return;
+
+    let cancelled = false;
+
+    async function verifyClickPesaPayment() {
+      setIsChecking(true);
+      setIsFailed(false);
+
+      const result = await billingApi.verifyPayment(transactionId!, txRef!, plan);
+
+      if (cancelled) return;
+
+      if (result.data?.success) {
+        setMessage(result.data.message || "Your payment was processed successfully.");
+        setIsFailed(false);
+      } else {
+        setMessage(result.error || result.data?.message || "We could not verify the payment yet.");
+        setIsFailed(true);
+      }
+
+      setIsChecking(false);
+    }
+
+    verifyClickPesaPayment();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [plan, transactionId, txRef]);
 
   return (
     <div className="min-h-screen bg-zinc-950">
