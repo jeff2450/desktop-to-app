@@ -1,0 +1,140 @@
+[2026-05-29T10:47:03.987Z] 🔗 Cloning repository: https://github.com/jeff2450/multilingual-note-genius.git
+[2026-05-29T10:47:46.438Z] ▶ Starting build for platform: windows
+[2026-05-29T10:47:46.460Z] No existing output directory — skipping backup
+[2026-05-29T10:47:46.456Z] WebToApp conversion started
+[2026-05-29T10:47:46.457Z] Targets: windows
+[2026-05-29T10:47:46.457Z] Mode:    online
+[2026-05-29T10:47:46.456Z] Source:  C:\Users\JEFF-PC\AppData\Local\Temp\webtoapp-cmpqsrzd20003eens6kyt0cnq-Q9AzQH\source
+[2026-05-29T10:47:46.559Z] [00-preflight] ✅ Config schema valid
+[2026-05-29T10:47:46.457Z] Output:  C:\Users\JEFF-PC\AppData\Local\Temp\webtoapp-cmpqsrzd20003eens6kyt0cnq-Q9AzQH\output-windows
+[2026-05-29T10:47:46.461Z] [00-preflight] Starting stage: 00-preflight
+[2026-05-29T10:47:46.576Z] [00-preflight] ✅ Pre-flight checks passed
+[2026-05-29T10:47:46.578Z] [01-detect] Starting stage: 01-detect
+[2026-05-29T10:47:46.576Z] [00-preflight] Stage complete: 00-preflight (115ms)
+[2026-05-29T10:47:46.791Z] [01-detect] Icon auto-detected: public/favicon.ico
+[2026-05-29T10:47:46.793Z] [01-detect] Path aliases: @
+[2026-05-29T10:47:46.795Z] [01-detect] Framework:  react
+[2026-05-29T10:47:46.795Z] [01-detect] Backend:    supabase
+[2026-05-29T10:47:46.796Z] [01-detect] Auth:       supabase
+[2026-05-29T10:47:46.795Z] [01-detect] Bundler:    vite
+[2026-05-29T10:47:46.801Z] [02-plan] Deps to remove:     none
+[2026-05-29T10:47:46.798Z] [02-plan] Conversion mode: online
+[2026-05-29T10:47:46.796Z] [01-detect] Stage complete: 01-detect (218ms)
+[2026-05-29T10:47:46.801Z] [02-plan] Online mode — Electron wrapper only. Cloud backend (Supabase/Firebase) kept as-is. Internet required.
+[2026-05-29T10:47:46.801Z] [02-plan] Stage complete: 02-plan (4ms)
+[2026-05-29T10:47:46.796Z] [01-detect] Confidence: 100%
+[2026-05-29T10:47:46.801Z] [02-plan] Deps to add:        electron, electron-updater
+[2026-05-29T10:47:46.801Z] [02-plan] Files to transform: 0
+[2026-05-29T10:47:46.796Z] [01-detect] Tables:     none detected
+[2026-05-29T10:47:46.803Z] [03-transform] Starting stage: 03-transform
+[2026-05-29T10:47:46.801Z] [02-plan] Files to copy:      71
+[2026-05-29T10:47:46.801Z] [02-plan] Files to generate:  3
+[2026-05-29T10:47:46.797Z] [02-plan] Starting stage: 02-plan
+[2026-05-29T10:47:47.087Z] [03-transform] Copied public/ assets
+[2026-05-29T10:47:47.112Z] [03-transform] Copied asset: postcss.config.js
+[2026-05-29T10:47:47.117Z] [03-transform] Copied asset: tailwind.config.ts
+[2026-05-29T10:47:47.123Z] [03-transform] Copied asset: tsconfig.json
+[2026-05-29T10:47:47.127Z] [03-transform] Copied asset: tsconfig.app.json
+[2026-05-29T10:47:47.132Z] [03-transform] Copied asset: tsconfig.node.json
+[2026-05-29T10:47:47.140Z] [03-transform] Copied asset: .env
+[2026-05-29T10:47:47.143Z] [03-transform] Copied src/ assets and config files
+[2026-05-29T10:47:47.205Z] [03-transform] Transformed: 0 files
+[2026-05-29T10:47:47.205Z] [03-transform] Copied:      71 files
+[2026-05-29T10:47:47.205Z] [03-transform] Stage complete: 03-transform (402ms)
+[2026-05-29T10:47:47.206Z] [04-scaffold] Starting stage: 04-scaffold
+[2026-05-29T10:47:47.212Z] [04-scaffold] Generated: electron/main.cjs
+[2026-05-29T10:47:47.216Z] [04-scaffold] Generated: electron/preload.cjs
+[2026-05-29T10:47:47.232Z] [04-scaffold] Generated: electron-builder.yml
+[2026-05-29T10:47:47.240Z] [04-scaffold] Added missing author field to package.json
+[2026-05-29T10:47:47.240Z] [04-scaffold] Could not read output package.json — creating new one
+[2026-05-29T10:47:47.240Z] [04-scaffold] Injected postinstall script for native module rebuild
+[2026-05-29T10:47:47.244Z] [04-scaffold] Patched package.json using migration plan
+[2026-05-29T10:47:47.252Z] [04-scaffold] No valid PNG app icon auto-detected. electron-builder will use the default blank icon.
+[2026-05-29T10:47:47.252Z] [04-scaffold] Generated .env (online mode - cloud credentials preserved)
+[2026-05-29T10:47:47.253Z] [04-scaffold] Scaffolded 3 files
+[2026-05-29T10:47:47.253Z] [04-scaffold] Stage complete: 04-scaffold (47ms)
+[2026-05-29T10:47:47.254Z] [05-install] Starting stage: 05-install
+[2026-05-29T10:47:47.263Z] [05-install] Moved electron from dependencies → devDependencies
+[2026-05-29T10:47:47.271Z] [05-install] Wrote output package.json
+[2026-05-29T10:47:47.271Z] [05-install] Running npm install in output project...
+[2026-05-29T10:51:43.875Z] [05-install] added 693 packages in 4m
+[2026-05-29T10:51:43.875Z] [05-install]   run `npm fund` for details
+[2026-05-29T10:51:43.876Z] [05-install] npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+[2026-05-29T10:51:43.875Z] [05-install] npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.13.0 || >=24' },
+[2026-05-29T10:51:43.876Z] [05-install] npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+[2026-05-29T10:51:43.877Z] [05-install] npm warn deprecated boolean@3.2.0: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
+[2026-05-29T10:51:43.876Z] [05-install] npm warn skipping integrity check for git dependency ssh://git@github.com/electron/node-gyp.git
+[2026-05-29T10:51:43.877Z] [05-install] npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+[2026-05-29T10:51:43.876Z] [05-install] npm warn deprecated glob@8.1.0: Glob versions prior to v9 are no longer supported
+[2026-05-29T10:51:43.877Z] [05-install] npm install complete
+[2026-05-29T10:51:43.876Z] [05-install] npm warn deprecated @npmcli/move-file@2.0.1: This functionality has been moved to @npmcli/fs
+[2026-05-29T10:51:43.876Z] [05-install] npm warn EBADENGINE   current: { node: 'v20.18.0', npm: '10.8.2' }
+[2026-05-29T10:51:43.876Z] [05-install] npm warn EBADENGINE }
+[2026-05-29T10:51:43.876Z] [05-install] npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+[2026-05-29T10:51:43.875Z] [05-install] npm warn EBADENGINE Unsupported engine {
+[2026-05-29T10:51:43.876Z] [05-install] npm warn deprecated lodash.isequal@4.5.0: This package is deprecated. Use require('node:util').isDeepStrictEqual instead.
+[2026-05-29T10:51:43.875Z] [05-install] 129 packages are looking for funding
+[2026-05-29T10:51:43.877Z] [05-install] Running npm audit fix (production deps only)...
+[2026-05-29T10:51:43.875Z] [05-install] npm warn EBADENGINE   package: 'eslint-visitor-keys@5.0.1',
+[2026-05-29T10:52:06.152Z] [05-install] Stage complete: 05-install (258898ms)
+[2026-05-29T10:52:06.152Z] [05-install] npm audit fix reported issues — run `npm audit` in the output project to review. Continuing...
+[2026-05-29T10:52:06.156Z] [06-build] vite not found in node_modules — installing it
+[2026-05-29T10:52:06.153Z] [06-build] Starting stage: 06-build
+[2026-05-29T10:53:02.397Z] [06-build] @vitejs/plugin-react not found in node_modules — installing it
+[2026-05-29T10:53:02.396Z] [06-build] vite installed
+[2026-05-29T10:53:14.806Z] [06-build] @vitejs/plugin-react installed
+[2026-05-29T10:53:14.812Z] [06-build] Copied index.html from source project
+[2026-05-29T10:53:14.821Z] [06-build] Generated clean vite.config.ts from scratch
+[2026-05-29T10:53:14.859Z] [06-build] Running vite build...
+[2026-05-29T10:53:14.862Z] [06-build] Running: "C:\Users\JEFF-PC\AppData\Local\Temp\webtoapp-cmpqsrzd20003eens6kyt0cnq-Q9AzQH\output-windows\node_modules\.bin\vite.cmd" build
+[2026-05-29T10:53:36.165Z] [06-build] Vite build complete — dist/ ready
+[2026-05-29T10:53:36.159Z] [06-build] transforming...
+[2026-05-29T10:53:36.159Z] [06-build] vite v5.4.21 building for production...
+[2026-05-29T10:53:36.160Z] [06-build] dist/assets/index-BjNEITOH.js            1,051.82 kB │ gzip: 321.79 kB
+[2026-05-29T10:53:36.160Z] [06-build] dist/assets/html2canvas.esm-CBrSDip1.js    201.42 kB │ gzip:  48.03 kB
+[2026-05-29T10:53:36.160Z] [06-build] ✓ built in 19.91s
+[2026-05-29T10:53:36.160Z] [06-build] (!) Some chunks are larger than 500 kB after minification. Consider:
+[2026-05-29T10:53:36.160Z] [06-build] - Using dynamic import() to code-split the application
+[2026-05-29T10:53:36.159Z] [06-build] ✓ 2188 modules transformed.
+[2026-05-29T10:53:36.160Z] [06-build] 
+[2026-05-29T10:53:36.160Z] [06-build] - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+[2026-05-29T10:53:36.161Z] [06-build] - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+[2026-05-29T10:53:36.159Z] [06-build] rendering chunks...
+[2026-05-29T10:53:36.160Z] [06-build] dist/assets/purify.es-BSKMTLSQ.js           26.41 kB │ gzip:   9.94 kB
+[2026-05-29T10:53:36.172Z] [06b-parity] Starting stage: 06b-parity
+[2026-05-29T10:53:36.159Z] [06-build] dist/index.html                              0.81 kB │ gzip:   0.48 kB
+[2026-05-29T10:53:36.169Z] [06-build] Stripped known injected preview scripts from dist/index.html
+[2026-05-29T10:53:36.170Z] [06-build] Stage complete: 06-build (90017ms)
+[2026-05-29T10:53:36.159Z] [06-build] computing gzip size...
+[2026-05-29T10:53:36.160Z] [06-build] dist/assets/index.es-CmDIA69_.js           150.69 kB │ gzip:  51.55 kB
+[2026-05-29T10:53:36.159Z] [06-build] dist/assets/index-ILGdh5P4.css              65.23 kB │ gzip:  11.28 kB
+[2026-05-29T10:53:36.416Z] [07-package] Rebuilding native modules for Electron...
+[2026-05-29T10:53:36.416Z] [07-package] Starting stage: 07-package
+[2026-05-29T10:53:36.414Z] [06b-parity] Stage complete: 06b-parity (242ms)
+[2026-05-29T10:53:36.414Z] [06b-parity] Behavior parity gate passed
+[2026-05-29T10:53:36.420Z] [07-package] Electron version: 31.0.0
+[2026-05-29T10:53:36.432Z] [07-package] [packager] Starting electron-builder for Voice v1.0.0
+[2026-05-29T10:53:36.430Z] [07-package] Packaging with electron-builder...
+[2026-05-29T10:53:36.433Z] [07-package] [packager] Running electron-builder for target --win...
+[2026-05-29T10:53:36.433Z] [07-package] [packager] Targets: windows
+[2026-05-29T10:53:36.429Z] [07-package] [native-deps] No native modules found — skipping rebuild
+[2026-05-29T10:55:26.874Z] [07-package]   • loaded configuration  file=C:\Users\JEFF-PC\AppData\Local\Temp\webtoapp-cmpqsrzd20003eens6kyt0cnq-Q9AzQH\output-windows\electron-builder.yml
+[2026-05-29T10:55:26.873Z] [07-package]   • electron-builder  version=24.13.3 os=10.0.26200
+[2026-05-29T10:55:26.874Z] [07-package] 
+[2026-05-29T10:55:26.874Z] [07-package] To ensure your native dependencies are always matched electron version, simply add script `"postinstall": "electron-builder install-app-deps" to your `package.json`
+[2026-05-29T10:55:26.874Z] [07-package]   • default Electron icon is used  reason=application icon is not set
+[2026-05-29T10:55:26.874Z] [07-package]   • @electron/rebuild not required if you use electron-builder, please consider to remove excess dependency from devDependencies
+[2026-05-29T10:55:26.874Z] [07-package]   • packaging       platform=win32 arch=x64 electron=31.0.0 appOutDir=release\win-unpacked
+[2026-05-29T10:55:26.874Z] [07-package] 
+[2026-05-29T10:55:26.874Z] [07-package]   • building        target=nsis file=release\Voice Setup 1.0.0.exe archs=x64 oneClick=false perMachine=false
+[2026-05-29T10:55:26.874Z] [07-package]   • file source doesn't exist  from=C:\Users\JEFF-PC\AppData\Local\Temp\webtoapp-cmpqsrzd20003eens6kyt0cnq-Q9AzQH\output-windows\backend
+[2026-05-29T10:55:26.874Z] [07-package]   • building block map  blockMapFile=release\Voice Setup 1.0.0.exe.blockmap
+[2026-05-29T10:55:26.878Z] [07-package] [packager] Done. 1 installer(s) produced.
+[2026-05-29T10:55:26.879Z] [07-package] Stage complete: 07-package (110463ms)
+[2026-05-29T10:55:26.878Z] [07-package]   → C:\Users\JEFF-PC\AppData\Local\Temp\webtoapp-cmpqsrzd20003eens6kyt0cnq-Q9AzQH\output-windows\release\Voice Setup 1.0.0.exe
+[2026-05-29T10:55:26.880Z] [07b-mobile] Stage skipped: 07b-mobile — No mobile targets requested
+[2026-05-29T10:55:26.879Z] [07-package] Installer ready: C:\Users\JEFF-PC\AppData\Local\Temp\webtoapp-cmpqsrzd20003eens6kyt0cnq-Q9AzQH\output-windows\release\Voice Setup 1.0.0.exe
+[2026-05-29T10:55:26.893Z] Conversion complete — backup removed
+[2026-05-29T10:55:26.985Z] 📄 Migration report: webtoapp-report.html
+[2026-05-29T10:55:26.995Z] ↑ Uploading artifact: Voice Setup 1.0.0.exe
+[2026-05-29T10:55:31.885Z] ✗ Worker error: The AWS Access Key Id you provided does not exist in our records.

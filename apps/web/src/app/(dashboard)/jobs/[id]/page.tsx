@@ -32,6 +32,14 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 
+function getLogLineKey(line: any): string {
+  if (typeof line === "string") return line;
+  if (line && typeof line === "object") {
+    return `${line.ts ?? ""}-${line.stage ?? ""}-${line.message ?? ""}`;
+  }
+  return String(line);
+}
+
 // ─── Pipeline stage map ──────────────────────────────────────────────────────
 
 const STAGE_ORDER: ConversionStatus[] = [
@@ -122,6 +130,13 @@ export default function JobDetailPage() {
   const logEndRef = useRef<HTMLDivElement>(null);
   const esRef = useRef<EventSource | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const logLinesSetRef = useRef<Set<string>>(new Set());
+
+  // Reset logs and unique cache when job ID changes
+  useEffect(() => {
+    setLogLines([]);
+    logLinesSetRef.current.clear();
+  }, [id]);
 
   const [countdown, setCountdown] = useState<number | null>(null);
   const lastJobIdRef = useRef<string | null>(null);
@@ -241,6 +256,10 @@ export default function JobDetailPage() {
         setJob(res.data);
         // Seed log from liveLogLines on first load
         if (res.data.liveLogLines && res.data.liveLogLines.length > 0) {
+          logLinesSetRef.current.clear();
+          res.data.liveLogLines.forEach((line) => {
+            logLinesSetRef.current.add(getLogLineKey(line));
+          });
           setLogLines(res.data.liveLogLines);
         }
       }
@@ -255,20 +274,50 @@ export default function JobDetailPage() {
     fetchJob();
   }, [fetchJob]);
 
+  // ── Fallback polling ──────────────────────────────────────────────────────
+  const startPolling = useCallback(() => {
+    if (pollRef.current) return; // already polling
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await conversionsApi.get(id);
+        if (res.data) {
+          setJob(res.data);
+          if (res.data.liveLogLines && res.data.liveLogLines.length > 0) {
+            logLinesSetRef.current.clear();
+            res.data.liveLogLines.forEach((line) => {
+              logLinesSetRef.current.add(getLogLineKey(line));
+            });
+            setLogLines(res.data.liveLogLines);
+          }
+          if (TERMINAL_STATUSES.includes(res.data.status)) {
+            clearInterval(pollRef.current!);
+            pollRef.current = null;
+          }
+        }
+      } catch (err) {
+        console.error("Polling error:", err);
+      }
+    }, 3000);
+  }, [id]);
+
   // ── SSE stream ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!job) return;
     if (TERMINAL_STATUSES.includes(job.status)) return;
 
-    // Close any existing stream
+    // Do not reconnect if the EventSource is already active
     if (esRef.current) {
-      esRef.current.close();
-      esRef.current = null;
+      return;
     }
 
     const es = conversionsApi.streamLogs(id, (event) => {
       if (event.type === "log" && event.line) {
-        setLogLines((prev) => [...prev, event.line!]);
+        const line = event.line;
+        const key = getLogLineKey(line);
+        if (!logLinesSetRef.current.has(key)) {
+          logLinesSetRef.current.add(key);
+          setLogLines((prev) => [...prev, line]);
+        }
       }
       if (event.type === "status" && event.status) {
         setJob((prev) =>
@@ -309,30 +358,7 @@ export default function JobDetailPage() {
       esRef.current = null;
       setSseConnected(false);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, job?.status]);
-
-  // ── Fallback polling ──────────────────────────────────────────────────────
-  function startPolling() {
-    if (pollRef.current) return; // already polling
-    pollRef.current = setInterval(async () => {
-      try {
-        const res = await conversionsApi.get(id);
-        if (res.data) {
-          setJob(res.data);
-          if (res.data.liveLogLines && res.data.liveLogLines.length > 0) {
-            setLogLines(res.data.liveLogLines);
-          }
-          if (TERMINAL_STATUSES.includes(res.data.status)) {
-            clearInterval(pollRef.current!);
-            pollRef.current = null;
-          }
-        }
-      } catch (err) {
-        console.error("Polling error:", err);
-      }
-    }, 3000);
-  }
+  }, [id, job === null, fetchJob, startPolling]);
 
   useEffect(() => {
     return () => {

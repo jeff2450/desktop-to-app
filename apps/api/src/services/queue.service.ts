@@ -6,6 +6,8 @@ export interface ConversionQueuePayload {
   jobId: string;
   /** Absolute path to uploaded zip (set when job was created via file upload) */
   zipPath?: string;
+  /** Absolute path to uploaded icon PNG/ICO (optional) */
+  iconPath?: string;
 }
 
 // ── Redis connection (lazy / fault-tolerant) ──────────────────────────────────

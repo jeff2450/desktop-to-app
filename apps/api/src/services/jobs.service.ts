@@ -24,6 +24,7 @@ export async function createJobFromUpload(input: {
   plan: Plan;
   zipPath: string;      // absolute path to uploaded zip on disk
   zipName: string;      // original filename shown to user
+  iconPath?: string;    // optional path to uploaded icon file on disk
   config: WebToAppConfig;
   platforms: string[];
 }): Promise<{ job: Job; estimatedWait: number }> {
@@ -40,7 +41,7 @@ export async function createJobFromUpload(input: {
     },
   });
 
-  await addJob({ jobId: job.id, zipPath: input.zipPath }, policy.priority);
+  await addJob({ jobId: job.id, zipPath: input.zipPath, iconPath: input.iconPath }, policy.priority);
   const estimatedWait = await estimateWaitSeconds();
 
   return { job, estimatedWait };
@@ -54,6 +55,7 @@ export async function createJob(input: {
   sourceRepo: string;
   config: WebToAppConfig;
   platforms: string[];
+  iconPath?: string;    // optional path to uploaded icon file on disk
 }): Promise<{ job: Job; estimatedWait: number }> {
   const policy = PLAN_LIMITS[input.plan];
   await assertPlanLimits(input.userId, input.plan, policy, input.platforms);
@@ -68,7 +70,7 @@ export async function createJob(input: {
     },
   });
 
-  await addJob({ jobId: job.id }, policy.priority);
+  await addJob({ jobId: job.id, iconPath: input.iconPath }, policy.priority);
   const estimatedWait = await estimateWaitSeconds();
 
   return { job, estimatedWait };

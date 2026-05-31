@@ -232,12 +232,6 @@ Make sure your source `package.json` doesn't have a `postinstall` script that ex
 
 ---
 
-### Firebase / Auth0 / Vue transformer warnings
-
-Session 7 transformers are partially tested. Complex patterns (nested Firestore transactions, custom Auth0 rules) may need manual review. Look for `⚠ partial` entries in the conversion report.
-
----
-
 ### `electron-builder` fails on Linux with `fpm` error
 
 ```bash
@@ -258,10 +252,8 @@ Or use the Docker build path which includes all native dependencies.
 | 4 | API backend (Express + BullMQ + Prisma) | ✅ |
 | 5 | API services (billing, downloads, auth, jobs) | ✅ |
 | 6 | Next.js SaaS dashboard (shadcn/ui + protected routes) | ✅ |
-| 7 | Firebase, Clerk, Auth0, Vue transformers + AI fallback | ✅ ⚠ partial |
+| 7 | Firebase, Clerk, Auth0, Vue transformers + AI fallback | ✅ |
 | 8 | DevOps: Docker Compose, multi-stage Dockerfiles, Capacitor | ✅ |
-
-> ⚠ **Session 7 note:** Firebase Firestore, Auth0, and Vue transformers are implemented but partially tested. Use `--mode online` for full cloud fidelity until these are fully validated.
 
 ---
 

@@ -35,8 +35,8 @@ Route (app)                              Size     First Load JS
 ├ ○ /dashboard                           6.53 kB         116 kB
 ├ ○ /docs                                10.8 kB         118 kB
 ├ ○ /jobs                                4.71 kB         114 kB
-├ ƒ /jobs/[id]                           10.6 kB         120 kB
-├ ○ /jobs/new                            10.1 kB         125 kB
+├ ƒ /jobs/[id]                           10.8 kB         120 kB
+├ ○ /jobs/new                            11.1 kB         126 kB
 ├ ○ /login                               3.47 kB         113 kB
 ├ ○ /pricing                             857 B          97.1 kB
 ├ ○ /register                            3.74 kB         113 kB

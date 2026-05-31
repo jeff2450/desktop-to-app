@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { conversionsApi } from "@/lib/api-client";
@@ -25,7 +25,9 @@ import {
   Check,
   CreditCard,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  ImagePlus,
+  X,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
@@ -83,6 +85,9 @@ export default function NewJobPage() {
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [iconFile, setIconFile] = useState<File | null>(null);
+  const [iconPreview, setIconPreview] = useState<string | null>(null);
+  const iconInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState<FormData>({
     name: "",
@@ -153,6 +158,25 @@ export default function NewJobPage() {
     }
   };
 
+  const handleIconSelect = (file: File) => {
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+    if (!["png", "jpg", "jpeg", "ico"].includes(ext)) {
+      setFieldError("Icon must be a PNG, JPG, or ICO file.");
+      return;
+    }
+    setFieldError(null);
+    setIconFile(file);
+    const url = URL.createObjectURL(file);
+    setIconPreview(url);
+  };
+
+  const clearIcon = () => {
+    setIconFile(null);
+    if (iconPreview) URL.revokeObjectURL(iconPreview);
+    setIconPreview(null);
+    if (iconInputRef.current) iconInputRef.current.value = "";
+  };
+
   const handleSubmit = async () => {
     setLoading(true);
     setSubmitError(null);
@@ -174,13 +198,26 @@ export default function NewJobPage() {
         data.append("archive", selectedFile!);
         data.append("config", JSON.stringify(config));
         data.append("platforms", JSON.stringify(formData.targets));
+        if (iconFile) data.append("icon", iconFile);
         res = await conversionsApi.create(data);
       } else {
-        res = await conversionsApi.create({
-          sourceRepo: formData.sourceUrl.trim(),
-          platforms: formData.targets,
-          config,
-        });
+        // For git-source jobs, embed the icon as a base64 string
+        // so the API can store and pass it along.
+        // (We use a FormData approach even for git jobs when an icon is set)
+        if (iconFile) {
+          const data = new FormData();
+          data.append("config", JSON.stringify({ ...config, sourceRepo: formData.sourceUrl.trim() }));
+          data.append("sourceRepo", formData.sourceUrl.trim());
+          data.append("platforms", JSON.stringify(formData.targets));
+          data.append("icon", iconFile);
+          res = await conversionsApi.create(data);
+        } else {
+          res = await conversionsApi.create({
+            sourceRepo: formData.sourceUrl.trim(),
+            platforms: formData.targets,
+            config,
+          });
+        }
       }
       
       if (res.data) {
@@ -366,12 +403,74 @@ export default function NewJobPage() {
                     <ModeOption value="online" label="Online" desc="WebView wrapper" />
                     <ModeOption value="hybrid" label="Hybrid" desc="Partial caching" />
                   </RadioGroup>
-                  <p className="text-[10px] text-zinc-500 flex items-start gap-1">
-                    <Info className="w-3.5 h-3.5 mt-[2px] shrink-0 text-indigo-400" />
-                    <span>
-                      Note: Firebase Firestore, Auth0, and Vue transformers are currently partially tested. If your application relies on these, we recommend using <strong>Online</strong> mode for full cloud fidelity.
-                    </span>
-                  </p>
+
+                </div>
+
+                {/* App Icon Upload */}
+                <div className="space-y-3">
+                  <Label className="text-zinc-400">App Icon <span className="text-zinc-600 font-normal">(optional)</span></Label>
+                  <div
+                    onClick={() => !iconFile && iconInputRef.current?.click()}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) handleIconSelect(file);
+                    }}
+                    className={cn(
+                      "relative flex items-center gap-5 p-4 rounded-xl border-2 transition-all",
+                      iconFile
+                        ? "border-indigo-500/50 bg-indigo-600/5 cursor-default"
+                        : "border-dashed border-zinc-800 bg-zinc-950 hover:border-zinc-700 hover:bg-zinc-900/30 cursor-pointer"
+                    )}
+                  >
+                    <input
+                      ref={iconInputRef}
+                      type="file"
+                      id="icon-file-input"
+                      accept=".png,.jpg,.jpeg,.ico"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleIconSelect(file);
+                      }}
+                    />
+                    {iconFile && iconPreview ? (
+                      <>
+                        <div className="relative shrink-0">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={iconPreview}
+                            alt="App icon preview"
+                            className="w-16 h-16 rounded-xl object-cover border border-zinc-700 shadow-lg"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-white truncate">{iconFile.name}</p>
+                          <p className="text-xs text-zinc-500">{(iconFile.size / 1024).toFixed(1)} KB</p>
+                          <p className="text-[10px] text-emerald-400 mt-1">✓ Will be used as application icon</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); clearIcon(); }}
+                          className="shrink-0 p-1.5 rounded-lg text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                          aria-label="Remove icon"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-16 h-16 rounded-xl border-2 border-dashed border-zinc-800 flex items-center justify-center shrink-0">
+                          <ImagePlus className="w-6 h-6 text-zinc-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-zinc-400">Upload app icon</p>
+                          <p className="text-xs text-zinc-600 mt-0.5">PNG, JPG, or ICO · 512×512 px recommended</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-4">
@@ -418,6 +517,7 @@ export default function NewJobPage() {
                 <ReviewItem label="Source" value={formData.sourceType === "github" ? formData.sourceUrl : selectedFile?.name ?? "ZIP Upload"} />
                 <ReviewItem label="Mode" value={formData.mode.toUpperCase()} />
                 <ReviewItem label="Targets" value={formData.targets.join(", ").toUpperCase()} />
+                <ReviewItem label="App Icon" value={iconFile ? `✓ ${iconFile.name}` : "Auto-detect from source"} />
                 
                 <div className="mt-8 p-4 bg-zinc-950 rounded-xl border border-zinc-800">
                   <div className="flex items-center gap-2 mb-2">

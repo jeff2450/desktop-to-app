@@ -106,6 +106,17 @@ async function runWorkerJob(payload: ConversionQueuePayload): Promise<void> {
     );
     await setJobProgress(jobRecord.id, PROGRESS.SOURCE);
 
+    // ── Inject user-supplied icon into sourceDir ───────────────────────────────
+    let overrideIconRelPath: string | undefined;
+    if (payload.iconPath && fs.existsSync(payload.iconPath)) {
+      const iconExt = path.extname(payload.iconPath).toLowerCase();
+      const iconDestName = iconExt === ".ico" ? "_webtoapp_icon.ico" : "_webtoapp_icon.png";
+      const iconDest = path.join(sourceDir, iconDestName);
+      await fsp.copyFile(payload.iconPath, iconDest);
+      overrideIconRelPath = iconDestName;
+      await log(`🖼 App icon uploaded — will be used as the application icon`);
+    }
+
     const rawConfig = jobRecord.config as unknown as WebToAppConfig;
     const requestedPlatforms = jobRecord.platforms;
     const buildablePlatforms = requestedPlatforms.filter(isPlatformBuildable);
@@ -168,6 +179,8 @@ async function runWorkerJob(payload: ConversionQueuePayload): Promise<void> {
           database: { type: "sqlite" },
           cleanLogs: false,
           mobile: rawConfig.mobile,
+          // Use user-supplied icon if provided, otherwise fall back to config field
+          icon: overrideIconRelPath ?? rawConfig.icon,
         },
         {
           onLog: async (entry) => {
@@ -276,6 +289,10 @@ async function runWorkerJob(payload: ConversionQueuePayload): Promise<void> {
     // Clean up uploaded zip if it was a file upload
     if (payload.zipPath) {
       await fsp.unlink(payload.zipPath).catch(() => {/* already gone */});
+    }
+    // Clean up uploaded icon
+    if (payload.iconPath) {
+      await fsp.unlink(payload.iconPath).catch(() => {/* already gone */});
     }
   }
 }

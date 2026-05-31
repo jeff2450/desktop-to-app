@@ -1,18 +1,23 @@
-import type { SourceFile } from "ts-morph";
+import { SyntaxKind, type SourceFile, type CallExpression, type Node } from "ts-morph";
 import { BaseTransformer, type TransformContext, type TransformResult } from "../base/BaseTransformer.js";
 
 /**
- * Rewrites Firebase Firestore calls to the local REST API.
+ * Rewrites Firebase Firestore calls to the local REST API using AST node
+ * traversal via ts-morph. This replaces the previous regex-based approach
+ * with a syntax-agnostic, formatting-resilient implementation that correctly
+ * handles aliased variable names, multi-line expressions, and nested calls.
  *
  * Firebase → localApi mapping:
- *   getDoc(doc(db, 'col', id))           → GET  /api/col/:id
- *   getDocs(collection(db, 'col'))        → GET  /api/col
- *   getDocs(query(col, where(...)))       → GET  /api/col?field=value
- *   addDoc(collection(db, 'col'), data)   → POST /api/col
- *   setDoc(doc(db, 'col', id), data)      → PUT  /api/col/:id
- *   updateDoc(doc(db, 'col', id), data)   → PUT  /api/col/:id
- *   deleteDoc(doc(db, 'col', id))         → DELETE /api/col/:id
- *   onSnapshot(...)                       → SSE subscribe
+ *   getDoc(doc(db, 'col', id))                         → localApi.from('col').eq('id', id).single()
+ *   getDocs(collection(db, 'col'))                     → localApi.from('col').select()
+ *   getDocs(query(col, where('f','==',v)))             → localApi.from('col').eq('f', v).select()
+ *   getDocs(query(col, where(...), limit(n)))          → localApi.from('col').eq(...).limit(n).select()
+ *   getDocs(query(col, where(...), orderBy('f','d')))  → localApi.from('col').eq(...).order('f','d').select()
+ *   addDoc(collection(db, 'col'), data)                → localApi.from('col').insert(data)
+ *   setDoc(doc(db, 'col', id), data)                   → localApi.from('col').upsert({ id, ...data })
+ *   updateDoc(doc(db, 'col', id), data)                → localApi.from('col').eq('id', id).update(data)
+ *   deleteDoc(doc(db, 'col', id))                      → localApi.from('col').eq('id', id).delete()
+ *   onSnapshot(collection(...)/doc(...), callback)     → localApi.subscribe('col', callback)
  */
 export class FirestoreTransformer extends BaseTransformer {
   canTransform(content: string): boolean {
@@ -24,7 +29,8 @@ export class FirestoreTransformer extends BaseTransformer {
       content.includes("addDoc(") ||
       content.includes("setDoc(") ||
       content.includes("updateDoc(") ||
-      content.includes("deleteDoc(")
+      content.includes("deleteDoc(") ||
+      content.includes("onSnapshot(")
     );
   }
 
@@ -36,136 +42,406 @@ export class FirestoreTransformer extends BaseTransformer {
     const warnings: string[] = [];
     let confidence = 0.80;
 
-    let text = sourceFile.getFullText();
+    // ── 1. Remove Firebase imports ────────────────────────────────────────────
+    this.removeFirebaseImports(sourceFile, changes);
 
-    // ── Remove Firebase imports ────────────────────────────────────
-    text = text.replace(
-      /import\s*\{[^}]+\}\s*from\s*['"]firebase\/firestore['"];?\n?/g,
-      ""
-    );
-    text = text.replace(
-      /import\s*\{[^}]+\}\s*from\s*['"]firebase\/app['"];?\n?/g,
-      ""
-    );
-    text = text.replace(
-      /import\s*\{[^}]+\}\s*from\s*['"]firebase\/auth['"];?\n?/g,
-      ""
-    );
+    // ── 2. Add localApi import ────────────────────────────────────────────────
+    this.addImport(sourceFile, "@/lib/localApi", ["localApi"]);
+    changes.push("Added localApi import");
 
-    // Add localApi import at top
-    if (!text.includes("localApi")) {
-      text = `import { localApi } from '@/lib/localApi';\n` + text;
-      changes.push("Added localApi import");
-    }
+    // ── 3. Remove Firebase initialisation statements ──────────────────────────
+    this.removeInitialisers(sourceFile, changes);
 
-    // ── Remove Firebase init references ───────────────────────────
-    text = text.replace(/const\s+db\s*=\s*getFirestore\([^)]*\);?\n?/g, "");
-    text = text.replace(/const\s+app\s*=\s*initializeApp\([^)]*\);?\n?/g, "");
-    changes.push("Removed Firebase initialisation");
+    // ── 4. Rewrite Firestore CallExpressions (AST traversal) ─────────────────
+    this.rewriteFirestoreCalls(sourceFile, changes, warnings);
 
-    // ── getDoc ────────────────────────────────────────────────────
-    // const snap = await getDoc(doc(db, 'users', id))
-    // → const snap = await localApi.from('users').eq('id', id).single()
-    text = text.replace(
-      /await\s+getDoc\s*\(\s*doc\s*\(\s*\w+\s*,\s*['"`](\w+)['"`]\s*,\s*([^)]+)\)\s*\)/g,
-      (_m, col: string, id: string) => {
-        changes.push(`Rewrote getDoc() on '${col}'`);
-        return `await localApi.from('${col}').eq('id', ${id.trim()}).single()`;
-      }
-    );
+    // ── 5. Rewrite snapshot data accessors (safe simple tokens) ───────────────
+    this.rewriteSnapshotAccessors(sourceFile, changes);
 
-    // ── getDocs(collection) ───────────────────────────────────────
-    text = text.replace(
-      /await\s+getDocs\s*\(\s*collection\s*\(\s*\w+\s*,\s*['"`](\w+)['"`]\s*\)\s*\)/g,
-      (_m, col: string) => {
-        changes.push(`Rewrote getDocs(collection()) on '${col}'`);
-        return `await localApi.from('${col}').select()`;
-      }
-    );
-
-    // ── getDocs(query with where) ─────────────────────────────────
-    // getDocs(query(collection(db, 'col'), where('field', '==', val)))
-    text = text.replace(
-      /await\s+getDocs\s*\(\s*query\s*\(\s*collection\s*\(\s*\w+\s*,\s*['"`](\w+)['"`]\s*\)\s*,\s*where\s*\(\s*['"`](\w+)['"`]\s*,\s*['"`]==['"`]\s*,\s*([^)]+)\)\s*\)\s*\)/g,
-      (_m, col: string, field: string, val: string) => {
-        changes.push(`Rewrote getDocs(query(where())) on '${col}'`);
-        return `await localApi.from('${col}').eq('${field}', ${val.trim()}).select()`;
-      }
-    );
-
-    // ── addDoc ────────────────────────────────────────────────────
-    text = text.replace(
-      /await\s+addDoc\s*\(\s*collection\s*\(\s*\w+\s*,\s*['"`](\w+)['"`]\s*\)\s*,\s*([^)]+)\)/g,
-      (_m, col: string, data: string) => {
-        changes.push(`Rewrote addDoc() on '${col}'`);
-        return `await localApi.from('${col}').insert(${data.trim()})`;
-      }
-    );
-
-    // ── setDoc ────────────────────────────────────────────────────
-    text = text.replace(
-      /await\s+setDoc\s*\(\s*doc\s*\(\s*\w+\s*,\s*['"`](\w+)['"`]\s*,\s*([^,)]+)\)\s*,\s*([^)]+)\)/g,
-      (_m, col: string, id: string, data: string) => {
-        changes.push(`Rewrote setDoc() on '${col}'`);
-        return `await localApi.from('${col}').upsert({ id: ${id.trim()}, ...${data.trim()} })`;
-      }
-    );
-
-    // ── updateDoc ─────────────────────────────────────────────────
-    text = text.replace(
-      /await\s+updateDoc\s*\(\s*doc\s*\(\s*\w+\s*,\s*['"`](\w+)['"`]\s*,\s*([^,)]+)\)\s*,\s*([^)]+)\)/g,
-      (_m, col: string, id: string, data: string) => {
-        changes.push(`Rewrote updateDoc() on '${col}'`);
-        return `await localApi.from('${col}').eq('id', ${id.trim()}).update(${data.trim()})`;
-      }
-    );
-
-    // ── deleteDoc ─────────────────────────────────────────────────
-    text = text.replace(
-      /await\s+deleteDoc\s*\(\s*doc\s*\(\s*\w+\s*,\s*['"`](\w+)['"`]\s*,\s*([^)]+)\)\s*\)/g,
-      (_m, col: string, id: string) => {
-        changes.push(`Rewrote deleteDoc() on '${col}'`);
-        return `await localApi.from('${col}').eq('id', ${id.trim()}).delete()`;
-      }
-    );
-
-    // ── onSnapshot → SSE ──────────────────────────────────────────
-    const hasSnapshot = text.includes("onSnapshot(");
-    if (hasSnapshot) {
-      text = text.replace(
-        /onSnapshot\s*\(\s*(?:collection|doc)\s*\(\s*\w+\s*,\s*['"`](\w+)['"`][^)]*\)\s*,\s*(\w+)\s*\)/g,
-        (_m, col: string, cb: string) => {
-          changes.push(`Rewrote onSnapshot() on '${col}' → SSE`);
-          return `localApi.subscribe('${col}', ${cb})`;
-        }
-      );
-    }
-
-    // ── Warn on remaining Firebase refs ───────────────────────────
+    // ── 6. Warn on any remaining Firebase references ──────────────────────────
+    const text = sourceFile.getFullText();
     const remaining = (text.match(/\bfirebase\b|\bFirestore\b|\bgetFirestore\b/g) ?? []).length;
     if (remaining > 0) {
       warnings.push(`${remaining} remaining Firebase reference(s) — manual review needed`);
       confidence -= Math.min(remaining * 0.05, 0.25);
     }
 
-    // ── Rewrite .data() calls on snapshots ────────────────────────
-    // Firestore: snap.data() → localApi returns { data: row }
-    text = text.replace(/(\w+)\.data\(\)/g, (_m, snap: string) => {
-      if (snap === "snap" || snap === "snapshot" || snap === "docSnap") {
-        changes.push("Rewrote .data() access pattern");
-        return `${snap}.data`;
-      }
-      return _m;
-    });
-
-    // ── Rewrite .docs.map() ───────────────────────────────────────
-    text = text.replace(/(\w+)\.docs\.map\(/g, (_m, snap: string) => {
-      changes.push("Rewrote .docs.map() → .data.map()");
-      return `${snap}.data.map(`;
-    });
-
-    if (changes.length > 0) sourceFile.replaceWithText(text);
-
     return { changes, warnings, confidence: Math.max(confidence, 0.4) };
+  }
+
+  // ─── Step 1: Remove Firebase imports ────────────────────────────────────────
+
+  private removeFirebaseImports(sourceFile: SourceFile, changes: string[]): void {
+    const targets = ["firebase/firestore", "firebase/app", "firebase/auth"];
+    for (const specifier of targets) {
+      const removed = this.removeImport(sourceFile, specifier);
+      if (removed.length > 0) {
+        changes.push(`Removed import from '${specifier}'`);
+      }
+    }
+    // Also catch any remaining firebase/* imports not in the explicit list
+    sourceFile.getImportDeclarations()
+      .filter((d) => d.getModuleSpecifierValue().startsWith("firebase/"))
+      .forEach((d) => {
+        changes.push(`Removed import from '${d.getModuleSpecifierValue()}'`);
+        d.remove();
+      });
+  }
+
+  // ─── Step 3: Remove getFirestore / initializeApp variable declarations ───────
+
+  private removeInitialisers(sourceFile: SourceFile, changes: string[]): void {
+    const INIT_FUNCTIONS = new Set(["getFirestore", "initializeApp", "getApp"]);
+
+    // Collect statements to remove (don't mutate while iterating).
+    // Use the specific VariableStatement type so TypeScript knows .remove() exists.
+    const toRemove: ReturnType<SourceFile["getVariableStatements"]>[number][] = [];
+
+    sourceFile.getVariableStatements().forEach((stmt) => {
+      stmt.getDeclarations().forEach((decl) => {
+        const init = decl.getInitializer();
+        if (!init) return;
+        // Handle: const db = getFirestore(app) and const db = getFirestore()
+        if (init.getKind() === SyntaxKind.CallExpression) {
+          const callExpr = init as CallExpression;
+          const expr = callExpr.getExpression().getText().trim();
+          if (INIT_FUNCTIONS.has(expr)) {
+            toRemove.push(stmt);
+          }
+        }
+      });
+    });
+
+    for (const stmt of toRemove) {
+      changes.push(`Removed Firebase initialisation: ${stmt.getText().trim().slice(0, 60)}`);
+      stmt.remove();
+    }
+  }
+
+  // ─── Step 4: Rewrite Firestore CallExpressions ───────────────────────────────
+
+  private rewriteFirestoreCalls(
+    sourceFile: SourceFile,
+    changes: string[],
+    warnings: string[]
+  ): void {
+    const FIRESTORE_OPS = new Set([
+      "getDoc", "getDocs", "addDoc", "setDoc",
+      "updateDoc", "deleteDoc", "onSnapshot",
+    ]);
+
+    // Collect outer-most Firestore call expressions first (avoid double-walking
+    // after replacements invalidate node references). We replace text on the
+    // source file after each matched node by calling getFullText() loop style.
+    let changed = true;
+    while (changed) {
+      changed = false;
+      const calls = sourceFile
+        .getDescendantsOfKind(SyntaxKind.CallExpression)
+        .filter((c) => {
+          const name = c.getExpression().getText().trim();
+          return FIRESTORE_OPS.has(name);
+        });
+
+      for (const call of calls) {
+        const opName = call.getExpression().getText().trim();
+        const replacement = this.buildReplacement(opName, call, warnings);
+        if (replacement !== null) {
+          changes.push(`Rewrote ${opName}() call`);
+          call.replaceWithText(replacement);
+          changed = true;
+          break; // restart walk — AST nodes are invalidated after mutation
+        }
+      }
+    }
+  }
+
+  /**
+   * Returns the replacement text for a matched Firestore outer call, or null
+   * if it cannot be automatically transformed.
+   */
+  private buildReplacement(
+    opName: string,
+    call: CallExpression,
+    warnings: string[]
+  ): string | null {
+    const args = call.getArguments();
+
+    try {
+      switch (opName) {
+        case "getDoc":
+          return this.rewriteGetDoc(args);
+        case "getDocs":
+          return this.rewriteGetDocs(args, warnings);
+        case "addDoc":
+          return this.rewriteAddDoc(args);
+        case "setDoc":
+          return this.rewriteSetDoc(args);
+        case "updateDoc":
+          return this.rewriteUpdateDoc(args);
+        case "deleteDoc":
+          return this.rewriteDeleteDoc(args);
+        case "onSnapshot":
+          return this.rewriteOnSnapshot(args);
+        default:
+          return null;
+      }
+    } catch {
+      warnings.push(`Could not auto-transform ${opName}() — manual review needed`);
+      return null;
+    }
+  }
+
+  // ─── Individual rewrite methods ──────────────────────────────────────────────
+
+  /**
+   * getDoc(doc(db, 'col', id)) → localApi.from('col').eq('id', id).single()
+   */
+  private rewriteGetDoc(args: Node[]): string | null {
+    if (args.length < 1) return null;
+    const docRef = this.extractDocRef(args[0]);
+    if (!docRef) return null;
+    return `localApi.from('${docRef.collection}').eq('id', ${docRef.id}).single()`;
+  }
+
+  /**
+   * getDocs(collection(db, 'col'))
+   *   → localApi.from('col').select()
+   * getDocs(query(collection(db, 'col'), where('f','==',v), limit(n), orderBy('f','d')))
+   *   → localApi.from('col').eq('f', v).limit(n).order('f', 'd').select()
+   */
+  private rewriteGetDocs(args: Node[], warnings: string[]): string | null {
+    if (args.length < 1) return null;
+    const arg = args[0];
+    const argText = arg.getText().trim();
+
+    // Simple collection reference
+    if (argText.startsWith("collection(")) {
+      const col = this.extractCollectionName(arg as CallExpression);
+      if (!col) return null;
+      return `localApi.from('${col}').select()`;
+    }
+
+    // query(collection(...), ...constraints)
+    if (argText.startsWith("query(")) {
+      return this.rewriteQueryCall(arg as CallExpression, warnings);
+    }
+
+    return null;
+  }
+
+  /**
+   * Parses query(collection(db, 'col'), where(...), limit(...), orderBy(...))
+   */
+  private rewriteQueryCall(queryCall: CallExpression, warnings: string[]): string | null {
+    const queryArgs = queryCall.getArguments();
+    if (queryArgs.length < 1) return null;
+
+    const col = this.extractCollectionName(queryArgs[0] as CallExpression);
+    if (!col) return null;
+
+    let chain = `localApi.from('${col}')`;
+
+    // Process constraints
+    for (let i = 1; i < queryArgs.length; i++) {
+      const constraint = queryArgs[i];
+      const constraintText = constraint.getText().trim();
+
+      if (constraintText.startsWith("where(")) {
+        const whereClause = this.extractWhereClause(constraint as CallExpression);
+        if (whereClause) {
+          chain += `.eq('${whereClause.field}', ${whereClause.value})`;
+        } else {
+          warnings.push("Complex where() clause not auto-transformed — manual review needed");
+        }
+      } else if (constraintText.startsWith("limit(")) {
+        const limitArgs = (constraint as CallExpression).getArguments();
+        if (limitArgs.length > 0) {
+          chain += `.limit(${limitArgs[0].getText().trim()})`;
+        }
+      } else if (constraintText.startsWith("orderBy(")) {
+        const orderArgs = (constraint as CallExpression).getArguments();
+        if (orderArgs.length >= 1) {
+          const field = orderArgs[0].getText().trim();
+          const dir = orderArgs.length >= 2 ? `, ${orderArgs[1].getText().trim()}` : "";
+          chain += `.order(${field}${dir})`;
+        }
+      } else if (constraintText.startsWith("startAfter(") || constraintText.startsWith("startAt(") || constraintText.startsWith("endBefore(") || constraintText.startsWith("endAt(")) {
+        warnings.push(`Pagination constraint '${constraintText.split("(")[0]}()' not auto-transformed — manual review needed`);
+      }
+    }
+
+    chain += `.select()`;
+    return chain;
+  }
+
+  /**
+   * addDoc(collection(db, 'col'), data) → localApi.from('col').insert(data)
+   */
+  private rewriteAddDoc(args: Node[]): string | null {
+    if (args.length < 2) return null;
+    const col = this.extractCollectionName(args[0] as CallExpression);
+    if (!col) return null;
+    const data = args[1].getText().trim();
+    return `localApi.from('${col}').insert(${data})`;
+  }
+
+  /**
+   * setDoc(doc(db, 'col', id), data) → localApi.from('col').upsert({ id: id, ...data })
+   */
+  private rewriteSetDoc(args: Node[]): string | null {
+    if (args.length < 2) return null;
+    const docRef = this.extractDocRef(args[0]);
+    if (!docRef) return null;
+    const data = args[1].getText().trim();
+    return `localApi.from('${docRef.collection}').upsert({ id: ${docRef.id}, ...${data} })`;
+  }
+
+  /**
+   * updateDoc(doc(db, 'col', id), data) → localApi.from('col').eq('id', id).update(data)
+   */
+  private rewriteUpdateDoc(args: Node[]): string | null {
+    if (args.length < 2) return null;
+    const docRef = this.extractDocRef(args[0]);
+    if (!docRef) return null;
+    const data = args[1].getText().trim();
+    return `localApi.from('${docRef.collection}').eq('id', ${docRef.id}).update(${data})`;
+  }
+
+  /**
+   * deleteDoc(doc(db, 'col', id)) → localApi.from('col').eq('id', id).delete()
+   */
+  private rewriteDeleteDoc(args: Node[]): string | null {
+    if (args.length < 1) return null;
+    const docRef = this.extractDocRef(args[0]);
+    if (!docRef) return null;
+    return `localApi.from('${docRef.collection}').eq('id', ${docRef.id}).delete()`;
+  }
+
+  /**
+   * onSnapshot(collection(db, 'col'), cb) → localApi.subscribe('col', cb)
+   * onSnapshot(doc(db, 'col', id), cb)    → localApi.subscribe('col', cb)
+   */
+  private rewriteOnSnapshot(args: Node[]): string | null {
+    if (args.length < 2) return null;
+    const refArg = args[0];
+    const refText = refArg.getText().trim();
+    const cb = args[1].getText().trim();
+
+    let col: string | null = null;
+    if (refText.startsWith("collection(")) {
+      col = this.extractCollectionName(refArg as CallExpression);
+    } else if (refText.startsWith("doc(")) {
+      const docRef = this.extractDocRef(refArg);
+      col = docRef?.collection ?? null;
+    }
+
+    if (!col) return null;
+    return `localApi.subscribe('${col}', ${cb})`;
+  }
+
+  // ─── AST extraction helpers ──────────────────────────────────────────────────
+
+  /**
+   * Extracts the collection name from: collection(db, 'colName')
+   * Handles any variable name as the first argument (db alias independence).
+   */
+  private extractCollectionName(node: Node): string | null {
+    if (node.getKind() !== SyntaxKind.CallExpression) return null;
+    const call = node as CallExpression;
+    const fnName = call.getExpression().getText().trim();
+    if (fnName !== "collection") return null;
+
+    const args = call.getArguments();
+    if (args.length < 2) return null;
+
+    return this.extractStringLiteral(args[1]);
+  }
+
+  /**
+   * Extracts collection + id from: doc(db, 'colName', id)
+   * Returns null if the pattern doesn't match.
+   */
+  private extractDocRef(node: Node): { collection: string; id: string } | null {
+    if (node.getKind() !== SyntaxKind.CallExpression) return null;
+    const call = node as CallExpression;
+    const fnName = call.getExpression().getText().trim();
+    if (fnName !== "doc") return null;
+
+    const args = call.getArguments();
+    if (args.length < 3) return null;
+
+    const collection = this.extractStringLiteral(args[1]);
+    if (!collection) return null;
+
+    const id = args[2].getText().trim();
+    return { collection, id };
+  }
+
+  /**
+   * Extracts where clause: where('field', '==', value) → { field, value }
+   * Currently only handles equality ('==') — other operators emit a warning.
+   */
+  private extractWhereClause(
+    call: CallExpression
+  ): { field: string; value: string } | null {
+    const args = call.getArguments();
+    if (args.length < 3) return null;
+
+    const field = this.extractStringLiteral(args[0]);
+    if (!field) return null;
+
+    const operator = this.extractStringLiteral(args[1]);
+    // Only auto-transform equality for now
+    if (operator !== "==") return null;
+
+    const value = args[2].getText().trim();
+    return { field, value };
+  }
+
+  /**
+   * Extracts the raw string value from a StringLiteral / TemplateLiteral node,
+   * or returns null if the node is not a plain string literal.
+   */
+  private extractStringLiteral(node: Node): string | null {
+    const kind = node.getKind();
+    if (
+      kind === SyntaxKind.StringLiteral ||
+      kind === SyntaxKind.NoSubstitutionTemplateLiteral
+    ) {
+      // getText() includes the quotes — strip them
+      const raw = node.getText();
+      return raw.slice(1, -1);
+    }
+    return null;
+  }
+
+  // ─── Step 5: Rewrite snapshot data accessors ─────────────────────────────────
+
+  private rewriteSnapshotAccessors(sourceFile: SourceFile, changes: string[]): void {
+    // snap.data() → snap.data  (only for well-known snapshot variable names)
+    const SNAP_NAMES = /\b(snap|snapshot|docSnap|docSnapshot)\b/;
+    let text = sourceFile.getFullText();
+    const dataCallPattern = /\b(snap|snapshot|docSnap|docSnapshot)\.data\(\)/g;
+    if (dataCallPattern.test(text)) {
+      const replaced = text.replace(dataCallPattern, "$1.data");
+      if (replaced !== text) {
+        sourceFile.replaceWithText(replaced);
+        text = replaced;
+        changes.push("Rewrote .data() access pattern → .data");
+      }
+    }
+
+    // snap.docs.map( → snap.data.map(
+    if (text.includes(".docs.map(")) {
+      const replaced = text.replace(/(\w+)\.docs\.map\(/g, "$1.data.map(");
+      if (replaced !== text) {
+        sourceFile.replaceWithText(replaced);
+        changes.push("Rewrote .docs.map() → .data.map()");
+      }
+    }
+
+    // Suppress unused variable warning
+    void SNAP_NAMES;
   }
 }

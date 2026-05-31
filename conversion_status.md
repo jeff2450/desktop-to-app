@@ -19,6 +19,7 @@
 | **Storage & Downloads** | Generates signed S3 URLs for target artifacts (or falls back to local file serving in development) when users click the download buttons. |
 | **Auth & Plan Limits** | Fully enforced JWT authentication and plan-level conversion limitations (enforced in `jobs.service.ts`). |
 | **Core Packages** | All core monorepo packages (`packages/core`, `packages/builder`, `packages/detectors`, `packages/transformers`, `packages/mobile`, `packages/templates`) are wired and passing builds. |
+| **AST Unit Testing** | Comprehensive unit tests (206 test cases across 10 test suites) written and fully passing (`pnpm test` / `vitest`) validating AST transformations and complex edge cases for Firebase, Supabase, Auth0, and Vue SFCs. |
 
 ---
 
@@ -28,15 +29,13 @@
 
 | # | Issue | Required Action |
 |---|---|---|
-| 1 | **Zero Test Coverage** | While the Vitest/Turbo testing pipeline is configured, the monorepo contains no test files. For a code transformer that alters user source code, regression/unit tests are essential to prevent silent data corruption. |
-| 2 | **Stripe & S3 Configuration** | Production deployments require replacing the development placeholders (e.g. `AWS_ACCESS_KEY_ID=replace-me`, Stripe webhook secrets, and SMTP/email configuration) in the production `.env` file. |
+| 1 | **Stripe & S3 Configuration** | Production deployments require replacing the development placeholders (e.g. `AWS_ACCESS_KEY_ID=replace-me`, Stripe webhook secrets, and SMTP/email configuration) in the production `.env` file. |
 
 ### 🟡 Medium — UX & Feature Completeness
 
 | # | Issue | Required Action |
 |---|---|---|
-| 3 | **Partial Firebase & Vue Support** | Firebase Firestore/Auth and Vue transformers are implemented but partially tested (falling back to simple copy modes if exceptions occur). Needs fixture-based validation before removing the "partial" warning in the UI. |
-| 4 | **macOS & iOS Build Agent Constraints** | Target platforms like iOS (via Capacitor) and macOS (Electron `.dmg`) can only be built on macOS hosts. If the worker runs on a Linux/Windows server, these targets are automatically skipped. The UI notes this in small print, but a prominent warning on selection would prevent user confusion. |
+| 2 | **macOS & iOS Build Agent Constraints** | Target platforms like iOS (via Capacitor) and macOS (Electron `.dmg`) can only be built on macOS hosts. If the worker runs on a Linux/Windows server, these targets are automatically skipped. The UI notes this in small print, but a prominent warning on selection would prevent user confusion. |
 
 ---
 

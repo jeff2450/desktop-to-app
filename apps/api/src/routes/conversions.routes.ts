@@ -12,7 +12,7 @@ import { z } from "zod";
 import type { Artifact } from "@prisma/client";
 import type { AuthenticatedRequest } from "../lib/types.js";
 import { requireAuth } from "../middleware/auth.js";
-import { handleUpload } from "../middleware/upload.js";
+import { handleUpload, extractUploadedFiles } from "../middleware/upload.js";
 import {
   cancelJob,
   deleteJob,
@@ -117,76 +117,108 @@ conversionsRouter.post("/", async (req: Request, res: Response, next) => {
   try {
     const authReq = req as unknown as AuthenticatedRequest;
 
-    // Detect whether this is a multipart (zip upload) or JSON (git/URL) request
+    // Detect whether this is a multipart (zip upload / git with icon) or JSON (git/URL no icon) request
     const contentType = req.headers["content-type"] ?? "";
+    const isMultipart = contentType.includes("multipart/form-data");
 
-    if (contentType.includes("multipart/form-data")) {
-      // ── Zip upload path ──────────────────────────────────────────────────
+    if (isMultipart) {
       await handleUpload(req, res);
+      const { archiveFile, iconFile } = extractUploadedFiles(req);
 
-      if (!authReq.file) {
-        throw new ApiError(
-          400,
-          "No archive file provided. Upload a .zip as the 'archive' field.",
-          "NO_FILE",
+      if (archiveFile) {
+        // ── Zip upload path ──────────────────────────────────────────────────
+        const rawConfig = req.body["config"];
+        if (!rawConfig) {
+          throw new ApiError(
+            400,
+            "Missing 'config' field in form data (send as JSON string)",
+            "MISSING_CONFIG",
+          );
+        }
+
+        let parsedConfig: unknown;
+        try {
+          parsedConfig =
+            typeof rawConfig === "string" ? JSON.parse(rawConfig) : rawConfig;
+        } catch {
+          throw new ApiError(
+            400,
+            "Invalid JSON in 'config' field",
+            "INVALID_CONFIG",
+          );
+        }
+
+        const config = configSchema.parse(parsedConfig);
+        const platformsRaw = req.body["platforms"];
+        const platforms = z
+          .array(z.enum(["windows", "linux", "macos", "mac", "android", "ios"]))
+          .min(1)
+          .parse(
+            typeof platformsRaw === "string"
+              ? JSON.parse(platformsRaw)
+              : platformsRaw,
+          );
+
+        const result = await createJobFromUpload({
+          userId: authReq.auth.userId,
+          plan: authReq.auth.plan,
+          zipPath: archiveFile.path,
+          zipName: archiveFile.originalname,
+          iconPath: iconFile?.path,
+          config,
+          platforms,
+        });
+
+        res.status(201).json(
+          serializeConversion(result.job, {
+            estimatedWait: result.estimatedWait,
+          }),
+        );
+      } else {
+        // ── Git / URL path with icon upload ──────────────────────────────────
+        const rawConfig = req.body["config"];
+        const parsedConfig = typeof rawConfig === "string" ? JSON.parse(rawConfig) : rawConfig;
+        const config = configSchema.parse(parsedConfig);
+
+        const platformsRaw = req.body["platforms"];
+        const platforms = z
+          .array(z.enum(["windows", "linux", "macos", "mac", "android", "ios"]))
+          .min(1)
+          .parse(typeof platformsRaw === "string" ? JSON.parse(platformsRaw) : platformsRaw);
+
+        const sourceRepo = (req.body["sourceRepo"] as string | undefined)?.trim() ?? "";
+        if (!sourceRepo) {
+          throw new ApiError(400, "Missing 'sourceRepo' field", "MISSING_SOURCE_REPO");
+        }
+
+        const result = await createJob({
+          userId: authReq.auth.userId,
+          plan: authReq.auth.plan,
+          sourceRepo,
+          config,
+          platforms,
+          iconPath: iconFile?.path,
+        });
+
+        res.status(201).json(
+          serializeConversion(result.job, {
+            estimatedWait: result.estimatedWait,
+          }),
         );
       }
-
-      const rawConfig = req.body["config"];
-      if (!rawConfig) {
-        throw new ApiError(
-          400,
-          "Missing 'config' field in form data (send as JSON string)",
-          "MISSING_CONFIG",
-        );
-      }
-
-      let parsedConfig: unknown;
-      try {
-        parsedConfig =
-          typeof rawConfig === "string" ? JSON.parse(rawConfig) : rawConfig;
-      } catch {
-        throw new ApiError(
-          400,
-          "Invalid JSON in 'config' field",
-          "INVALID_CONFIG",
-        );
-      }
-
-      const config = configSchema.parse(parsedConfig);
-      const platformsRaw = req.body["platforms"];
-      const platforms = z
-        .array(z.enum(["windows", "linux", "macos", "mac", "android", "ios"]))
-        .min(1)
-        .parse(
-          typeof platformsRaw === "string"
-            ? JSON.parse(platformsRaw)
-            : platformsRaw,
-        );
-
-      const result = await createJobFromUpload({
-        userId: authReq.auth.userId,
-        plan: authReq.auth.plan,
-        zipPath: authReq.file.path,
-        zipName: authReq.file.originalname,
-        config,
-        platforms,
-      });
-
-      res.status(201).json(
-        serializeConversion(result.job, {
-          estimatedWait: result.estimatedWait,
-        }),
-      );
     } else {
-      // ── Git / URL path (JSON body) ────────────────────────────────────────
+      // ── Git / URL path with plain JSON ─────────────────────────────────────
       const body = createFromRepoSchema.parse(req.body);
+      const sourceRepo = body.sourceRepo;
+      const config = body.config;
+      const platforms = body.platforms;
+
       const result = await createJob({
         userId: authReq.auth.userId,
         plan: authReq.auth.plan,
-        sourceRepo: body.sourceRepo,
-        config: body.config,
-        platforms: body.platforms,
+        sourceRepo,
+        config,
+        platforms,
       });
 
       res.status(201).json(

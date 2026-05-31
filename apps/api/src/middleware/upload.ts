@@ -28,10 +28,21 @@ function fileFilter(
   file: any,
   cb: any
 ): void {
-  if (file.mimetype === "application/zip" || file.originalname.endsWith(".zip")) {
-    cb(null, true);
+  if (file.fieldname === "archive") {
+    if (file.mimetype === "application/zip" || file.originalname.endsWith(".zip")) {
+      cb(null, true);
+    } else {
+      cb(new ApiError(400, "Only .zip files are accepted for the archive field", "INVALID_FILE_TYPE"));
+    }
+  } else if (file.fieldname === "icon") {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if ([".png", ".ico", ".jpg", ".jpeg"].includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new ApiError(400, "Icon must be a PNG, ICO, or JPG file", "INVALID_ICON_TYPE"));
+    }
   } else {
-    cb(new ApiError(400, "Only .zip files are accepted", "INVALID_FILE_TYPE"));
+    cb(new ApiError(400, `Unexpected field: ${file.fieldname}`, "UNEXPECTED_FIELD"));
   }
 }
 
@@ -40,9 +51,12 @@ export const uploadZip = multer({
   fileFilter,
   limits: {
     fileSize: env.UPLOAD_MAX_SIZE_MB * 1024 * 1024,
-    files: 1,
+    files: 2,  // archive + icon
   },
-}).single("archive");
+}).fields([
+  { name: "archive", maxCount: 1 },
+  { name: "icon",    maxCount: 1 },
+]);
 
 /** Promisified multer middleware for use in async route handlers */
 export function handleUpload(
@@ -70,4 +84,19 @@ export function handleUpload(
       }
     });
   });
+}
+
+/**
+ * After handleUpload(), call this to extract file references from req.files.
+ * Returns { archiveFile, iconFile } — iconFile may be undefined.
+ */
+export function extractUploadedFiles(req: import("express").Request): {
+  archiveFile: Express.Multer.File | undefined;
+  iconFile: Express.Multer.File | undefined;
+} {
+  const files = req.files as Record<string, Express.Multer.File[]> | undefined;
+  return {
+    archiveFile: files?.["archive"]?.[0],
+    iconFile:    files?.["icon"]?.[0],
+  };
 }
