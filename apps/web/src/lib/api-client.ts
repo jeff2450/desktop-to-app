@@ -407,12 +407,21 @@ export const billingApi = {
   plans: () => request<BillingPlan[]>("/api/billing/plans"),
   subscription: () => request<SubscriptionInfo>("/api/billing/subscription"),
   usageChart: () => request<UsageChartData[]>("/api/billing/usage-chart"),
-  checkout: (plan: string) =>
+  config: () =>
+    request<{ stripe: boolean; paypal: boolean; clickpesa: boolean }>(
+      "/api/billing/config",
+    ),
+  checkout: (plan: string, gateway?: string) =>
     request<{ url: string }>("/api/billing/checkout", {
       method: "POST",
-      body: JSON.stringify({ plan }),
+      body: JSON.stringify({ plan, gateway }),
     }),
-  verifyPayment: (transactionId: string, txRef: string, plan: string) =>
+  verifyPayment: (
+    transactionId: string,
+    txRef: string,
+    plan: string,
+    gateway?: string,
+  ) =>
     request<{
       success: boolean;
       plan: string;
@@ -421,7 +430,7 @@ export const billingApi = {
       message: string;
     }>("/api/billing/verify", {
       method: "POST",
-      body: JSON.stringify({ transactionId, txRef, plan }),
+      body: JSON.stringify({ transactionId, txRef, plan, gateway }),
     }),
   portal: () =>
     request<{ url: string }>("/api/billing/portal", { method: "POST" }),

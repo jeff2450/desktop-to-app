@@ -35,6 +35,18 @@ const envSchema = z.object({
   UPLOADS_DIR: z.string().default("uploads"),
   OUTPUTS_DIR: z.string().default("outputs"),
   WORKER_CONCURRENCY: z.coerce.number().int().positive().max(8).default(2),
+
+  // ClickPesa
+  CLICKPESA_CLIENT_ID: z.string().optional(),
+  CLICKPESA_API_KEY: z.string().optional(),
+  CLICKPESA_CURRENCY: z.string().default("USD"),
+  CLICKPESA_BASE_URL: z.string().url().default("https://api.clickpesa.com/third-parties"),
+
+  // PayPal
+  PAYPAL_CLIENT_ID: z.string().optional(),
+  PAYPAL_CLIENT_SECRET: z.string().optional(),
+  PAYPAL_MODE: z.enum(["sandbox", "live"]).default("sandbox"),
+  PAYPAL_BASE_URL: z.string().url().default("https://api-m.sandbox.paypal.com"),
 });
 
 const parsed = envSchema.safeParse(process.env);

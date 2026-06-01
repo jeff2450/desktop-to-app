@@ -9,11 +9,11 @@
  ✓ Compiled successfully
    Linting and checking validity of types ...
    Collecting page data ...
-   Generating static pages (0/17) ...
-   Generating static pages (4/17) 
-   Generating static pages (8/17) 
-   Generating static pages (12/17) 
- ✓ Generating static pages (17/17)
+   Generating static pages (0/15) ...
+   Generating static pages (3/15) 
+   Generating static pages (7/15) 
+   Generating static pages (11/15) 
+ ✓ Generating static pages (15/15)
    Finalizing page optimization ...
    Collecting build traces ...
 
@@ -21,30 +21,21 @@ Route (app)                              Size     First Load JS
 ┌ ○ /                                    1.68 kB        97.9 kB
 ├ ○ /_not-found                          876 B          88.4 kB
 ├ ƒ /api/auth/cookie                     0 B                0 B
-├ ƒ /api/billing/checkout                0 B                0 B
-├ ƒ /api/billing/paypal/capture-order    0 B                0 B
-├ ƒ /api/billing/paypal/create-order     0 B                0 B
-├ ƒ /api/billing/plans                   0 B                0 B
-├ ƒ /api/billing/portal                  0 B                0 B
-├ ƒ /api/billing/subscription            0 B                0 B
-├ ƒ /api/billing/usage                   0 B                0 B
-├ ƒ /api/billing/usage-chart             0 B                0 B
-├ ƒ /api/billing/verify                  0 B                0 B
-├ ○ /billing                             112 kB          221 kB
-├ ○ /billing/success                     3.98 kB         114 kB
+├ ○ /billing                             120 kB          233 kB
+├ ○ /billing/success                     4.47 kB         114 kB
 ├ ○ /dashboard                           6.53 kB         116 kB
 ├ ○ /docs                                10.8 kB         118 kB
 ├ ○ /jobs                                4.71 kB         114 kB
 ├ ƒ /jobs/[id]                           11 kB           121 kB
-├ ○ /jobs/new                            11.1 kB         126 kB
+├ ○ /jobs/new                            12.8 kB         126 kB
 ├ ○ /login                               3.47 kB         113 kB
 ├ ○ /pricing                             857 B          97.1 kB
 ├ ○ /register                            3.74 kB         113 kB
-└ ○ /settings                            7.05 kB         122 kB
+└ ○ /settings                            9.33 kB         122 kB
 + First Load JS shared by all            87.5 kB
   ├ chunks/5b8f0dd8-963e26f73fce6c0b.js  53.6 kB
-  ├ chunks/749-d322f1fd78f9c17f.js       31.9 kB
-  └ other shared chunks (total)          1.96 kB
+  ├ chunks/749-e92821c25d451d82.js       31.9 kB
+  └ other shared chunks (total)          1.97 kB
 
 
 ƒ Middleware                             26.6 kB

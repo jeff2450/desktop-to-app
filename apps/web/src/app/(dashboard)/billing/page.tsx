@@ -19,7 +19,10 @@ import {
   Zap, 
   ShieldCheck, 
   Crown,
-  Loader2
+  Loader2,
+  X,
+  Wallet,
+  Smartphone
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -32,6 +35,13 @@ import {
   Tooltip, 
   ResponsiveContainer 
 } from 'recharts';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 export default function BillingPage() {
   const [usage, setUsage] = useState<UsageStats | null>(null);
@@ -41,20 +51,45 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // States for embedded checkout
+  const [activeCheckoutUrl, setActiveCheckoutUrl] = useState<string | null>(null);
+  const [iframeLoading, setIframeLoading] = useState(true);
+
+  // Gateway availability configurations
+  const [gateways, setGateways] = useState<{ stripe: boolean; paypal: boolean; clickpesa: boolean }>({
+    stripe: false,
+    paypal: false,
+    clickpesa: false
+  });
+  const [selectedUpgradePlan, setSelectedUpgradePlan] = useState<Plan | null>(null);
+  const [showPaymentSelector, setShowPaymentSelector] = useState(false);
+
+  // Frame detection: redirect parent if loaded inside an iframe (e.g. cancellation)
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.top && window.top !== window.self) {
+      try {
+        window.top.location.href = window.location.href;
+      } catch (e) {
+        console.error("Failed to redirect parent window on iframe cancel:", e);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const [u, s, uc, p] = await Promise.all([
+        const [u, s, uc, p, gConfig] = await Promise.all([
           billingApi.usage(),
           billingApi.subscription(),
           billingApi.usageChart(),
-          billingApi.plans()
+          billingApi.plans(),
+          billingApi.config()
         ]);
         if (u.data) setUsage(u.data);
         if (s.data) setSubscription(s.data);
         if (uc.data) setUsageChart(uc.data);
         if (p.data) setPlans(p.data);
+        if (gConfig.data) setGateways(gConfig.data);
       } catch (err) {
         console.error("Failed to fetch billing data:", err);
       } finally {
@@ -64,12 +99,33 @@ export default function BillingPage() {
     fetchData();
   }, []);
 
-  const handleUpgrade = async (planId: Plan) => {
+  const handleUpgradeClick = (planId: Plan) => {
+    const active = Object.entries(gateways)
+      .filter(([_, enabled]) => enabled)
+      .map(([name]) => name);
+
+    if (active.length <= 1) {
+      handleUpgrade(planId, active[0]);
+    } else {
+      setSelectedUpgradePlan(planId);
+      setShowPaymentSelector(true);
+    }
+  };
+
+  const handleUpgrade = async (planId: Plan, gateway?: string) => {
     setActionLoading(planId);
+    setShowPaymentSelector(false);
     try {
-      const result = await billingApi.checkout(planId);
+      const result = await billingApi.checkout(planId, gateway);
       if (result.data?.url) {
-        window.location.href = result.data.url;
+        const url = result.data.url;
+        const isClickPesa = url.includes("clickpesa") || gateway === "clickpesa";
+        if (isClickPesa) {
+          setIframeLoading(true);
+          setActiveCheckoutUrl(url);
+        } else {
+          window.location.href = url;
+        }
         return;
       }
       alert(result.error || "Failed to start checkout");
@@ -200,12 +256,137 @@ export default function BillingPage() {
                 key={plan.id}
                 plan={plan}
                 currentPlan={subscription?.plan ?? usage?.plan}
-                onUpgrade={() => handleUpgrade(plan.id)}
+                onUpgrade={() => handleUpgradeClick(plan.id)}
                 loading={actionLoading === plan.id}
               />
             ))}
           </div>
         </section>
+
+        {/* Payment Method Selector Dialog */}
+        <Dialog open={showPaymentSelector} onOpenChange={setShowPaymentSelector}>
+          <DialogContent className="bg-zinc-900 border-zinc-800 text-white rounded-3xl max-w-md p-6 shadow-[0_0_50px_rgba(99,102,241,0.15)]">
+            <DialogHeader className="space-y-3">
+              <DialogTitle className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
+                <Zap className="w-6 h-6 text-indigo-400" />
+                Select Payment Method
+              </DialogTitle>
+              <DialogDescription className="text-zinc-400 text-sm">
+                Choose your preferred payment method to upgrade to the{" "}
+                <span className="text-indigo-400 font-bold uppercase">
+                  {selectedUpgradePlan}
+                </span>{" "}
+                plan.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="mt-6 space-y-4">
+              {gateways.stripe && (
+                <button
+                  onClick={() => selectedUpgradePlan && handleUpgrade(selectedUpgradePlan, "stripe")}
+                  className="w-full flex items-center justify-between p-4 rounded-2xl bg-zinc-950/50 border border-zinc-800 hover:border-indigo-500/50 hover:bg-zinc-800/30 transition-all duration-300 group"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-all duration-300">
+                      <CreditCard className="w-6 h-6" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-bold text-white text-sm">Card / Google Pay</p>
+                      <p className="text-zinc-500 text-xs">Pay securely via Stripe (Supports Google Pay & Apple Pay)</p>
+                    </div>
+                  </div>
+                  <Check className="w-5 h-5 text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                </button>
+              )}
+
+              {gateways.paypal && (
+                <button
+                  onClick={() => selectedUpgradePlan && handleUpgrade(selectedUpgradePlan, "paypal")}
+                  className="w-full flex items-center justify-between p-4 rounded-2xl bg-zinc-950/50 border border-zinc-800 hover:border-amber-500/50 hover:bg-zinc-800/30 transition-all duration-300 group"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center group-hover:bg-amber-500 group-hover:text-white transition-all duration-300">
+                      <Wallet className="w-6 h-6" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-bold text-white text-sm">PayPal</p>
+                      <p className="text-zinc-500 text-xs">Pay with your PayPal account or card</p>
+                    </div>
+                  </div>
+                  <Check className="w-5 h-5 text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                </button>
+              )}
+
+              {gateways.clickpesa && (
+                <button
+                  onClick={() => selectedUpgradePlan && handleUpgrade(selectedUpgradePlan, "clickpesa")}
+                  className="w-full flex items-center justify-between p-4 rounded-2xl bg-zinc-950/50 border border-zinc-800 hover:border-emerald-500/50 hover:bg-zinc-800/30 transition-all duration-300 group"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center group-hover:bg-emerald-500 group-hover:text-white transition-all duration-300">
+                      <Smartphone className="w-6 h-6" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-bold text-white text-sm">Mobile Money</p>
+                      <p className="text-zinc-500 text-xs">Pay via ClickPesa Mobile Checkout</p>
+                    </div>
+                  </div>
+                  <Check className="w-5 h-5 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                </button>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* ClickPesa Embedded Payment Modal */}
+        {activeCheckoutUrl && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-3xl w-full max-w-2xl overflow-hidden relative shadow-[0_0_50px_rgba(99,102,241,0.15)] flex flex-col h-[80vh] sm:h-[650px] animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+              
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-md sticky top-0 z-10">
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-indigo-400" />
+                    Complete Secure Payment
+                  </h3>
+                  <p className="text-zinc-500 text-xs">ClickPesa Embedded Checkout</p>
+                </div>
+                <button 
+                  onClick={() => setActiveCheckoutUrl(null)}
+                  className="w-8 h-8 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white flex items-center justify-center transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Modal Content - Iframe */}
+              <div className="flex-1 relative bg-zinc-950">
+                {iframeLoading && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 gap-4">
+                    <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+                    <p className="text-zinc-500 text-sm animate-pulse">Loading secure payment widget...</p>
+                  </div>
+                )}
+                <iframe
+                  src={activeCheckoutUrl}
+                  onLoad={() => setIframeLoading(false)}
+                  className="w-full h-full border-0"
+                  allow="payment"
+                />
+              </div>
+
+              {/* Modal Footer / Security Info */}
+              <div className="bg-zinc-900/50 border-t border-zinc-800 px-6 py-3 flex items-center justify-between text-[10px] text-zinc-500">
+                <span className="flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                  PCI-DSS Compliant & SSL Encrypted
+                </span>
+                <span>Powered by ClickPesa</span>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

@@ -39,6 +39,7 @@ export default function BillingSuccessPage() {
 function BillingSuccessContent() {
   const searchParams = useSearchParams();
   const plan = (searchParams.get("plan") || "pro") as Plan;
+  const gateway = searchParams.get("gateway") || undefined;
   const txRef =
     searchParams.get("txRef") ||
     searchParams.get("orderReference") ||
@@ -47,6 +48,7 @@ function BillingSuccessContent() {
     searchParams.get("transactionId") ||
     searchParams.get("paymentReference") ||
     searchParams.get("payment_reference") ||
+    searchParams.get("token") || // PayPal Order ID is passed as "token" by PayPal redirect
     txRef;
 
   const [message, setMessage] = useState("Your payment was processed successfully.");
@@ -58,17 +60,24 @@ function BillingSuccessContent() {
 
     let cancelled = false;
 
-    async function verifyClickPesaPayment() {
+    async function verifyPayment() {
       setIsChecking(true);
       setIsFailed(false);
 
-      const result = await billingApi.verifyPayment(transactionId!, txRef!, plan);
+      const result = await billingApi.verifyPayment(transactionId!, txRef!, plan, gateway);
 
       if (cancelled) return;
 
       if (result.data?.success) {
         setMessage(result.data.message || "Your payment was processed successfully.");
         setIsFailed(false);
+        if (typeof window !== "undefined" && window.top && window.top !== window.self) {
+          try {
+            window.top.location.href = window.location.href;
+          } catch (e) {
+            console.error("Failed to redirect parent window on success:", e);
+          }
+        }
       } else {
         setMessage(result.error || result.data?.message || "We could not verify the payment yet.");
         setIsFailed(true);
@@ -77,12 +86,12 @@ function BillingSuccessContent() {
       setIsChecking(false);
     }
 
-    verifyClickPesaPayment();
+    verifyPayment();
 
     return () => {
       cancelled = true;
     };
-  }, [plan, transactionId, txRef]);
+  }, [plan, transactionId, txRef, gateway]);
 
   return (
     <div className="min-h-screen bg-zinc-950">
