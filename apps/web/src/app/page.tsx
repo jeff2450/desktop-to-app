@@ -56,8 +56,8 @@ export default function LandingPage() {
 
             {/* Subheading */}
             <p className="animate-fade-in-up animation-delay-300 text-lg text-zinc-400 mb-10 leading-relaxed max-w-xl">
-              Turn your React, Vue, Next.js, and Supabase projects into native, offline-capable{" "}
-              desktop apps for Windows, macOS, and Linux automatically. Zero config required.
+              Turn your React, Vue, Next.js, and Supabase projects into native desktop apps
+              for Windows, macOS, and Linux automatically. Zero config required.
             </p>
 
             {/* CTAs */}
@@ -133,7 +133,7 @@ export default function LandingPage() {
               </div>
               <h3 className="text-xl font-semibold mb-3">2. We run the pipeline</h3>
               <p className="text-zinc-400 leading-relaxed text-sm">
-                Our AST-based pipeline strips out unsupported browser APIs, injects an offline SQLite database, and scaffolds the Electron container.
+                Our pipeline preserves your web app, prepares it for Electron, and scaffolds the native desktop container.
               </p>
             </div>
             
@@ -152,8 +152,8 @@ export default function LandingPage() {
         {/* ── Conversion Modes ── */}
         <section className="container mx-auto px-6 mt-40">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold mb-4">Conversion Modes</h2>
-            <p className="text-zinc-400 max-w-2xl mx-auto">Tailor the build exactly to your application's needs.</p>
+            <h2 className="text-3xl font-bold mb-4">Desktop Builds</h2>
+            <p className="text-zinc-400 max-w-2xl mx-auto">Package your web app without changing its cloud-backed behavior.</p>
           </div>
           
           <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl overflow-hidden backdrop-blur-xl">
@@ -161,35 +161,35 @@ export default function LandingPage() {
               <thead>
                 <tr className="bg-zinc-900/80 border-b border-zinc-800">
                   <th className="p-6 font-medium text-zinc-300">Feature</th>
-                  <th className="p-6 font-medium text-indigo-400">Offline</th>
+                  <th className="p-6 font-medium text-indigo-400">Source</th>
                   <th className="p-6 font-medium text-cyan-400">Online</th>
-                  <th className="p-6 font-medium text-emerald-400">Hybrid</th>
+                  <th className="p-6 font-medium text-emerald-400">Packaged</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-800 text-sm">
                 <tr className="hover:bg-zinc-800/30 transition-colors">
                   <td className="p-6 text-zinc-400">Network Required</td>
-                  <td className="p-6 font-semibold text-zinc-200">No</td>
+                  <td className="p-6 font-semibold text-zinc-200">As needed</td>
                   <td className="p-6 font-semibold text-zinc-200">Yes</td>
-                  <td className="p-6 font-semibold text-zinc-200">Periodic</td>
+                  <td className="p-6 font-semibold text-zinc-200">As needed</td>
                 </tr>
                 <tr className="hover:bg-zinc-800/30 transition-colors">
                   <td className="p-6 text-zinc-400">Database</td>
-                  <td className="p-6 font-semibold text-zinc-200">Local SQLite</td>
+                  <td className="p-6 font-semibold text-zinc-200">Original DB</td>
                   <td className="p-6 font-semibold text-zinc-200">Cloud DB</td>
-                  <td className="p-6 font-semibold text-zinc-200">SQLite + Cloud Sync</td>
+                  <td className="p-6 font-semibold text-zinc-200">Original DB</td>
                 </tr>
                 <tr className="hover:bg-zinc-800/30 transition-colors">
                   <td className="p-6 text-zinc-400">Code Transformation</td>
-                  <td className="p-6 font-semibold text-zinc-200">Full AST Rewrite</td>
+                  <td className="p-6 font-semibold text-zinc-200">None</td>
                   <td className="p-6 font-semibold text-zinc-200">None (WebView)</td>
-                  <td className="p-6 font-semibold text-zinc-200">Selective AST</td>
+                  <td className="p-6 font-semibold text-zinc-200">Electron shell</td>
                 </tr>
                 <tr className="hover:bg-zinc-800/30 transition-colors">
                   <td className="p-6 text-zinc-400">Authentication</td>
-                  <td className="p-6 font-semibold text-zinc-200">Local JWT + SQLite</td>
+                  <td className="p-6 font-semibold text-zinc-200">Original auth</td>
                   <td className="p-6 font-semibold text-zinc-200">Cloud Auth (unchanged)</td>
-                  <td className="p-6 font-semibold text-zinc-200">Local JWT + Cloud Sync</td>
+                  <td className="p-6 font-semibold text-zinc-200">Original auth</td>
                 </tr>
                 <tr className="hover:bg-zinc-800/30 transition-colors">
                   <td className="p-6 text-zinc-400">Behavior Parity Gate</td>

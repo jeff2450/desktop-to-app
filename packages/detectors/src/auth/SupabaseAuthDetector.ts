@@ -72,7 +72,7 @@ export class SupabaseAuthDetector {
     if (usesOAuth) {
       warnings.push(
         "OAuth (social login) detected. This will be replaced with local email/password auth. " +
-          "Social login is not available in offline desktop apps."
+          "Social login may require additional desktop OAuth configuration."
       );
     }
 

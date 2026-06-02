@@ -8,7 +8,7 @@ export interface InitOptions {
 }
 
 const DEFAULT_CONFIG = {
-  mode: "offline" as "offline" | "online" | "hybrid",
+  mode: "online" as "online",
   name: "My App",
   version: "1.0.0",
   appId: "com.example.myapp",
@@ -107,8 +107,7 @@ async function promptConfig(): Promise<typeof DEFAULT_CONFIG> {
     "admin@app.local"
   );
 
-  const modeInput = await prompt(`  Mode (offline/online/hybrid) [offline]: `, "offline");
-  const mode = (["offline", "online", "hybrid"].includes(modeInput) ? modeInput : "offline") as "offline" | "online" | "hybrid";
+  const mode: "online" = "online";
 
   // ── Mobile-specific prompts (only shown when android/ios is in targets) ──
   const wantsAndroid = targets.includes("android");

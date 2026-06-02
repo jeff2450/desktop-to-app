@@ -1,6 +1,7 @@
 /**
  * Manually generated Prisma Client types stub.
  * Derived from: apps/api/prisma/schema.prisma + actual codebase usage.
+ * Keep in sync with schema.prisma whenever models are added/changed.
  */
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
@@ -9,8 +10,9 @@ export declare const Plan: {
   FREE:     'FREE';
   STARTER:  'STARTER';
   PRO:      'PRO';
+  ULTRA:    'ULTRA';
 };
-export declare type Plan = 'FREE' | 'STARTER' | 'PRO';
+export declare type Plan = 'FREE' | 'STARTER' | 'PRO' | 'ULTRA';
 
 export declare const JobStatus: {
   QUEUED:    'QUEUED';
@@ -63,6 +65,44 @@ export declare type Artifact = {
   sizeBytes: number;
 };
 
+export declare type ClickPesaOrder = {
+  id:             string;
+  orderReference: string;
+  userId:         string;
+  plan:           Plan;
+  status:         string;
+  createdAt:      Date;
+  updatedAt:      Date;
+};
+
+export declare type PaypalOrder = {
+  id:             string;
+  orderReference: string;
+  paypalOrderId:  string | null;
+  userId:         string;
+  plan:           Plan;
+  status:         string;
+  createdAt:      Date;
+  updatedAt:      Date;
+};
+
+export declare type MpesaOrder = {
+  id:                       string;
+  orderReference:           string;
+  conversationId:           string | null;
+  thirdPartyConversationId: string;
+  userId:                   string;
+  plan:                     Plan;
+  phoneNumber:              string;
+  amount:                   number;
+  currency:                 string;
+  status:                   string;
+  responseCode:             string | null;
+  responseDesc:             string | null;
+  createdAt:                Date;
+  updatedAt:                Date;
+};
+
 // ─── Prisma namespace ─────────────────────────────────────────────────────────
 
 export declare namespace Prisma {
@@ -104,10 +144,13 @@ export declare class PrismaClient {
   $executeRaw(query: TemplateStringsArray, ...values: unknown[]): Promise<number>;
   $queryRaw<T = unknown>(query: TemplateStringsArray, ...values: unknown[]): Promise<T[]>;
 
-  readonly user:     UserDelegate;
-  readonly session:  SessionDelegate;
-  readonly job:      JobDelegate;
-  readonly artifact: ArtifactDelegate;
+  readonly user:           UserDelegate;
+  readonly session:        SessionDelegate;
+  readonly job:            JobDelegate;
+  readonly artifact:       ArtifactDelegate;
+  readonly clickPesaOrder: ClickPesaOrderDelegate;
+  readonly paypalOrder:    PaypalOrderDelegate;
+  readonly mpesaOrder:     MpesaOrderDelegate;
 }
 
 // ─── User delegate ────────────────────────────────────────────────────────────
@@ -116,12 +159,13 @@ type UserWhereUnique = { id?: string; email?: string; stripeCustomerId?: string 
 
 /** Partial record for user creation — stripeCustomerId and plan are optional */
 type UserCreateInput = {
-  email:            string;
-  passwordHash:     string;
-  plan?:            Plan | string;
+  email:             string;
+  passwordHash:      string;
+  name?:             string | null;
+  plan?:             Plan | string;
   stripeCustomerId?: string | null;
-  id?:              string;
-  createdAt?:       Date;
+  id?:               string;
+  createdAt?:        Date;
 };
 
 interface UserDelegate {
@@ -196,4 +240,50 @@ interface ArtifactDelegate {
   deleteMany(args?: { where?: Partial<Artifact> }): Promise<{ count: number }>;
 }
 
+// ─── ClickPesaOrder delegate ─────────────────────────────────────────────────
+
+type ClickPesaOrderWhereUnique = { id?: string; orderReference?: string };
+
+interface ClickPesaOrderDelegate {
+  findUnique(args: { where: ClickPesaOrderWhereUnique }): Promise<ClickPesaOrder | null>;
+  findFirst(args?: { where?: Partial<ClickPesaOrder> }): Promise<ClickPesaOrder | null>;
+  findMany(args?: { where?: Partial<ClickPesaOrder> }): Promise<ClickPesaOrder[]>;
+  create(args: { data: Omit<ClickPesaOrder, 'id' | 'createdAt' | 'updatedAt'> & { id?: string } }): Promise<ClickPesaOrder>;
+  update(args: { where: ClickPesaOrderWhereUnique; data: Partial<Omit<ClickPesaOrder, 'id'>> }): Promise<ClickPesaOrder>;
+  updateMany(args: { where: Partial<ClickPesaOrder>; data: Partial<Omit<ClickPesaOrder, 'id'>> }): Promise<{ count: number }>;
+  delete(args: { where: ClickPesaOrderWhereUnique }): Promise<ClickPesaOrder>;
+  deleteMany(args?: { where?: Partial<ClickPesaOrder> }): Promise<{ count: number }>;
+}
+
+// ─── PaypalOrder delegate ─────────────────────────────────────────────────────
+
+type PaypalOrderWhereUnique = { id?: string; orderReference?: string; paypalOrderId?: string };
+
+interface PaypalOrderDelegate {
+  findUnique(args: { where: PaypalOrderWhereUnique }): Promise<PaypalOrder | null>;
+  findFirst(args?: { where?: Partial<PaypalOrder> }): Promise<PaypalOrder | null>;
+  findMany(args?: { where?: Partial<PaypalOrder> }): Promise<PaypalOrder[]>;
+  create(args: { data: Omit<PaypalOrder, 'id' | 'createdAt' | 'updatedAt'> & { id?: string } }): Promise<PaypalOrder>;
+  update(args: { where: PaypalOrderWhereUnique; data: Partial<Omit<PaypalOrder, 'id'>> }): Promise<PaypalOrder>;
+  updateMany(args: { where: Partial<PaypalOrder>; data: Partial<Omit<PaypalOrder, 'id'>> }): Promise<{ count: number }>;
+  delete(args: { where: PaypalOrderWhereUnique }): Promise<PaypalOrder>;
+  deleteMany(args?: { where?: Partial<PaypalOrder> }): Promise<{ count: number }>;
+}
+
+// ─── MpesaOrder delegate ─────────────────────────────────────────────────────
+
+type MpesaOrderWhereUnique = { id?: string; orderReference?: string; thirdPartyConversationId?: string };
+
+interface MpesaOrderDelegate {
+  findUnique(args: { where: MpesaOrderWhereUnique }): Promise<MpesaOrder | null>;
+  findFirst(args?: { where?: Partial<MpesaOrder> }): Promise<MpesaOrder | null>;
+  findMany(args?: { where?: Partial<MpesaOrder> }): Promise<MpesaOrder[]>;
+  create(args: { data: Omit<MpesaOrder, 'id' | 'createdAt' | 'updatedAt'> & { id?: string } }): Promise<MpesaOrder>;
+  update(args: { where: MpesaOrderWhereUnique; data: Partial<Omit<MpesaOrder, 'id'>> }): Promise<MpesaOrder>;
+  updateMany(args: { where: Partial<MpesaOrder>; data: Partial<Omit<MpesaOrder, 'id'>> }): Promise<{ count: number }>;
+  delete(args: { where: MpesaOrderWhereUnique }): Promise<MpesaOrder>;
+  deleteMany(args?: { where?: Partial<MpesaOrder> }): Promise<{ count: number }>;
+}
+
 export {};
+

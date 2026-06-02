@@ -5,8 +5,8 @@ import { useEffect, useRef, useState } from "react";
 const LINES = [
   { text: "$ npx webtoapp convert",              color: "text-zinc-400",  delay: 0    },
   { text: "✔ Stack detected: React + Supabase",  color: "text-zinc-300",  delay: 600  },
-  { text: "✔ Generating AST transformation plan...", color: "text-zinc-300", delay: 1300 },
-  { text: "✔ Scaffolding offline sync layer...", color: "text-zinc-300",  delay: 2100 },
+  { text: "✔ Planning Electron wrapper...", color: "text-zinc-300", delay: 1300 },
+  { text: "✔ Preserving cloud backend config...", color: "text-zinc-300",  delay: 2100 },
   { text: "⚙ Building for Windows...",           color: "text-cyan-400",  delay: 3000 },
   { text: "  [vite] bundle generated in 1250ms", color: "text-zinc-500",  delay: 3800 },
   { text: "  [electron-builder] creating setup.exe", color: "text-zinc-500", delay: 4400 },

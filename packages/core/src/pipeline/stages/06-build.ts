@@ -435,7 +435,7 @@ async function resolveBuildCommand(outputDir: string): Promise<string> {
  * Post-build: Strip external CDN <script> tags from dist/index.html.
  *
  * Tools like Lovable.dev inject <script src="https://cdn.gpteng.co/..."> tags
- * into index.html. These fail in Electron's offline environment and can
+ * into index.html. These fail in Electron's packaged environment and can
  * prevent the React app from mounting.
  *
  * We only remove known preview/instrumentation scripts. App-owned external

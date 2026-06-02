@@ -106,24 +106,12 @@ export async function runTransformStage(ctx: PipelineContext): Promise<void> {
     await copyPublicAssets(ctx);
     await copySrcAssets(ctx);
 
-    // ── Error #1 Fix: Scrub orphaned imports from deleted modules ──
-    // Stage 04 deletes syncEngine.ts, useOnlineStatus.ts etc. in
-    // non-hybrid mode. We must remove every import / JSX reference
-    // to those files from the surviving source files BEFORE vite build.
-    if (ctx.config.mode !== "hybrid") {
-      await scrubOrphanedImports(ctx);
-    }
-
-    // ── Error #8 Fix: React Router in Electron requires HashRouter ──
-    // BrowserRouter uses the HTML5 History API which fails on file://
-    await fixReactRouterForElectron(ctx);
-
     // ── Error #9 Fix: Supabase client.ts may still call createClient() ──
     // The transformer removes the import but can leave the call expression,
     // which throws ReferenceError at runtime — causing the blank white screen.
     await fixOrphanedSupabaseClient(ctx);
 
-    if (hasMobileTarget(ctx) && ctx.config.mode !== "online") {
+    if (hasMobileTarget(ctx)) {
       await assertNoRemovedDependencyImports(ctx);
     }
 
@@ -190,8 +178,6 @@ function hasMobileTarget(ctx: PipelineContext): boolean {
 async function assertNoRemovedDependencyImports(ctx: PipelineContext): Promise<void> {
   const removedDeps = ctx.plan?.dependenciesToRemove ?? [];
   if (removedDeps.length === 0) return;
-
-  if (ctx.config.mode === "online") return;
 
   const srcDir = path.join(ctx.outputDir, "src");
   if (!(await dirExists(srcDir))) return;
@@ -307,12 +293,6 @@ async function copySrcAssets(ctx: PipelineContext): Promise<void> {
     if (srcExists && !destExists) {
       if (file.startsWith(".env")) {
         let content = await fs.readFile(src, "utf-8");
-        if (ctx.config.mode === "offline") {
-          content = content.replace(/^(.*(?:SUPABASE|FIREBASE).*)$/gm, "# $1 # stripped by WebToApp");
-        }
-        if (ctx.config.mode !== "online" && !content.includes("VITE_LOCAL_API")) {
-          content += "\n\n# Added by WebToApp\nVITE_LOCAL_API=true\nVITE_API_PORT=3001\n";
-        }
         await fs.writeFile(dest, content, "utf-8");
       } else {
         await fs.copyFile(src, dest);
@@ -325,11 +305,7 @@ async function copySrcAssets(ctx: PipelineContext): Promise<void> {
 }
 
 /**
- * Error #1 Fix: Scrub orphaned import statements and JSX usages that
- * reference files deleted by Stage 04 (syncEngine, SyncStatus, etc.).
- *
- * Without this, vite throws:
- *   "Could not load .../syncEngine (imported by SyncStatus.tsx)"
+ * Scrub imports and JSX usages that reference files deleted by Stage 04.
  */
 async function scrubOrphanedImports(ctx: PipelineContext): Promise<void> {
   const srcDir = path.join(ctx.outputDir, "src");
@@ -477,16 +453,11 @@ async function fixOrphanedSupabaseClient(ctx: PipelineContext): Promise<void> {
 }
 
 /**
- * Error #8 Fix: Replace BrowserRouter with HashRouter.
- * Electron serves files via file://, meaning HTML5 History API routing
- * (BrowserRouter) fails and shows 404 or blank pages on navigation.
- * We must use HashRouter instead.
+ * Legacy route patcher retained for compatibility with existing generated
+ * outputs. Online conversions return before mutating route code.
  */
 async function fixReactRouterForElectron(ctx: PipelineContext): Promise<void> {
-  // Online mode uses app:// which acts as a secure http-like origin —
-  // BrowserRouter works fine there. Only offline/hybrid use file:// fallback
-  // paths where HashRouter is required to avoid blank page on navigation.
-  if (ctx.config.mode === "online") return;
+  return;
 
   const srcDir = path.join(ctx.outputDir, "src");
   if (!(await dirExists(srcDir))) return;

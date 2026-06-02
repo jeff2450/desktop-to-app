@@ -27,6 +27,11 @@ import {
   createPaypalOrder,
   capturePaypalOrder
 } from "../services/paypal.service.js";
+import {
+  isMpesaConfigured,
+  initiateC2BPayment,
+  parseMpesaCallback
+} from "../services/mpesa.service.js";
 
 function toFrontendPlan(plan: Plan): "free" | "pro" | "team" | "ultra" {
   switch (plan) {
@@ -58,9 +63,42 @@ const PLANS_METADATA = [
   { id: "ultra", name: "Ultra", price: 24, conversionsPerMonth: 50, features: ["50 conversions per month", "All platforms + architectures", "Ultra priority queue", "CI/CD API access", "Custom integrations", "Dedicated support"] }
 ];
 
+const checkoutGatewaySchema = z.enum(["credit", "stripe", "paypal", "mpesa", "clickpesa", "mock"]);
+type CheckoutGateway = z.infer<typeof checkoutGatewaySchema>;
+type RuntimeGateway = Exclude<CheckoutGateway, "credit">;
+
+function normalizeGateway(gateway?: CheckoutGateway): RuntimeGateway | undefined {
+  if (!gateway) return undefined;
+  return gateway === "credit" ? "stripe" : gateway;
+}
+
+function isGatewayConfigured(gateway: RuntimeGateway): boolean {
+  switch (gateway) {
+    case "stripe":
+      return Boolean(stripe);
+    case "paypal":
+      return isPaypalConfigured();
+    case "mpesa":
+      return isMpesaConfigured();
+    case "clickpesa":
+      return isClickPesaConfigured();
+    case "mock":
+      return env.NODE_ENV !== "production";
+  }
+}
+
+function getDefaultGateway(): RuntimeGateway {
+  if (stripe) return "stripe";
+  if (isPaypalConfigured()) return "paypal";
+  if (isMpesaConfigured()) return "mpesa";
+  if (isClickPesaConfigured()) return "clickpesa";
+  return "mock";
+}
+
 const checkoutSchema = z.object({
   plan: z.string().min(1),
-  gateway: z.string().optional()
+  gateway: checkoutGatewaySchema.optional(),
+  phoneNumber: z.string().optional(), // required when gateway=mpesa (format: 255XXXXXXXXX)
 });
 
 export const billingRouter: import("express").Router = Router();
@@ -140,9 +178,11 @@ billingRouter.get("/usage-chart", requireAuth, async (req, res, next) => {
 billingRouter.get("/config", requireAuth, async (req, res, next) => {
   try {
     res.json({
+      credit: !!stripe,
       stripe: !!stripe,
       paypal: isPaypalConfigured(),
-      clickpesa: isClickPesaConfigured()
+      clickpesa: isClickPesaConfigured(),
+      mpesa: isMpesaConfigured()
     });
   } catch (error) {
     next(error);
@@ -151,7 +191,7 @@ billingRouter.get("/config", requireAuth, async (req, res, next) => {
 
 billingRouter.post("/checkout", requireAuth, async (req, res, next) => {
   try {
-    const { plan, gateway } = checkoutSchema.parse(req.body);
+    const { plan, gateway, phoneNumber } = checkoutSchema.parse(req.body);
     const authReq = req as unknown as AuthenticatedRequest;
     const user = await prisma.user.findUnique({
       where: { id: authReq.auth.userId },
@@ -170,21 +210,66 @@ billingRouter.post("/checkout", requireAuth, async (req, res, next) => {
       throw new ApiError(400, "Invalid plan", "INVALID_PLAN");
     }
 
-    // Determine gateway
-    let selectedGateway = gateway;
-    if (!selectedGateway) {
-      if (stripe) {
-        selectedGateway = "stripe";
-      } else if (isPaypalConfigured()) {
-        selectedGateway = "paypal";
-      } else if (isClickPesaConfigured()) {
-        selectedGateway = "clickpesa";
-      } else {
-        selectedGateway = "mock";
+    const selectedGateway = normalizeGateway(gateway) ?? getDefaultGateway();
+    if (!isGatewayConfigured(selectedGateway)) {
+      throw new ApiError(
+        503,
+        `${gateway === "credit" ? "Credit card" : gateway ?? selectedGateway} checkout is not configured`,
+        "GATEWAY_NOT_CONFIGURED",
+      );
+    }
+
+    // ── M-Pesa (Vodacom Tanzania USSD Push) ────────────────────────────────
+    if (selectedGateway === "mpesa") {
+      if (!phoneNumber) {
+        throw new ApiError(400, "phoneNumber is required for M-Pesa payments (format: 255XXXXXXXXX)", "MPESA_PHONE_REQUIRED");
+      }
+
+      const orderReference = `wta_mpesa_${frontendPlanId}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      const thirdPartyConversationId = `wta_${Date.now()}_${Math.random().toString(36).slice(2, 14)}`;
+
+      let amount = billingPlan.price;
+      if (env.MPESA_CURRENCY === "TZS") {
+        amount = amount * env.MPESA_USD_TO_TZS_RATE;
+      }
+
+      try {
+        const result = await initiateC2BPayment({
+          orderReference,
+          thirdPartyConversationId,
+          customerMSISDN: phoneNumber.replace(/^\+/, ""),
+          amount,
+          description: `${billingPlan.name} plan subscription`,
+        });
+
+        await prisma.mpesaOrder.create({
+          data: {
+            orderReference,
+            thirdPartyConversationId,
+            conversationId: result.conversationId || null,
+            userId: user.id,
+            plan: dbPlan,
+            phoneNumber: phoneNumber.replace(/^\+/, ""),
+            amount,
+            currency: env.MPESA_CURRENCY,
+            status: "PENDING",
+            responseCode: result.responseCode,
+            responseDesc: result.responseDesc,
+          },
+        });
+
+        return res.json({
+          pending: true,
+          orderReference,
+          message: result.responseDesc || "A USSD prompt has been sent to your phone. Please enter your M-Pesa PIN to complete the payment.",
+        });
+      } catch (err) {
+        console.error("[billing] M-Pesa checkout initiation failed:", err);
+        throw new ApiError(502, (err as Error).message || "M-Pesa payment initiation failed", "MPESA_ERROR");
       }
     }
 
-    if (selectedGateway === "clickpesa" && isClickPesaConfigured()) {
+    if (selectedGateway === "clickpesa") {
       const orderReference = `wta_${frontendPlanId}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
       
       try {
@@ -212,7 +297,7 @@ billingRouter.post("/checkout", requireAuth, async (req, res, next) => {
       }
     }
 
-    if (selectedGateway === "paypal" && isPaypalConfigured()) {
+    if (selectedGateway === "paypal") {
       const orderReference = `wta_pp_${frontendPlanId}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
       const successUrl = `${env.DASHBOARD_URL ?? "http://localhost:3000"}/billing/success?plan=${frontendPlanId}&gateway=paypal&orderReference=${orderReference}`;
       const failureUrl = `${env.DASHBOARD_URL ?? "http://localhost:3000"}/billing?error=payment_failed`;
@@ -249,16 +334,21 @@ billingRouter.post("/checkout", requireAuth, async (req, res, next) => {
         const session = await stripe.checkout.sessions.create({
           mode: "subscription",
           line_items: [{ price: getPriceIdForPlan(dbPlan), quantity: 1 }],
-          success_url: `${env.DASHBOARD_URL}/billing/success?session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${env.DASHBOARD_URL}/billing`,
+          success_url: `${env.DASHBOARD_URL ?? "http://localhost:3000"}/billing/success?plan=${frontendPlanId}&gateway=credit&session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${env.DASHBOARD_URL ?? "http://localhost:3000"}/billing`,
           customer: customerId,
           metadata: { userId: user.id, plan: dbPlan }
         });
 
         return res.json({ url: session.url });
       } catch (stripeError) {
-        console.warn("[billing] Stripe checkout creation failed, falling back to other gateways:", stripeError);
+        console.error("[billing] Credit card checkout creation failed:", stripeError);
+        throw new ApiError(502, "Credit card checkout initiation failed", "STRIPE_ERROR");
       }
+    }
+
+    if (selectedGateway !== "mock") {
+      throw new ApiError(503, "Selected payment gateway is not available", "GATEWAY_NOT_CONFIGURED");
     }
 
     const mockSuccessUrl = `${env.DASHBOARD_URL ?? "http://localhost:3000"}/billing/success?plan=${frontendPlanId}&txRef=mock_tx_${Date.now()}`;
@@ -464,6 +554,92 @@ billingRouter.get("/subscription", requireAuth, async (req, res, next) => {
       cancelAtPeriodEnd,
       stripePortalUrl,
       usageByDay
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ── M-Pesa async callback (Vodacom POSTs result here) ───────────────────────
+billingRouter.post("/mpesa/callback", async (req, res, next) => {
+  try {
+    const token = req.query["token"] as string | undefined;
+    if (env.MPESA_WEBHOOK_TOKEN && token !== env.MPESA_WEBHOOK_TOKEN) {
+      console.warn("[mpesa] Callback unauthorized: invalid webhook token");
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const body = req.body || {};
+    const thirdPartyConversationId =
+      body.output_ThirdPartyConversationID ||
+      body.ThirdPartyConversationID ||
+      "";
+
+    if (!thirdPartyConversationId) {
+      console.warn("[mpesa] Callback missing ThirdPartyConversationID", body);
+      return res.status(400).json({ success: false, message: "Missing ThirdPartyConversationID" });
+    }
+
+    const order = await prisma.mpesaOrder.findUnique({
+      where: { thirdPartyConversationId },
+    });
+
+    if (!order) {
+      console.warn("[mpesa] Unknown thirdPartyConversationId:", thirdPartyConversationId);
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    const { paid, responseCode, responseDesc, conversationId } = parseMpesaCallback(body);
+
+    if (paid) {
+      await prisma.user.update({
+        where: { id: order.userId },
+        data: { plan: order.plan },
+      });
+      await prisma.mpesaOrder.update({
+        where: { id: order.id },
+        data: { status: "SUCCESS", responseCode, responseDesc, conversationId: conversationId || order.conversationId },
+      });
+    } else {
+      await prisma.mpesaOrder.update({
+        where: { id: order.id },
+        data: { status: "FAILED", responseCode, responseDesc },
+      });
+    }
+
+    console.log(`[mpesa] Callback processed: ${order.orderReference} → ${paid ? "SUCCESS" : "FAILED"} (${responseCode})`)
+    return res.json({ success: true, paid });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ── M-Pesa status poll (frontend polls this after initiating payment) ─────────
+billingRouter.get("/mpesa/status/:orderReference", requireAuth, async (req, res, next) => {
+  try {
+    const orderReference = req.params["orderReference"] as string;
+    const authReq = req as unknown as AuthenticatedRequest;
+
+    const order = await prisma.mpesaOrder.findUnique({
+      where: { orderReference },
+    });
+
+    if (!order) {
+      throw new ApiError(404, "M-Pesa order not found", "NOT_FOUND");
+    }
+
+    // Security: only the owner can poll
+    if (order.userId !== authReq.auth.userId) {
+      throw new ApiError(403, "Forbidden", "FORBIDDEN");
+    }
+
+    return res.json({
+      status: order.status,
+      paid: order.status === "SUCCESS",
+      orderReference: order.orderReference,
+      responseCode: order.responseCode,
+      responseDesc: order.responseDesc,
+      plan: toFrontendPlan(order.plan),
     });
   } catch (error) {
     next(error);

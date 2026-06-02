@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Input } from "@/components/ui/input";
 import { TopBar } from "@/components/layout/TopBar";
 import { billingApi } from "@/lib/api-client";
 import type { UsageStats, BillingPlan, SubscriptionInfo, UsageChartData, Plan } from "@/types";
@@ -43,6 +44,14 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 
+type GatewayConfig = {
+  credit: boolean;
+  stripe: boolean;
+  paypal: boolean;
+  clickpesa: boolean;
+  mpesa: boolean;
+};
+
 export default function BillingPage() {
   const [usage, setUsage] = useState<UsageStats | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
@@ -56,13 +65,25 @@ export default function BillingPage() {
   const [iframeLoading, setIframeLoading] = useState(true);
 
   // Gateway availability configurations
-  const [gateways, setGateways] = useState<{ stripe: boolean; paypal: boolean; clickpesa: boolean }>({
+  const [gateways, setGateways] = useState<GatewayConfig>({
+    credit: false,
     stripe: false,
     paypal: false,
-    clickpesa: false
+    clickpesa: false,
+    mpesa: false,
   });
   const [selectedUpgradePlan, setSelectedUpgradePlan] = useState<Plan | null>(null);
   const [showPaymentSelector, setShowPaymentSelector] = useState(false);
+
+  // M-Pesa phone modal state
+  const [showMpesaModal, setShowMpesaModal] = useState(false);
+  const [mpesaPhone, setMpesaPhone] = useState("");
+  const [mpesaPhoneError, setMpesaPhoneError] = useState("");
+  const [mpesaPending, setMpesaPending] = useState(false);
+  const [mpesaOrderRef, setMpesaOrderRef] = useState<string | null>(null);
+  const [mpesaMessage, setMpesaMessage] = useState("");
+  const [mpesaStatus, setMpesaStatus] = useState<"idle" | "polling" | "success" | "failed">("idle");
+  const mpesaPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Frame detection: redirect parent if loaded inside an iframe (e.g. cancellation)
   useEffect(() => {
@@ -100,24 +121,42 @@ export default function BillingPage() {
   }, []);
 
   const handleUpgradeClick = (planId: Plan) => {
-    const active = Object.entries(gateways)
-      .filter(([_, enabled]) => enabled)
-      .map(([name]) => name);
-
-    if (active.length <= 1) {
-      handleUpgrade(planId, active[0]);
-    } else {
-      setSelectedUpgradePlan(planId);
-      setShowPaymentSelector(true);
-    }
+    setSelectedUpgradePlan(planId);
+    setShowPaymentSelector(true);
   };
 
   const handleUpgrade = async (planId: Plan, gateway?: string) => {
+    if (gateway === "mpesa") {
+      if (!gateways.mpesa) {
+        alert("M-Pesa is not configured yet.");
+        return;
+      }
+      setSelectedUpgradePlan(planId);
+      setShowPaymentSelector(false);
+      setMpesaPhone("");
+      setMpesaPhoneError("");
+      setMpesaStatus("idle");
+      setMpesaMessage("");
+      setMpesaOrderRef(null);
+      setShowMpesaModal(true);
+      return;
+    }
+
+    if (gateway === "credit" && !(gateways.credit || gateways.stripe)) {
+      alert("Credit card checkout is not configured yet.");
+      return;
+    }
+
+    if (gateway === "paypal" && !gateways.paypal) {
+      alert("PayPal checkout is not configured yet.");
+      return;
+    }
+
     setActionLoading(planId);
     setShowPaymentSelector(false);
     try {
       const result = await billingApi.checkout(planId, gateway);
-      if (result.data?.url) {
+      if (result.data && "url" in result.data && result.data.url) {
         const url = result.data.url;
         const isClickPesa = url.includes("clickpesa") || gateway === "clickpesa";
         if (isClickPesa) {
@@ -136,6 +175,68 @@ export default function BillingPage() {
       setActionLoading(null);
     }
   };
+
+  const handleMpesaSubmit = async () => {
+    if (!selectedUpgradePlan) return;
+    // Validate phone: must be 12 digits starting with 255
+    const cleaned = mpesaPhone.replace(/\s/g, "").replace(/^\+/, "");
+    if (!/^255\d{9}$/.test(cleaned)) {
+      setMpesaPhoneError("Enter a valid Tanzanian number (e.g. 255712345678)");
+      return;
+    }
+    setMpesaPhoneError("");
+    setMpesaPending(true);
+    setMpesaStatus("idle");
+    try {
+      const result = await billingApi.checkout(selectedUpgradePlan, "mpesa", cleaned);
+      if (result.data && "pending" in result.data && result.data.pending && result.data.orderReference) {
+        const pendingRef = result.data.orderReference;
+        setMpesaOrderRef(pendingRef);
+        setMpesaMessage(result.data.message || "Check your phone for the M-Pesa prompt.");
+        setMpesaStatus("polling");
+        // Start polling every 3 seconds (max 5 minutes)
+        let elapsed = 0;
+        mpesaPollRef.current = setInterval(async () => {
+          elapsed += 3000;
+          try {
+            const status = await billingApi.mpesaStatus(pendingRef);
+            if (status.data?.paid) {
+              clearInterval(mpesaPollRef.current!);
+              setMpesaStatus("success");
+              setMpesaMessage("Payment confirmed! Your plan has been upgraded.");
+              // Refresh billing data
+              const [u, s] = await Promise.all([billingApi.usage(), billingApi.subscription()]);
+              if (u.data) setUsage(u.data);
+              if (s.data) setSubscription(s.data);
+            } else if (status.data?.status === "FAILED") {
+              clearInterval(mpesaPollRef.current!);
+              setMpesaStatus("failed");
+              setMpesaMessage(status.data.responseDesc || "Payment was not completed.");
+            } else if (elapsed >= 5 * 60 * 1000) {
+              clearInterval(mpesaPollRef.current!);
+              setMpesaStatus("failed");
+              setMpesaMessage("Payment timed out. Please try again.");
+            }
+          } catch {
+            // ignore transient poll errors
+          }
+        }, 3000);
+      } else {
+        alert(result.error || "M-Pesa initiation failed");
+        setMpesaStatus("failed");
+      }
+    } catch (err) {
+      console.error("M-Pesa checkout error:", err);
+      alert("Failed to initiate M-Pesa payment");
+    } finally {
+      setMpesaPending(false);
+    }
+  };
+
+  // Clean up polling on unmount
+  useEffect(() => {
+    return () => { if (mpesaPollRef.current) clearInterval(mpesaPollRef.current); };
+  }, []);
 
   const handlePortal = async () => {
     setActionLoading('portal');
@@ -281,59 +382,139 @@ export default function BillingPage() {
             </DialogHeader>
 
             <div className="mt-6 space-y-4">
-              {gateways.stripe && (
-                <button
-                  onClick={() => selectedUpgradePlan && handleUpgrade(selectedUpgradePlan, "stripe")}
-                  className="w-full flex items-center justify-between p-4 rounded-2xl bg-zinc-950/50 border border-zinc-800 hover:border-indigo-500/50 hover:bg-zinc-800/30 transition-all duration-300 group"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center group-hover:bg-indigo-500 group-hover:text-white transition-all duration-300">
-                      <CreditCard className="w-6 h-6" />
-                    </div>
-                    <div className="text-left">
-                      <p className="font-bold text-white text-sm">Card / Google Pay</p>
-                      <p className="text-zinc-500 text-xs">Pay securely via Stripe (Supports Google Pay & Apple Pay)</p>
-                    </div>
-                  </div>
-                  <Check className="w-5 h-5 text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                </button>
-              )}
+              <PaymentChoiceButton
+                enabled={gateways.credit || gateways.stripe}
+                icon={<CreditCard className="w-6 h-6" />}
+                label="Credit / debit card"
+                description="Pay securely by card through Stripe"
+                accent="indigo"
+                onClick={() => selectedUpgradePlan && handleUpgrade(selectedUpgradePlan, "credit")}
+              />
 
-              {gateways.paypal && (
-                <button
-                  onClick={() => selectedUpgradePlan && handleUpgrade(selectedUpgradePlan, "paypal")}
-                  className="w-full flex items-center justify-between p-4 rounded-2xl bg-zinc-950/50 border border-zinc-800 hover:border-amber-500/50 hover:bg-zinc-800/30 transition-all duration-300 group"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center group-hover:bg-amber-500 group-hover:text-white transition-all duration-300">
-                      <Wallet className="w-6 h-6" />
-                    </div>
-                    <div className="text-left">
-                      <p className="font-bold text-white text-sm">PayPal</p>
-                      <p className="text-zinc-500 text-xs">Pay with your PayPal account or card</p>
-                    </div>
-                  </div>
-                  <Check className="w-5 h-5 text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                </button>
-              )}
+              <PaymentChoiceButton
+                enabled={gateways.paypal}
+                icon={<Wallet className="w-6 h-6" />}
+                label="PayPal"
+                description="Pay with your PayPal account"
+                accent="amber"
+                onClick={() => selectedUpgradePlan && handleUpgrade(selectedUpgradePlan, "paypal")}
+              />
 
-              {gateways.clickpesa && (
-                <button
-                  onClick={() => selectedUpgradePlan && handleUpgrade(selectedUpgradePlan, "clickpesa")}
-                  className="w-full flex items-center justify-between p-4 rounded-2xl bg-zinc-950/50 border border-zinc-800 hover:border-emerald-500/50 hover:bg-zinc-800/30 transition-all duration-300 group"
+              <PaymentChoiceButton
+                enabled={gateways.mpesa}
+                icon={<Smartphone className="w-6 h-6" />}
+                label="M-Pesa"
+                description="Pay via Vodacom M-Pesa Tanzania"
+                accent="green"
+                onClick={() => selectedUpgradePlan && handleUpgrade(selectedUpgradePlan, "mpesa")}
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* M-Pesa Phone Number Modal */}
+        <Dialog open={showMpesaModal} onOpenChange={(open) => {
+          if (!open && mpesaPollRef.current) clearInterval(mpesaPollRef.current);
+          setShowMpesaModal(open);
+        }}>
+          <DialogContent className="bg-zinc-900 border-zinc-800 text-white rounded-3xl max-w-md p-6 shadow-[0_0_50px_rgba(34,197,94,0.12)]">
+            <DialogHeader className="space-y-3">
+              <DialogTitle className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
+                <Smartphone className="w-6 h-6 text-green-400" />
+                Pay with M-Pesa
+              </DialogTitle>
+              <DialogDescription className="text-zinc-400 text-sm">
+                Enter your M-Pesa registered phone number. You will receive a USSD prompt to confirm the payment.
+              </DialogDescription>
+            </DialogHeader>
+
+            {mpesaStatus === "idle" && (
+              <div className="mt-6 space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">Phone Number</label>
+                  <Input
+                    id="mpesa-phone-input"
+                    type="tel"
+                    placeholder="255712345678"
+                    value={mpesaPhone}
+                    onChange={(e) => { setMpesaPhone(e.target.value); setMpesaPhoneError(""); }}
+                    className="bg-zinc-950 border-zinc-700 text-white placeholder:text-zinc-600 rounded-xl h-12 text-base focus:border-green-500 focus:ring-green-500/20"
+                    disabled={mpesaPending}
+                  />
+                  {mpesaPhoneError && <p className="text-red-400 text-xs">{mpesaPhoneError}</p>}
+                  <p className="text-zinc-600 text-xs">Format: 255 followed by 9 digits (e.g. 255712345678)</p>
+                </div>
+                <Button
+                  id="mpesa-submit-btn"
+                  onClick={handleMpesaSubmit}
+                  disabled={mpesaPending}
+                  className="w-full bg-green-600 hover:bg-green-500 text-white rounded-xl py-6 font-bold text-base transition-all shadow-lg"
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center group-hover:bg-emerald-500 group-hover:text-white transition-all duration-300">
-                      <Smartphone className="w-6 h-6" />
-                    </div>
-                    <div className="text-left">
-                      <p className="font-bold text-white text-sm">Mobile Money</p>
-                      <p className="text-zinc-500 text-xs">Pay via ClickPesa Mobile Checkout</p>
-                    </div>
+                  {mpesaPending
+                    ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Sending prompt...</>
+                    : <><Smartphone className="w-4 h-4 mr-2" />Send M-Pesa Prompt</>}
+                </Button>
+              </div>
+            )}
+
+            {mpesaStatus === "polling" && (
+              <div className="mt-6 flex flex-col items-center gap-6 py-4">
+                <div className="relative">
+                  <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center">
+                    <Loader2 className="w-10 h-10 text-green-400 animate-spin" />
                   </div>
-                  <Check className="w-5 h-5 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                </button>
-              )}
+                  <div className="absolute inset-0 rounded-full border-2 border-green-500/30 animate-ping" />
+                </div>
+                <div className="text-center space-y-2">
+                  <p className="text-white font-bold text-lg">Waiting for confirmation</p>
+                  <p className="text-zinc-400 text-sm max-w-xs">{mpesaMessage}</p>
+                  <p className="text-zinc-600 text-xs">Enter your M-Pesa PIN on your phone to complete the payment.</p>
+                </div>
+              </div>
+            )}
+
+            {mpesaStatus === "success" && (
+              <div className="mt-6 flex flex-col items-center gap-4 py-4">
+                <div className="w-20 h-20 rounded-full bg-green-500/20 flex items-center justify-center">
+                  <Check className="w-10 h-10 text-green-400" />
+                </div>
+                <div className="text-center space-y-2">
+                  <p className="text-white font-bold text-lg">Payment Successful! 🎉</p>
+                  <p className="text-zinc-400 text-sm">{mpesaMessage}</p>
+                </div>
+                <Button
+                  onClick={() => setShowMpesaModal(false)}
+                  className="w-full bg-green-600 hover:bg-green-500 text-white rounded-xl py-4 font-bold"
+                >
+                  Done
+                </Button>
+              </div>
+            )}
+
+            {mpesaStatus === "failed" && (
+              <div className="mt-6 flex flex-col items-center gap-4 py-4">
+                <div className="w-20 h-20 rounded-full bg-red-500/20 flex items-center justify-center">
+                  <X className="w-10 h-10 text-red-400" />
+                </div>
+                <div className="text-center space-y-2">
+                  <p className="text-white font-bold text-lg">Payment Failed</p>
+                  <p className="text-zinc-400 text-sm">{mpesaMessage}</p>
+                </div>
+                <Button
+                  onClick={() => { setMpesaStatus("idle"); setMpesaMessage(""); }}
+                  className="w-full bg-zinc-700 hover:bg-zinc-600 text-white rounded-xl py-4 font-bold"
+                >
+                  Try Again
+                </Button>
+              </div>
+            )}
+
+            <div className="mt-4 pt-4 border-t border-zinc-800 flex items-center justify-between text-[10px] text-zinc-600">
+              <span className="flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-green-500" />
+                Secured by Vodacom M-Pesa
+              </span>
+              <span>Tanzania OpenAPI</span>
             </div>
           </DialogContent>
         </Dialog>
@@ -412,6 +593,74 @@ function getPlanTier(plan: Plan): number {
 
     default: return 0;
   }
+}
+
+function PaymentChoiceButton({
+  enabled,
+  icon,
+  label,
+  description,
+  accent,
+  onClick,
+}: {
+  enabled: boolean;
+  icon: ReactNode;
+  label: string;
+  description: string;
+  accent: "indigo" | "amber" | "green";
+  onClick: () => void;
+}) {
+  const colors = {
+    indigo: {
+      border: "hover:border-indigo-500/50",
+      icon: "bg-indigo-500/10 text-indigo-400 group-hover:bg-indigo-500",
+      check: "text-indigo-500",
+    },
+    amber: {
+      border: "hover:border-amber-500/50",
+      icon: "bg-amber-500/10 text-amber-400 group-hover:bg-amber-500",
+      check: "text-amber-500",
+    },
+    green: {
+      border: "hover:border-green-500/50",
+      icon: "bg-green-500/10 text-green-400 group-hover:bg-green-500",
+      check: "text-green-500",
+    },
+  }[accent];
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={!enabled}
+      className={cn(
+        "group w-full flex items-center justify-between gap-4 p-4 rounded-2xl bg-zinc-950/50 border border-zinc-800 text-left transition-all duration-300",
+        enabled ? `${colors.border} hover:bg-zinc-800/30` : "opacity-50 cursor-not-allowed",
+      )}
+    >
+      <div className="flex items-center gap-4 min-w-0">
+        <div
+          className={cn(
+            "w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-300",
+            enabled ? `${colors.icon} group-hover:text-white` : "bg-zinc-800 text-zinc-500",
+          )}
+        >
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <p className="font-bold text-white text-sm">{label}</p>
+          <p className="text-zinc-500 text-xs">
+            {enabled ? description : "Not configured yet"}
+          </p>
+        </div>
+      </div>
+      <Check
+        className={cn(
+          "w-5 h-5 flex-shrink-0 opacity-0 transition-opacity duration-300",
+          enabled && `group-hover:opacity-100 ${colors.check}`,
+        )}
+      />
+    </button>
+  );
 }
 
 function PricingCard({ plan, currentPlan, onUpgrade, loading }: { plan: BillingPlan, currentPlan?: Plan, onUpgrade: () => void, loading: boolean }) {

@@ -29,6 +29,5 @@ export const MULTER_VERSION         = "^1.4.5-lts.1";
 export const CONCURRENTLY_VERSION   = "^9.0.0";
 export const WAIT_ON_VERSION        = "^8.0.0";
 
-// Cloud SDKs kept for hybrid-mode sync
 export const SUPABASE_JS_VERSION    = "^2.43.0";
 export const FIREBASE_VERSION       = "^10.12.0";

@@ -181,7 +181,7 @@ export function isPlanPlatformAllowed(plan: Plan, platform: string): boolean {
 
 export const defaultConfig = {
   version: "1.0.0",
-  mode: "offline",
+  mode: "online",
   targets: ["linux"],
 } satisfies Pick<WebToAppConfig, "version" | "mode" | "targets">;
 

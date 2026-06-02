@@ -24,7 +24,7 @@ export interface WebToAppConfig {
   name:               string;
   version?:           string;
   appId:              string;
-  mode:               "offline" | "online" | "hybrid";
+  mode:               "online";
   targets:            Array<"windows" | "linux" | "macos" | "mac" | "android" | "ios">;
   output?:            string;
   icon?:              string;

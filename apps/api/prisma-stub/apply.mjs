@@ -16,11 +16,12 @@ const require   = createRequire(import.meta.url);
 // Resolve @prisma/client location from the monorepo root
 let pkgPath;
 try {
-  pkgPath = dirname(require.resolve('@prisma/client/package.json', {
-    paths: [resolve(__dirname, '../../..')]
-  }));
-} catch {
-  console.error('❌  @prisma/client not found. Run pnpm install first.');
+  const mainEntry = require.resolve('@prisma/client', {
+    paths: [resolve(__dirname, '..'), resolve(__dirname, '../../..')]
+  });
+  pkgPath = dirname(mainEntry);
+} catch (err) {
+  console.error('❌  @prisma/client not found. Run pnpm install first.', err);
   process.exit(1);
 }
 

@@ -11,7 +11,7 @@ export const configSchema = {
       items: { type: "string", enum: ["windows", "linux", "mac", "android", "ios"] },
       minItems: 1
     },
-    mode: { type: "string", enum: ["offline", "online", "hybrid"] },
+    mode: { type: "string", enum: ["online"] },
     appId: { type: "string", minLength: 1 },
     icon: { type: "string" },
     backend: {

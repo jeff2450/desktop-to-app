@@ -45,8 +45,8 @@
     },
     "mode": {
       "type": "string",
-      "enum": ["offline", "online", "hybrid"],
-      "description": "offline: all data in local SQLite. online: keep cloud backend. hybrid: local + sync."
+      "enum": ["online"],
+      "description": "online: original cloud backend kept as-is (Supabase/Firebase untouched)."
     },
     "appId": {
       "type": "string",

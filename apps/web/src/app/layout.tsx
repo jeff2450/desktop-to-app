@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     template: "%s | WebToApp",
   },
   description:
-    "Convert AI-generated web apps to offline-capable native desktop installers automatically. Supports React, Next.js, Supabase and more.",
+    "Convert AI-generated web apps to native desktop installers automatically. Supports React, Next.js, Supabase and more.",
   icons: {
     icon: [
       { url: "/favicon.png", type: "image/png" },

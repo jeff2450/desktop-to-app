@@ -95,7 +95,7 @@ export default function DocsPage() {
               </h1>
               <p className="text-lg text-zinc-400 leading-relaxed">
                 Welcome to the WebToApp documentation. Learn how to convert your AI-generated web apps 
-                into native, offline-capable desktop applications for Windows, Linux, and macOS.
+                into native desktop applications for Windows, Linux, and macOS.
               </p>
             </div>
 
@@ -167,9 +167,9 @@ export default function DocsPage() {
                 <h2 className="text-2xl font-bold text-white mb-4">Conversion Modes</h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <ModeCard 
-                    title="Offline" 
-                    mode="offline" 
-                    desc="Full data isolation. All queries execute on a local SQLite database. No internet needed." 
+                    title="Source Preserved" 
+                    mode="online" 
+                    desc="Your application code and cloud backend configuration are kept intact." 
                     color="text-indigo-400" 
                     bg="bg-indigo-400/10" 
                   />
@@ -181,9 +181,9 @@ export default function DocsPage() {
                     bg="bg-cyan-400/10" 
                   />
                   <ModeCard 
-                    title="Hybrid" 
-                    mode="hybrid" 
-                    desc="Local SQLite database storage with automatic background syncing to cloud when connection is active." 
+                    title="Packaged App" 
+                    mode="online" 
+                    desc="Electron packaging adds native installers while preserving web behavior." 
                     color="text-emerald-400" 
                     bg="bg-emerald-400/10" 
                   />
@@ -324,7 +324,7 @@ export default function DocsPage() {
   "version": "1.0.0",
   "appId": "com.example.myapp",
   "source": ".",
-  "mode": "offline",
+  "mode": "online",
   "targets": ["windows", "linux"],
   "backend": { 
     "type": "auto", 
@@ -356,7 +356,7 @@ export default function DocsPage() {
                     { key: "name", type: "string", req: "Yes", def: "-", desc: "User-facing title used in headers and installer wizard UI." },
                     { key: "version", type: "string", req: "Yes", def: "1.0.0", desc: "SemVer representation of application releases." },
                     { key: "appId", type: "string", req: "Yes", def: "-", desc: "Reverse domain package ID (e.g. com.company.appname)." },
-                    { key: "mode", type: "string", req: "Yes", def: "offline", desc: "Network paradigm strategy: offline, online, or hybrid." },
+                    { key: "mode", type: "string", req: "Yes", def: "online", desc: "Online packaging strategy that preserves the original cloud backend." },
                     { key: "targets", type: "string[]", req: "Yes", def: "['windows']", desc: "Target OS platforms (windows, linux, mac)." },
                     { key: "backend.port", type: "number", req: "No", def: "3001", desc: "Internal port bindings for scaffolded API routers." }
                   ].map(row => (
@@ -436,7 +436,7 @@ SMTP_PASS=some_secure_password`}</pre>
             <div className="space-y-4">
               <h2 className="text-2xl font-bold text-white mb-4">CLI Flag Overrides</h2>
               {[
-                { flag: "--mode [offline|online|hybrid]", desc: "Directly overrides the network conversion paradigm specified in webtoapp.config.json during runtime pipeline convert commands." },
+                { flag: "--mode online", desc: "Uses the online packaging strategy specified in webtoapp.config.json." },
                 { flag: "--verbose", desc: "Spins up verbose output detailing parsing metrics, file write triggers, native build streams, and raw AST warnings." },
                 { flag: "--dry-run", desc: "Simulates step pipeline sequences (00 to 03) analyzing dependencies and generating planned schema blueprints without modifying actual codebase scripts." },
                 { flag: "--platform [windows|linux|mac]", desc: "Restricts builds compilation targets to the current host computer, cutting compilation durations during local testing." }
@@ -494,7 +494,7 @@ SMTP_PASS=some_secure_password`}</pre>
                 AST Transformation
               </h1>
               <p className="text-lg text-zinc-400 leading-relaxed">
-                WebToApp performs low-level code mutations on Javascript syntax structures, substituting remote network queries with offline endpoints.
+                WebToApp prepares the project for Electron packaging while preserving the original application behavior.
               </p>
             </div>
 
@@ -543,8 +543,8 @@ SMTP_PASS=some_secure_password`}</pre>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
                 { title: "Electron Scaffold", desc: "Generates custom window layouts, custom file protocols, IPC bridge channels, and secure sandbox configurations." },
-                { title: "Local Express Server", desc: "Injects standard Express routes matched against identified schemas to support offline GET/POST/PUT/DELETE interactions." },
-                { title: "SQLite Database", desc: "Initializes local sqlite storage files, generates database table models, compiles migrations, and seeds defaults admin credentials." }
+                { title: "Electron Protocol", desc: "Registers a secure app protocol so packaged assets load cleanly in Electron." },
+                { title: "Environment Preservation", desc: "Copies source environment values so cloud-backed behavior remains available." }
               ].map((item, idx) => (
                 <div key={idx} className="p-5 bg-zinc-900/40 border border-zinc-800 rounded-xl hover:border-indigo-500/20 transition-colors">
                   <h4 className="font-bold text-white mb-2 text-sm">{item.title}</h4>
@@ -582,7 +582,7 @@ SMTP_PASS=some_secure_password`}</pre>
             <h2 className="text-2xl font-bold text-white mb-4">Native Installer Outputs</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
-                { title: "Windows", ext: ".exe (NSIS Installer)", desc: "Builds a standalone, offline install executable package complete with desktop shortcuts and auto-updating protocols." },
+                { title: "Windows", ext: ".exe (NSIS Installer)", desc: "Builds a standalone installer package complete with desktop shortcuts and auto-updating protocols." },
                 { title: "Linux", ext: ".AppImage / .deb / .rpm", desc: "Packages dependencies into standard AppImage files or native distributions package installers." },
                 { title: "macOS", ext: ".dmg / .app", desc: "Generates Apple Disk Image installers and setups configured for standard host application folders." }
               ].map((item, idx) => (

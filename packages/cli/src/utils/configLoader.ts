@@ -104,7 +104,7 @@ function validateConfig(
     else targets = ["linux"];
   }
 
-  const mode = (raw["mode"] as "offline" | "online" | "hybrid" | undefined) ?? "offline";
+  const mode = (raw["mode"] as "online" | undefined) ?? "online";
   const backendRaw = raw["backend"] as Record<string, unknown> | undefined;
   const backend = {
     type: (backendRaw?.["type"] as "auto" | "express" | "none" | undefined) ?? "auto",

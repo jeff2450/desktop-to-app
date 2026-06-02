@@ -20,7 +20,7 @@ const configSchema = z.preprocess(
     name: z.string().min(1),
     version: z.string().optional(),
     appId: z.string().regex(/^[a-z][a-z0-9]*(\.[a-z0-9-]+)+$/i),
-    mode: z.enum(["offline", "online", "hybrid"]),
+    mode: z.literal("online"),
     targets: z.array(z.enum(["windows", "linux", "macos"])).min(1),
     output: z.string().optional(),
     icon: z.string().optional(),

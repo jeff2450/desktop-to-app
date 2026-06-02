@@ -2,7 +2,7 @@ import type { Artifact, Job, JobStatus } from "@prisma/client";
 
 type ConversionStatus = "queued" | "running" | "done" | "failed" | "cancelled";
 
-type ConversionMode = "offline" | "online" | "hybrid";
+type ConversionMode = "online";
 
 type JobWithArtifacts = Job & { artifacts?: Artifact[] };
 
@@ -12,7 +12,7 @@ type ConversionExtras = {
   progress?: number;
 };
 
-const VALID_MODES = new Set<ConversionMode>(["offline", "online", "hybrid"]);
+const VALID_MODES = new Set<ConversionMode>(["online"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -66,7 +66,7 @@ export function serializeConversion(
     mode:
       configuredMode && VALID_MODES.has(configuredMode as ConversionMode)
         ? configuredMode
-        : "offline",
+        : "online",
     status: toConversionStatus(job.status),
     targets: job.platforms,
     artifacts: job.artifacts ?? [],

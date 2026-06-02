@@ -1,19 +1,11 @@
 /**
  * Conversion mode — controls how the output app handles data and connectivity.
  *
- *  "offline" — All data stored locally in SQLite. No internet required ever.
- *              Cloud SDK calls fully replaced with local API calls.
- *              Best for: pharmacy apps, clinic tools, field apps.
- *
  *  "online"  — Original cloud backend kept as-is (Supabase/Firebase untouched).
  *              App runs inside Electron with internet required.
  *              Best for: apps that must sync with a shared cloud database.
- *
- *  "hybrid"  — Local SQLite when offline, syncs to cloud when internet available.
- *              A sync engine is generated to reconcile changes on reconnect.
- *              Best for: apps used in areas with intermittent connectivity.
  */
-export type ConversionMode = "offline" | "online" | "hybrid";
+export type ConversionMode = "online";
 
 /**
  * User-supplied configuration — loaded from webtoapp.config.json or
@@ -36,8 +28,8 @@ export interface ConversionConfig {
   targets: Array<"windows" | "linux" | "mac" | "android" | "ios">;
 
   /**
-   * Conversion mode — controls offline/online/hybrid behaviour.
-   * @default "offline"
+   * Conversion mode — always "online" (cloud backend kept as-is).
+   * @default "online"
    */
   mode: ConversionMode;
 

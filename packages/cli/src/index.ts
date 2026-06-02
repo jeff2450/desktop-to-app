@@ -12,7 +12,7 @@ const program = new Command();
 program
   .name("webtoapp")
   .description(
-    chalk.cyan("Convert AI-generated web apps to offline desktop apps") +
+    chalk.cyan("Convert AI-generated web apps to desktop apps") +
     "\n  Supports: React, Vue • Supabase, Firebase, Clerk • Windows, Linux, macOS"
   )
   .version(VERSION, "-v, --version");

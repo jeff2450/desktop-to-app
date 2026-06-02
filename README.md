@@ -1,6 +1,6 @@
 # WebToApp
 
-> Convert AI-generated web apps into offline desktop apps — automatically.
+> Convert AI-generated web apps into desktop apps automatically.
 
 [![CI](https://github.com/jeff2450/desktop-to-app/actions/workflows/ci.yml/badge.svg)](https://github.com/jeff2450/desktop-to-app/actions/workflows/ci.yml)
 [![npm version](https://img.shields.io/npm/v/@webtoapp/cli.svg)](https://www.npmjs.com/package/@webtoapp/cli)
@@ -120,7 +120,7 @@ webtoapp/
   "version": "1.0.0",
   "appId": "com.example.myapp",
   "source": ".",
-  "mode": "offline",
+  "mode": "online",
   "targets": ["windows", "linux"],
   "backend": { "type": "auto", "port": 3001 },
   "auth": { "type": "local", "defaultAdmin": "admin@app.local" },
@@ -134,7 +134,7 @@ webtoapp/
 | `version` | string | ✅ | SemVer string e.g. `1.0.0` |
 | `appId` | string | ✅ | Reverse-domain ID e.g. `com.acme.myapp` |
 | `source` | string | ✅ | Path to source project root |
-| `mode` | string | ✅ | `offline` \| `online` \| `hybrid` |
+| `mode` | string | ✅ | `online` |
 | `targets` | array | ✅ | `windows` \| `linux` \| `mac` \| `android` \| `ios` |
 | `output` | string | — | Output directory (default: `../myapp-desktop`) |
 | `backend.port` | number | — | Local API port (default: `3001`) |
@@ -146,9 +146,7 @@ webtoapp/
 
 | Mode | Behaviour | Best for |
 |------|-----------|----------|
-| `offline` | All data stored in local SQLite. No internet needed. | Pharmacy, clinic, field apps |
 | `online` | Cloud backend untouched. Electron wrapper only. Internet required. | Apps that must share a live database |
-| `hybrid` | Local SQLite + auto-sync to cloud when internet available. | Areas with intermittent connectivity |
 
 ---
 

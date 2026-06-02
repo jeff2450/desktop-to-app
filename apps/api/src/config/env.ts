@@ -47,6 +47,16 @@ const envSchema = z.object({
   PAYPAL_CLIENT_SECRET: z.string().optional(),
   PAYPAL_MODE: z.enum(["sandbox", "live"]).default("sandbox"),
   PAYPAL_BASE_URL: z.string().url().default("https://api-m.sandbox.paypal.com"),
+
+  // Vodacom M-Pesa (Tanzania OpenAPI)
+  MPESA_API_KEY: z.string().optional(),
+  MPESA_PUBLIC_KEY: z.string().optional(), // Vodacom RSA public key (PEM, used to encrypt API key)
+  MPESA_SERVICE_PROVIDER_CODE: z.string().optional(), // Business ShortCode
+  MPESA_BASE_URL: z.string().url().default("https://openapi.m-pesa.com/sandbox/ipg/v2/vodacomTZN/"),
+  MPESA_CURRENCY: z.string().default("TZS"),
+  MPESA_CALLBACK_URL: z.string().url().optional(), // Public URL that M-Pesa POSTs results to
+  MPESA_USD_TO_TZS_RATE: z.coerce.number().default(2600),
+  MPESA_WEBHOOK_TOKEN: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

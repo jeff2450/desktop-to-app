@@ -1,4 +1,4 @@
-export type ConversionMode = "offline" | "online" | "hybrid";
+export type ConversionMode = "online";
 
 export type Plan = "free" | "pro" | "team" | "ultra";
 

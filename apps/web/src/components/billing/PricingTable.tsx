@@ -18,8 +18,9 @@ export function PricingTable({ plans, currentPlan }: Props) {
 
     const result = await billingApi.checkout(planId);
     setLoading(null);
-    if (result.data?.url) window.location.href = result.data.url;
-
+    if (result.data && "url" in result.data && result.data.url) {
+      window.location.href = result.data.url;
+    }
   }
 
   return (

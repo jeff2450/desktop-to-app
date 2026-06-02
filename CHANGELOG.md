@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 8-stage conversion pipeline: `00-preflight` → `01-detect` → `02-plan` → `03-transform` → `04-scaffold` → `05-install` → `06-build` → `07-package`
 - `ConversionPipeline` class with `onLog` streaming callback for progress reporting
 - `PipelineContext` for shared state across all stages
-- `ConversionConfig` type with full JSDoc, supporting `offline` / `online` / `hybrid` modes
+- `ConversionConfig` type with full JSDoc for online desktop packaging
 - Conversion report generation (`webtoapp-report.json`) with per-file transform summaries
 - Mobile stage (`07b-mobile.ts`) for Capacitor-based Android/iOS output (beta)
 

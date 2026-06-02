@@ -178,7 +178,7 @@ function normalizeConversion(conversion: ConversionResponse): Conversion {
     ),
     sourceType: sourceType as Conversion["sourceType"],
     sourceUrl,
-    mode: toString(conversion.mode, "offline") as ConversionMode,
+    mode: toString(conversion.mode, "online") as ConversionMode,
     status: normalizeConversionStatus(conversion.status),
     targets: toStringArray(
       conversion.targets ??
@@ -408,13 +408,13 @@ export const billingApi = {
   subscription: () => request<SubscriptionInfo>("/api/billing/subscription"),
   usageChart: () => request<UsageChartData[]>("/api/billing/usage-chart"),
   config: () =>
-    request<{ stripe: boolean; paypal: boolean; clickpesa: boolean }>(
+    request<{ credit: boolean; stripe: boolean; paypal: boolean; clickpesa: boolean; mpesa: boolean }>(
       "/api/billing/config",
     ),
-  checkout: (plan: string, gateway?: string) =>
-    request<{ url: string }>("/api/billing/checkout", {
+  checkout: (plan: string, gateway?: string, phoneNumber?: string) =>
+    request<{ url: string } | { pending: true; orderReference: string; message: string }>("/api/billing/checkout", {
       method: "POST",
-      body: JSON.stringify({ plan, gateway }),
+      body: JSON.stringify({ plan, gateway, phoneNumber }),
     }),
   verifyPayment: (
     transactionId: string,
@@ -434,4 +434,13 @@ export const billingApi = {
     }),
   portal: () =>
     request<{ url: string }>("/api/billing/portal", { method: "POST" }),
+  mpesaStatus: (orderReference: string) =>
+    request<{
+      status: string;
+      paid: boolean;
+      orderReference: string;
+      responseCode: string | null;
+      responseDesc: string | null;
+      plan: string;
+    }>(`/api/billing/mpesa/status/${encodeURIComponent(orderReference)}`),
 };

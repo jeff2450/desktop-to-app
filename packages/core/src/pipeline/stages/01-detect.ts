@@ -136,8 +136,8 @@ async function detectProject(
   // ── Tables ─────────────────────────────────────────────────────
   const tables = await extractTableNames(sourceDir);
 
-  // ── Offline support ────────────────────────────────────────────
-  const hasOfflineSupport =
+  // Browser-local persistence
+  const hasLocalPersistence =
     "idb" in allDeps ||
     "dexie" in allDeps ||
     (await fileExists(path.join(sourceDir, "public", "sw.js"))) ||
@@ -186,7 +186,7 @@ async function detectProject(
     tableColumns,
     rlsPolicies,
     uiLibrary,
-    hasOfflineSupport,
+    hasLocalPersistence,
     confidence,
     warnings,
     scannedFiles: sourceFiles,
@@ -580,4 +580,3 @@ async function extractRlsPolicies(sourceDir: string): Promise<Record<string, Rls
 
   return result;
 }
-

@@ -17,7 +17,7 @@ export interface DetectionResult {
   auth: "supabase" | "firebase" | "clerk" | "auth0" | "none";
   tables: string[];
   uiLibrary: "shadcn" | "mui" | "tailwind" | "other";
-  hasOfflineSupport: boolean;
+  hasLocalPersistence: boolean;
   confidence: number;
   warnings: string[];
   scannedFiles: string[];
@@ -132,7 +132,7 @@ export async function detectProject(sourceDir: string): Promise<DetectionResult>
   }
 
   // ── Offline support ───────────────────────────────────────────
-  const hasOfflineSupport =
+  const hasLocalPersistence =
     "idb" in allDeps ||
     "dexie" in allDeps ||
     (await fileExists(path.join(sourceDir, "public", "sw.js"))) ||
@@ -153,7 +153,7 @@ export async function detectProject(sourceDir: string): Promise<DetectionResult>
     auth,
     tables: schemaResult.tableNames,
     uiLibrary,
-    hasOfflineSupport,
+    hasLocalPersistence,
     confidence,
     warnings: [...new Set(warnings)], // deduplicate
     scannedFiles,

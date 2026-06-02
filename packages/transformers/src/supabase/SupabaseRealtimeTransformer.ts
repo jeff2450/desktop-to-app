@@ -63,7 +63,7 @@ export class SupabaseRealtimeTransformer extends BaseTransformer {
         `/* WebToApp: broadcast channel removed — use localApi.subscribe() for table changes */`
       );
       warnings.push(
-        "Supabase broadcast channels are not supported in offline mode. " +
+        "Supabase broadcast channels require cloud realtime access. " +
           "Replaced with a comment — implement custom IPC if needed."
       );
       confidence -= 0.1;
@@ -72,7 +72,7 @@ export class SupabaseRealtimeTransformer extends BaseTransformer {
     // ── Presence channels ──────────────────────────────────────────
     if (text.includes(".track(") || text.includes("presence")) {
       warnings.push(
-        "Supabase Presence detected. Presence is not available in offline mode — " +
+        "Supabase Presence detected. Presence requires cloud realtime access - " +
           "these calls will not function in the desktop app."
       );
       confidence -= 0.15;

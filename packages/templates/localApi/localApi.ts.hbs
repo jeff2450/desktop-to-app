@@ -180,7 +180,7 @@ const functions = {
         const json = await res.json().catch(() => null);
         return { data: res.ok ? (json as T) : null, error: res.ok ? null : json?.error ?? `HTTP ${res.status}` };
       } catch {
-        // Hybrid mode can still fall back to the local backend below.
+        // Fall back to the generated backend below if the cloud request fails.
       }
     }
 

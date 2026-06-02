@@ -12,10 +12,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { 
-  RadioGroup, 
-  RadioGroupItem 
-} from "@/components/ui/radio-group";
-import { 
   GitBranch,
   FileArchive, 
   ChevronRight, 
@@ -35,7 +31,7 @@ import { useAuthStore } from "@/stores/auth";
 
 const STEPS = ["Source", "Config", "Review"];
 
-type ConversionMode = "offline" | "online" | "hybrid";
+type ConversionMode = "online";
 type SourceType = "github" | "upload";
 
 interface FormData {
@@ -53,12 +49,6 @@ interface SourceOptionProps {
   description: string;
   active: boolean;
   onClick: () => void;
-}
-
-interface ModeOptionProps {
-  value: string;
-  label: string;
-  desc: string;
 }
 
 interface TargetCheckboxProps {
@@ -94,7 +84,7 @@ export default function NewJobPage() {
     sourceType: "github",
     sourceUrl: "",
     appId: "",
-    mode: "offline",
+    mode: "online",
     targets: ["linux"],
   });
 
@@ -413,20 +403,6 @@ export default function NewJobPage() {
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <Label className="text-zinc-400">Conversion Mode</Label>
-                  <RadioGroup 
-                    value={formData.mode} 
-                    onValueChange={(v: ConversionMode) => setFormData(f => ({ ...f, mode: v }))}
-                    className="grid grid-cols-1 sm:grid-cols-3 gap-4"
-                  >
-                    <ModeOption value="offline" label="Offline" desc="Full SQLite sync" />
-                    <ModeOption value="online" label="Online" desc="WebView wrapper" />
-                    <ModeOption value="hybrid" label="Hybrid" desc="Partial caching" />
-                  </RadioGroup>
-
-                </div>
-
                 {/* App Icon Upload */}
                 <div className="space-y-3">
                   <Label className="text-zinc-400">App Icon <span className="text-zinc-600 font-normal">(optional)</span></Label>
@@ -536,7 +512,6 @@ export default function NewJobPage() {
                 <ReviewItem label="App Name" value={formData.name || "Untitled App"} />
                 <ReviewItem label="App ID" value={formData.appId} />
                 <ReviewItem label="Source" value={formData.sourceType === "github" ? formData.sourceUrl : selectedFile?.name ?? "ZIP Upload"} />
-                <ReviewItem label="Mode" value={formData.mode.toUpperCase()} />
                 <ReviewItem label="Targets" value={formData.targets.join(", ").toUpperCase()} />
                 <ReviewItem label="App Icon" value={iconFile ? `✓ ${iconFile.name}` : "Auto-detect from source"} />
                 
@@ -611,18 +586,6 @@ function SourceOption({ icon: Icon, label, description, active, onClick }: Sourc
       <Icon className={cn("w-8 h-8 mb-4 transition-colors", active ? "text-indigo-400" : "text-zinc-600 group-hover:text-zinc-500")} />
       <h3 className={cn("font-bold text-sm", active ? "text-white" : "text-zinc-400")}>{label}</h3>
       <p className="text-xs text-zinc-600 mt-1">{description}</p>
-    </div>
-  );
-}
-
-function ModeOption({ value, label, desc }: ModeOptionProps) {
-  return (
-    <div className="flex items-center space-x-2">
-      <RadioGroupItem value={value} id={`mode-${value}`} className="text-indigo-600" />
-      <Label htmlFor={`mode-${value}`} className="cursor-pointer">
-        <span className="block font-bold text-sm text-white">{label}</span>
-        <span className="block text-[10px] text-zinc-500">{desc}</span>
-      </Label>
     </div>
   );
 }

@@ -79,7 +79,7 @@ export async function buildAndroid(
       stdio: 'inherit',
     });
 
-    // 7. Patch AndroidManifest for internet permission (needed for hybrid/online modes)
+    // 7. Patch AndroidManifest for internet permission
     await ensureInternetPermission(projectDir, config, warnings);
     await patchAndroidSdkVersions(androidDir, config, warnings);
 

@@ -38,7 +38,7 @@ export default function PricingPage() {
           <div className="absolute top-[-100px] left-1/2 -translate-x-1/2 w-96 h-96 bg-indigo-600/10 rounded-full blur-[120px] pointer-events-none" />
           <h1 className="text-5xl font-black mb-4 tracking-tight">Simple, usage-based pricing.</h1>
           <p className="text-zinc-500 text-lg max-w-xl mx-auto">
-            Choose the plan that fits your build volume. All plans include automated AST transformations and offline database injection.
+            Choose the plan that fits your build volume. All plans include automated Electron scaffolding and packaged desktop builds.
           </p>
         </div>
 
@@ -50,8 +50,8 @@ export default function PricingPage() {
             features={[
               "1 free conversion",
               "Choose Windows, Linux, or Mac",
-              "AST Transformations",
-              "Offline SQLite layer",
+              "Electron wrapper",
+              "Cloud backend preserved",
               "Community Support"
             ]}
             cta="Get Started"
@@ -199,4 +199,3 @@ function PricingPlanCard({ name, price, desc, features, isPro, isUltra, cta, hre
     </Card>
   );
 }
-

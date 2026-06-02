@@ -7,7 +7,7 @@
   "source": ".",
   "output": "./output",
   "icon": "apps/web/public/favicon.png",
-  "mode": "offline",
+  "mode": "online",
   "targets": [
     "windows",
     "linux",

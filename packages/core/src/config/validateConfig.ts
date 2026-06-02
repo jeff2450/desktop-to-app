@@ -59,7 +59,7 @@ export interface ValidationResult {
  * human-readable messages on failure.
  *
  * Called at the start of the pipeline (Stage 00) so bad configs fail fast
- * with a clear "line X: mode must be one of [offline, online, hybrid]"
+ * with a clear validation error.
  * error rather than a cryptic failure three minutes later.
  */
 export function validateConfig(config: unknown): ValidationResult {

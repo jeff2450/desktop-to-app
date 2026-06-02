@@ -1,17 +1,8 @@
-{{#if onlineMode}}
-{{!-- ═══════════════════════════════════════════════════════════════
-  ONLINE MODE — No local backend. App talks directly to cloud APIs.
-  Uses app:// protocol so fetch() to Supabase/Firebase isn't blocked.
-═══════════════════════════════════════════════════════════════════ --}}
 const { app, BrowserWindow, shell, ipcMain, nativeTheme, protocol, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
 
-// Register app:// as a privileged secure scheme BEFORE app is ready.
-// This gives the renderer a proper http-like origin so fetch() calls to
-// Supabase/Firebase are not blocked by Electron's security model.
-// Without this, cloud API calls fail silently and the screen stays blank.
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'app',
@@ -56,9 +47,8 @@ function createWindow() {
     return { action: 'deny' };
   });
 
-  // Log load failures to console so users can debug blank screen
-  mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
-    console.error(`[WebToApp] Page failed to load: ${code} ${desc} — ${url}`);
+  mainWindow.webContents.on('did-fail-load', (_event, code, desc, url) => {
+    console.error(`[WebToApp] Page failed to load: ${code} ${desc} - ${url}`);
   });
 
   mainWindow.on('closed', () => { mainWindow = null; });
@@ -70,167 +60,6 @@ ipcMain.on('app:maximize', () => {
   mainWindow?.isMaximized() ? mainWindow.unmaximize() : mainWindow?.maximize();
 });
 ipcMain.on('app:close', () => mainWindow?.close());
-
-function setupAutoUpdater() {
-  if (isDev) return;
-  autoUpdater.checkForUpdatesAndNotify();
-  autoUpdater.on('update-available', () => mainWindow?.webContents.send('app:update-available'));
-}
-
-app.whenReady().then(() => {
-  // Serve dist/ via app:// — must be registered before any window loads
-  protocol.handle('app', (request) => {
-    const url = new URL(request.url);
-    const pathname = url.pathname === '/' ? '/index.html' : url.pathname;
-
-    // SPA fallback: paths without an extension are React Router routes — serve index.html
-    const hasExtension = /\.\w+$/.test(pathname);
-    let filePath = path.join(__dirname, '../dist', pathname);
-    if (!hasExtension || !fs.existsSync(filePath)) {
-      filePath = path.join(__dirname, '../dist/index.html');
-    }
-
-    return net.fetch('file://' + filePath);
-  });
-
-  createWindow();
-  setupAutoUpdater();
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
-});
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
-
-{{else}}
-{{!-- ═══════════════════════════════════════════════════════════════
-  OFFLINE / HYBRID MODE — Local Express + SQLite backend.
-  Uses app:// protocol so the renderer can fetch http://127.0.0.1
-  without being blocked as mixed content.
-═══════════════════════════════════════════════════════════════════ --}}
-const { app, BrowserWindow, shell, ipcMain, nativeTheme, protocol, net } = require('electron');
-const path = require('path');
-const fs = require('fs');
-const { spawn } = require('child_process');
-const { autoUpdater } = require('electron-updater');
-
-// Register app:// as a privileged scheme BEFORE app is ready.
-// Without this the renderer is loaded from file:// which Electron treats as
-// an opaque (non-http) origin — fetch() calls to http://127.0.0.1 are then
-// blocked as mixed content, silently failing and leaving a blank white screen.
-protocol.registerSchemesAsPrivileged([
-  {
-    scheme: 'app',
-    privileges: {
-      standard: true,
-      secure: true,
-      supportFetchAPI: true,
-      corsEnabled: true,
-    },
-  },
-]);
-
-const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
-let mainWindow;
-let backendProcess;
-
-// ─── Backend ──────────────────────────────────────────────────────────────────
-
-function startBackend() {
-  const serverPath = isDev
-    ? path.join(__dirname, '../backend/server.cjs')
-    : path.join(process.resourcesPath, 'backend', 'server.cjs');
-
-  // Use process.execPath (Electron's own bundled Node) so the backend works
-  // on machines where Node.js is NOT separately installed.
-  // ELECTRON_RUN_AS_NODE=1 switches the Electron binary into plain Node mode.
-  backendProcess = spawn(process.execPath, [serverPath], {
-    env: {
-      ...process.env,
-      PORT: '{{backendPort}}',
-      NODE_ENV: isDev ? 'development' : 'production',
-      ELECTRON_RUN_AS_NODE: '1',
-    },
-    stdio: isDev ? 'inherit' : 'pipe',
-  });
-
-  backendProcess.on('error', (err) => {
-    console.error('[WebToApp] Backend failed to start:', err);
-  });
-
-  if (!isDev && backendProcess.stdout) {
-    backendProcess.stdout.on('data', (d) => console.log('[backend]', d.toString().trim()));
-  }
-}
-
-// Poll /api/health until Express is listening (replaces brittle blind setTimeout).
-async function waitForBackend(maxWaitMs = 10000, intervalMs = 200) {
-  const deadline = Date.now() + maxWaitMs;
-  while (Date.now() < deadline) {
-    try {
-      const res = await fetch('http://127.0.0.1:{{backendPort}}/api/health');
-      if (res.ok) return; // backend is ready
-    } catch (_) { /* still starting */ }
-    await new Promise((r) => setTimeout(r, intervalMs));
-  }
-  // Timed out — open window anyway so user sees an error rather than a frozen splash
-  console.error('[WebToApp] Backend did not become ready within', maxWaitMs, 'ms');
-}
-
-// ─── Window ───────────────────────────────────────────────────────────────────
-
-function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 800,
-    minHeight: 600,
-    title: '{{appName}}',
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0f0f0f' : '#ffffff',
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.cjs'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-    show: false,
-  });
-
-  // Use app:// (not file://) so fetch() to http://127.0.0.1 is not blocked as mixed content
-  mainWindow.loadURL(isDev ? 'http://localhost:{{devPort}}' : 'app://./');
-
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
-    if (isDev) mainWindow.webContents.openDevTools();
-  });
-
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('http')) shell.openExternal(url);
-    return { action: 'deny' };
-  });
-
-  // Log load failures to console so users can debug blank screen
-  mainWindow.webContents.on('did-fail-load', (_e, code, desc, url) => {
-    console.error(`[WebToApp] Page failed to load: ${code} ${desc} — ${url}`);
-  });
-
-  mainWindow.on('closed', () => { mainWindow = null; });
-}
-
-// ─── IPC handlers ─────────────────────────────────────────────────────────────
-
-ipcMain.handle('app:get-version', () => app.getVersion());
-ipcMain.handle('app:get-path', (_e, name) => app.getPath(name));
-ipcMain.on('app:minimize', () => mainWindow?.minimize());
-ipcMain.on('app:maximize', () => {
-  mainWindow?.isMaximized() ? mainWindow.unmaximize() : mainWindow?.maximize();
-});
-ipcMain.on('app:close', () => mainWindow?.close());
-
-// ─── Auto updater ─────────────────────────────────────────────────────────────
 
 function setupAutoUpdater() {
   if (isDev) return;
@@ -240,17 +69,13 @@ function setupAutoUpdater() {
   });
 }
 
-// ─── App lifecycle ────────────────────────────────────────────────────────────
-
-app.whenReady().then(async () => {
-  // Serve dist/ via app:// — must be registered before any window loads
+app.whenReady().then(() => {
   protocol.handle('app', (request) => {
     const url = new URL(request.url);
     const pathname = url.pathname === '/' ? '/index.html' : url.pathname;
-
-    // SPA fallback: paths without extension are React Router routes — serve index.html
     const hasExtension = /\.\w+$/.test(pathname);
     let filePath = path.join(__dirname, '../dist', pathname);
+
     if (!hasExtension || !fs.existsSync(filePath)) {
       filePath = path.join(__dirname, '../dist/index.html');
     }
@@ -258,8 +83,6 @@ app.whenReady().then(async () => {
     return net.fetch('file://' + filePath);
   });
 
-  startBackend();
-  await waitForBackend(); // wait for Express before opening the window
   createWindow();
   setupAutoUpdater();
 
@@ -271,10 +94,3 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
-
-app.on('before-quit', () => {
-  if (backendProcess && !backendProcess.killed) {
-    backendProcess.kill('SIGTERM');
-  }
-});
-{{/if}}

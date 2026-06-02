@@ -1,5 +1,5 @@
 {
-  "mode": "offline",
+  "mode": "online",
   "name": "Webtoapp",
   "version": "1.0.0",
   "appId": "com.example.myapp",

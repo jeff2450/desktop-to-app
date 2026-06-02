@@ -63,8 +63,8 @@ export interface DetectionResult {
   /** UI component library / styling approach */
   uiLibrary: "shadcn" | "mui" | "tailwind" | "other";
 
-  /** Whether the project already has offline support (IndexedDB, Service Worker) */
-  hasOfflineSupport: boolean;
+  /** Whether the project already uses browser-local persistence */
+  hasLocalPersistence: boolean;
 
   /**
    * Overall confidence score for the detection (0–1).

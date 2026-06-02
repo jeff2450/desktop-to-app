@@ -93,4 +93,21 @@ model PaypalOrder {
   updatedAt      DateTime @updatedAt
 }
 
-
+model MpesaOrder {
+  id                       String   @id @default(cuid())
+  orderReference           String   @unique
+  /// Conversation ID returned by M-Pesa on payment initiation
+  conversationId           String?
+  /// Our unique ID sent to M-Pesa to correlate async callbacks
+  thirdPartyConversationId String   @unique
+  userId                   String
+  plan                     Plan
+  phoneNumber              String
+  amount                   Float
+  currency                 String   @default("TZS")
+  status                   String   @default("PENDING") // PENDING, SUCCESS, FAILED
+  responseCode             String?
+  responseDesc             String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+}
