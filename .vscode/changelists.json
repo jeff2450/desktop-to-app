@@ -3,34 +3,8 @@
     {
       "name": "Default",
       "files": [
-        "apps/api/prisma/schema.prisma",
-        "apps/api/src/config/env.ts",
-        "apps/api/src/routes/billing.routes.ts",
-        "apps/web/.turbo/turbo-build.log",
-        "apps/web/src/app/(dashboard)/billing/page.tsx",
-        "apps/web/src/lib/api-client.ts",
-        "apps/api/.env.example",
-        "apps/api/prisma-stub/default.d.ts",
-        "apps/web/src/app/docs/page.tsx",
-        "apps/api/src/services/mpesa.service.ts",
-        "apps/api/src/test-paypal-order.ts",
-        "apps/api/src/test-query.ts",
-        "apps/api/src/test-verify-run.ts",
-        ".env.web",
-        ".env.example",
-        "apps/api/package.json",
-        "apps/api/src/services/billing.service.ts",
-        "apps/api/src/services/clickpesa.service.ts",
-        "apps/api/src/services/paypal.service.ts",
-        "pnpm-lock.yaml",
         ".vscode/changelists.json",
-        "apps/api/src/index.ts",
-        "apps/api/src/services/jobs.service.ts",
-        "apps/web/src/app/pricing/page.tsx",
-        "apps/web/src/components/billing/PricingTable.tsx",
-        "package.json",
-        "packages/core/src/__tests__/pipeline-stages.test.ts",
-        "packages/core/src/pipeline/stages/03-transform.ts"
+        "apps/api/build-log-1780483654003.txt"
       ]
     }
   ],
