@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import type { PipelineContext } from "../PipelineContext.js";
 import type { FileGeneratePlan } from "../../types/MigrationPlan.js";
+import { generateIcons } from "../../utils/icon-generator.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -54,6 +55,7 @@ export async function runScaffoldStage(ctx: PipelineContext): Promise<void> {
       await patchPackageJson(ctx);
       await generateCleanEnv(ctx);
       await copyAppIcon(ctx, icon);
+      await copyElectronAssets(ctx);
     } else {
       ctx.log("info", "[DRY-RUN] Would patch package.json", STAGE);
       ctx.log("info", "[DRY-RUN] Would generate .env", STAGE);
@@ -433,6 +435,7 @@ async function copyAppIcon(ctx: PipelineContext, icon: ResolvedIcon): Promise<vo
     return;
   }
 
+  // Copy the base icon for electron-builder
   const destination = path.join(ctx.outputDir, icon.validDest);
   try {
     await fs.mkdir(path.dirname(destination), { recursive: true });
@@ -440,6 +443,31 @@ async function copyAppIcon(ctx: PipelineContext, icon: ResolvedIcon): Promise<vo
     ctx.log("info", `Copied app icon: ${icon.validDest}`, STAGE);
   } catch {
     ctx.log("warn", "Could not copy app icon", STAGE);
+    return;
+  }
+
+  // Generate all required icon sizes (Windows ICO, Android mipmaps, icon grid)
+  const iconsOutDir = path.join(ctx.outputDir, "assets", "icons-generated");
+  try {
+    const result = await generateIcons(icon.sourcePath, iconsOutDir, {
+      android:    ctx.config.targets.includes("android" as never),
+      windowsIco: ctx.config.targets.includes("windows" as never),
+      mac:        ctx.config.targets.includes("mac" as never),
+      iconGrid:   true,
+    });
+
+    ctx.log(
+      "info",
+      `Icon generation complete (${result.files.length} files, ${result.highQuality ? "high quality" : "fallback mode"})`,
+      STAGE
+    );
+
+    for (const warn of result.warnings) {
+      ctx.log("warn", warn, STAGE);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    ctx.log("warn", `Icon generation failed (non-fatal): ${msg}`, STAGE);
   }
 }
 
@@ -471,3 +499,40 @@ async function getPngDimensions(filePath: string): Promise<{ width: number; heig
     return null;
   }
 }
+
+/**
+ * Copy runtime-only electron assets (update banner, offline page) from the
+ * templates directory into the output electron/ folder so main.cjs can load
+ * them at runtime via `path.join(__dirname, 'filename')`.
+ *
+ * These files are NOT part of the Handlebars generation pipeline (they don't
+ * need per-app template vars) so they are copied as-is.
+ */
+async function copyElectronAssets(ctx: PipelineContext): Promise<void> {
+  const templatesRoot = path.resolve(__dirname, "../../../../templates");
+  const electronOutDir = path.join(ctx.outputDir, "electron");
+
+  await fs.mkdir(electronOutDir, { recursive: true });
+
+  const assets: Array<{ src: string; dest: string }> = [
+    {
+      src:  path.join(templatesRoot, "electron", "update-banner.js.hbs"),
+      dest: path.join(electronOutDir, "update-banner.js"),
+    },
+    {
+      src:  path.join(templatesRoot, "electron", "offline.html.hbs"),
+      dest: path.join(electronOutDir, "offline.html"),
+    },
+  ];
+
+  for (const { src, dest } of assets) {
+    try {
+      // These templates have no Handlebars vars — copy verbatim
+      await fs.copyFile(src, dest);
+      ctx.log("info", `Copied electron asset: ${path.basename(dest)}`, STAGE);
+    } catch {
+      ctx.log("warn", `Could not copy electron asset: ${path.basename(dest)}`, STAGE);
+    }
+  }
+}
+

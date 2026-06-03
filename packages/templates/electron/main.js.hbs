@@ -125,6 +125,23 @@ function createWindow() {
     if (isDev) mainWindow.webContents.openDevTools();
   });
 
+  // ---------------------------------------------------------------------------
+  // Update banner — inject a self-contained UI overlay into the renderer after
+  // each page load so the user sees a "Restart & Install" prompt when a new
+  // version is ready. The banner script lives next to main.cjs so it works in
+  // both dev (CSP is relaxed) and production (bundled in the app directory).
+  // ---------------------------------------------------------------------------
+  const bannerPath = path.join(__dirname, 'update-banner.js');
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (fs.existsSync(bannerPath)) {
+      const bannerCode = fs.readFileSync(bannerPath, 'utf-8');
+      mainWindow?.webContents.executeJavaScript(bannerCode).catch(() => {
+        // Banner injection failed silently — the update still works via IPC,
+        // the app just won't show the visual toast.
+      });
+    }
+  });
+
   // Notify renderer when window maximize state changes
   mainWindow.on('maximize',   () => mainWindow?.webContents.send('app:window-state-changed', { maximized: true }));
   mainWindow.on('unmaximize', () => mainWindow?.webContents.send('app:window-state-changed', { maximized: false }));
