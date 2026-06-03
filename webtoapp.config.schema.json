@@ -119,6 +119,175 @@
         }
       }
     },
+    "signing": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Code-signing configuration. Credentials can also be supplied via environment variables (safer for CI).",
+      "properties": {
+        "windows": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Windows code-signing settings (NSIS installer). Requires OV or EV certificate.",
+          "properties": {
+            "certificatePath": {
+              "type": "string",
+              "description": "Path to a .pfx or .p12 certificate file, relative to source root. Alternatively set WIN_CSC_LINK env var."
+            },
+            "certificatePassword": {
+              "type": "string",
+              "description": "Password for the certificate file. Alternatively set WIN_CSC_KEY_PASSWORD env var."
+            },
+            "publisherName": {
+              "type": "string",
+              "description": "Publisher name shown in Windows SmartScreen prompt. Must match the CN in your certificate.",
+              "examples": ["Acme Corp Ltd", "Jane Doe"]
+            },
+            "signingHashAlgorithms": {
+              "type": "array",
+              "items": { "type": "string", "enum": ["sha256"] },
+              "default": ["sha256"],
+              "description": "Hash algorithms for signing. sha256 is required for modern Windows."
+            }
+          }
+        },
+        "mac": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "macOS code-signing and notarization settings. Requires Apple Developer Program membership.",
+          "properties": {
+            "certificatePath": {
+              "type": "string",
+              "description": "Path to a .p12 Developer ID Application certificate. Alternatively set CSC_LINK env var."
+            },
+            "certificatePassword": {
+              "type": "string",
+              "description": "Certificate password. Alternatively set CSC_KEY_PASSWORD env var."
+            },
+            "appleId": {
+              "type": "string",
+              "format": "email",
+              "description": "Apple ID email for notarization. Alternatively set APPLE_ID env var.",
+              "examples": ["dev@example.com"]
+            },
+            "appleIdPassword": {
+              "type": "string",
+              "description": "App-specific password for the Apple ID. Generate at appleid.apple.com. Alternatively set APPLE_APP_SPECIFIC_PASSWORD env var."
+            },
+            "teamId": {
+              "type": "string",
+              "description": "10-character Apple Developer Team ID. Found in developer.apple.com/account. Alternatively set APPLE_TEAM_ID env var.",
+              "pattern": "^[A-Z0-9]{10}$",
+              "examples": ["ABCD1234EF"]
+            }
+          }
+        }
+      }
+    },
+    "updates": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Auto-update delivery configuration. Powered by electron-updater.",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": ["github", "generic", "s3", "none"],
+          "default": "github",
+          "description": "github: use GitHub Releases (zero infra). generic: self-hosted HTTP server. s3: AWS/R2 bucket. none: disable auto-updates."
+        },
+        "githubOwner": {
+          "type": "string",
+          "description": "GitHub username or org. Required when provider is 'github'.",
+          "examples": ["myorg", "janedoe"]
+        },
+        "githubRepo": {
+          "type": "string",
+          "description": "GitHub repository name. Required when provider is 'github'.",
+          "examples": ["my-desktop-app"]
+        },
+        "serverUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Base URL of a generic update server. Required when provider is 'generic'.",
+          "examples": ["https://updates.example.com/releases"]
+        },
+        "channel": {
+          "type": "string",
+          "enum": ["latest", "beta", "alpha"],
+          "default": "latest",
+          "description": "Update channel. Users on 'latest' only see stable releases."
+        },
+        "autoDownload": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically download updates in the background. If false, the app must call window.electronAPI.downloadUpdate()."
+        },
+        "allowPrerelease": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include pre-release versions in update checks."
+        }
+      }
+    },
+    "crashReporting": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Crash reporting configuration. Errors in the Electron main process are automatically captured.",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": ["sentry", "none"],
+          "default": "none",
+          "description": "sentry: use Sentry SDK (cloud or self-hosted Glitchtip). none: disable crash reporting."
+        },
+        "dsn": {
+          "type": "string",
+          "format": "uri",
+          "description": "Sentry DSN. Can also be set via SENTRY_DSN or VITE_SENTRY_DSN env var.",
+          "examples": ["https://examplePublicKey@o0.ingest.sentry.io/0"]
+        },
+        "sampleRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 1,
+          "description": "Fraction of errors to send (1.0 = all, 0.5 = 50%). Useful for high-volume apps."
+        },
+        "environment": {
+          "type": "string",
+          "default": "production",
+          "description": "Environment tag attached to all Sentry events.",
+          "examples": ["production", "staging"]
+        }
+      }
+    },
+    "ci": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "CI/CD pipeline configuration for cross-platform cloud builds.",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": ["github-actions", "none"],
+          "default": "github-actions",
+          "description": "CI provider to emit workflow files for."
+        },
+        "autoEmit": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically write .github/workflows/build.yml after a successful local build."
+        },
+        "githubOwner": {
+          "type": "string",
+          "description": "GitHub username or org that owns the repository.",
+          "examples": ["myorg"]
+        },
+        "githubRepo": {
+          "type": "string",
+          "description": "GitHub repository name.",
+          "examples": ["my-desktop-app"]
+        }
+      }
+    },
     "devTools": {
       "type": "boolean",
       "default": false,
@@ -136,7 +305,7 @@
     },
     "resumeFromStage": {
       "type": "string",
-      "enum": ["01-detect", "02-plan", "03-transform", "04-scaffold", "05-install", "06-build", "06b-parity", "07-package", "07b-mobile"],
+      "enum": ["01-detect", "02-plan", "03-transform", "04-scaffold", "05-install", "06-build", "06b-parity", "07-package", "07b-mobile", "07c-sign", "08-ci-emit"],
       "description": "Resume the pipeline from this stage, skipping earlier completed stages"
     },
     "cleanLogs": {

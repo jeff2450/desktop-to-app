@@ -3,6 +3,27 @@ const path = require('path');
 const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
 
+// ---------------------------------------------------------------------------
+// Crash Reporting — Sentry (only in production, only when DSN is configured)
+// ---------------------------------------------------------------------------
+{{#if crashReporting.dsn}}
+try {
+  const Sentry = require('@sentry/electron/main');
+  const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+  if (!isDev) {
+    Sentry.init({
+      dsn: '{{crashReporting.dsn}}',
+      release: '{{appName}}@{{version}}',
+      environment: '{{crashReporting.environment}}',
+      sampleRate: {{crashReporting.sampleRate}},
+    });
+    console.log('[WebToApp] Crash reporting active');
+  }
+} catch (e) {
+  // Sentry not installed — crash reporting disabled
+}
+{{/if}}
+
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'app',
@@ -18,6 +39,65 @@ protocol.registerSchemesAsPrivileged([
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 let mainWindow;
 
+// ---------------------------------------------------------------------------
+// MIME type map for serving static assets correctly
+// ---------------------------------------------------------------------------
+const MIME_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js':   'application/javascript; charset=utf-8',
+  '.mjs':  'application/javascript; charset=utf-8',
+  '.cjs':  'application/javascript; charset=utf-8',
+  '.css':  'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png':  'image/png',
+  '.jpg':  'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif':  'image/gif',
+  '.svg':  'image/svg+xml',
+  '.ico':  'image/x-icon',
+  '.webp': 'image/webp',
+  '.woff': 'font/woff',
+  '.woff2':'font/woff2',
+  '.ttf':  'font/ttf',
+  '.eot':  'application/vnd.ms-fontobject',
+  '.mp4':  'video/mp4',
+  '.webm': 'video/webm',
+  '.mp3':  'audio/mpeg',
+  '.wav':  'audio/wav',
+  '.pdf':  'application/pdf',
+  '.txt':  'text/plain; charset=utf-8',
+  '.wasm': 'application/wasm',
+};
+
+// Vite hashes asset filenames — cache them for 1 year. HTML is never hashed.
+const HASHED_ASSET_RE = /\/assets\/[^/]+-[A-Za-z0-9_-]{8,}\.[a-z]+$/;
+
+function getMime(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  return MIME_TYPES[ext] || 'application/octet-stream';
+}
+
+function getCacheControl(urlPath) {
+  if (HASHED_ASSET_RE.test(urlPath)) return 'public, max-age=31536000, immutable';
+  return 'no-cache';
+}
+
+function serveFile(filePath, urlPath) {
+  try {
+    const data = fs.readFileSync(filePath);
+    return new Response(data, {
+      status: 200,
+      headers: {
+        'Content-Type':  getMime(filePath),
+        'Cache-Control': getCacheControl(urlPath),
+        'Content-Length': String(data.byteLength),
+      },
+    });
+  } catch {
+    return new Response('Not Found', { status: 404 });
+  }
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -25,6 +105,9 @@ function createWindow() {
     minWidth: 800,
     minHeight: 600,
     title: '{{appName}}',
+    // Hide the native OS title bar — the app's own header acts as the title bar.
+    frame: false,
+    titleBarStyle: 'hidden',
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#0f0f0f' : '#ffffff',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -42,45 +125,130 @@ function createWindow() {
     if (isDev) mainWindow.webContents.openDevTools();
   });
 
+  // Notify renderer when window maximize state changes
+  mainWindow.on('maximize',   () => mainWindow?.webContents.send('app:window-state-changed', { maximized: true }));
+  mainWindow.on('unmaximize', () => mainWindow?.webContents.send('app:window-state-changed', { maximized: false }));
+
+  // ---------------------------------------------------------------------------
+  // SPA navigation guard — prevents React-Router / Vue-Router link clicks from
+  // triggering a full renderer reload. Only external URLs open in the browser.
+  // ---------------------------------------------------------------------------
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    try {
+      const parsed = new URL(url);
+      const isInternal = isDev
+        ? parsed.origin === `http://localhost:{{devPort}}`
+        : parsed.protocol === 'app:';
+      if (!isInternal) {
+        event.preventDefault();
+        shell.openExternal(url);
+      }
+    } catch {
+      event.preventDefault();
+    }
+  });
+
+  // Open target=_blank links in the system browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http')) shell.openExternal(url);
     return { action: 'deny' };
   });
 
-  mainWindow.webContents.on('did-fail-load', (_event, code, desc, url) => {
-    console.error(`[WebToApp] Page failed to load: ${code} ${desc} - ${url}`);
+  // If load fails in production — serve the offline fallback page
+  mainWindow.webContents.on('did-fail-load', (_event, code, _desc, url) => {
+    console.error(`[WebToApp] Page failed to load: ${code} - ${url}`);
+    if (!isDev) {
+      const offlinePage = path.join(__dirname, 'offline.html');
+      if (fs.existsSync(offlinePage)) {
+        mainWindow?.loadFile(offlinePage);
+      } else {
+        mainWindow?.loadURL('app://./');
+      }
+    }
   });
 
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
-ipcMain.handle('app:get-version', () => app.getVersion());
-ipcMain.on('app:minimize', () => mainWindow?.minimize());
-ipcMain.on('app:maximize', () => {
+// ---------------------------------------------------------------------------
+// IPC handlers
+// ---------------------------------------------------------------------------
+ipcMain.handle('app:get-version',   () => app.getVersion());
+ipcMain.handle('app:is-maximized',  () => mainWindow?.isMaximized() ?? false);
+ipcMain.on('app:minimize',          () => mainWindow?.minimize());
+ipcMain.on('app:maximize',          () => {
   mainWindow?.isMaximized() ? mainWindow.unmaximize() : mainWindow?.maximize();
 });
-ipcMain.on('app:close', () => mainWindow?.close());
+ipcMain.on('app:close',             () => mainWindow?.close());
+// Manual update trigger — the renderer can call window.electronAPI.invoke('app:check-update')
+ipcMain.handle('app:check-update',  () => {
+  if (!isDev) autoUpdater.checkForUpdates().catch(console.error);
+  return null;
+});
+ipcMain.on('app:install-update', () => {
+  autoUpdater.quitAndInstall(false, true);
+});
 
+// ---------------------------------------------------------------------------
+// Auto-Updater
+// ---------------------------------------------------------------------------
 function setupAutoUpdater() {
   if (isDev) return;
-  autoUpdater.checkForUpdatesAndNotify();
-  autoUpdater.on('update-available', () => {
-    mainWindow?.webContents.send('app:update-available');
+
+  {{#if updates.provider}}
+  {{#unless_eq updates.provider "none"}}
+  autoUpdater.autoDownload = {{#if updates.autoDownload}}true{{else}}false{{/if}};
+  autoUpdater.allowPrerelease = {{#if updates.allowPrerelease}}true{{else}}false{{/if}};
+  autoUpdater.channel = '{{updates.channel}}';
+
+  autoUpdater.on('update-available', (info) => {
+    console.log(`[WebToApp] Update available: v${info.version}`);
+    mainWindow?.webContents.send('app:update-available', {
+      version: info.version,
+      releaseNotes: info.releaseNotes,
+    });
   });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log(`[WebToApp] Update downloaded: v${info.version} — ready to install`);
+    mainWindow?.webContents.send('app:update-downloaded', {
+      version: info.version,
+    });
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.error('[WebToApp] Auto-updater error:', err?.message ?? err);
+  });
+
+  autoUpdater.checkForUpdatesAndNotify().catch(console.error);
+  {{/unless_eq}}
+  {{/if}}
 }
 
+// ---------------------------------------------------------------------------
+// App startup
+// ---------------------------------------------------------------------------
 app.whenReady().then(() => {
+  // Serve the built dist/ folder for the app:// scheme with proper MIME types
+  // and long-lived cache headers for Vite-hashed assets.
   protocol.handle('app', (request) => {
     const url = new URL(request.url);
     const pathname = url.pathname === '/' ? '/index.html' : url.pathname;
     const hasExtension = /\.\w+$/.test(pathname);
-    let filePath = path.join(__dirname, '../dist', pathname);
+    const distDir = path.join(__dirname, '../dist');
+    let filePath = path.join(distDir, pathname);
 
-    if (!hasExtension || !fs.existsSync(filePath)) {
-      filePath = path.join(__dirname, '../dist/index.html');
+    // Security: prevent path traversal outside dist/
+    if (!filePath.startsWith(distDir + path.sep) && filePath !== distDir) {
+      return new Response('Forbidden', { status: 403 });
     }
 
-    return net.fetch('file://' + filePath);
+    // SPA fallback: any path without a file extension → index.html
+    if (!hasExtension || !fs.existsSync(filePath)) {
+      filePath = path.join(distDir, 'index.html');
+    }
+
+    return serveFile(filePath, pathname);
   });
 
   createWindow();

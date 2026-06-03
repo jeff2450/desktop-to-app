@@ -16,6 +16,8 @@ import { runBuildStage } from "./stages/06-build.js";
 import { runParityStage } from "./stages/06b-parity.js";
 import { runPackageStage } from "./stages/07-package.js";
 import { runMobileStage } from "./stages/07b-mobile.js";
+import { runSignStage } from "./stages/07c-sign.js";
+import { runCiEmitStage } from "./stages/08-ci-emit.js";
 import { runPreflightStage } from "./stages/00-preflight.js";
 
 /**
@@ -116,6 +118,14 @@ export class ConversionPipeline {
       // Stage 07b — Mobile (Android/iOS) — skipped if no mobile targets
       if (ctx.shouldSkipStage("07b-mobile")) ctx.skipStage("07b-mobile", "resuming from later stage");
       else await runMobileStage(ctx);
+
+      // Stage 07c — Code signing validation (warns if certs are missing, never hard-fails)
+      if (ctx.shouldSkipStage("07c-sign")) ctx.skipStage("07c-sign", "resuming from later stage");
+      else await runSignStage(ctx);
+
+      // Stage 08 — CI emit (writes .github/workflows/build.yml when ci.autoEmit=true)
+      if (ctx.shouldSkipStage("08-ci-emit")) ctx.skipStage("08-ci-emit", "resuming from later stage");
+      else await runCiEmitStage(ctx);
 
       // All stages succeeded — remove backup and flush logs
       await fs.rm(backupDir, { recursive: true, force: true }).catch(() => {});

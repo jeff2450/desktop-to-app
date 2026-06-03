@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{appName}} — Connection Error</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0f1117;
+      --surface:  #1a1d27;
+      --border:   rgba(255,255,255,0.08);
+      --text:     rgba(255,255,255,0.90);
+      --muted:    rgba(255,255,255,0.45);
+      --accent:   #4f8ef7;
+      --danger:   #f87171;
+      --radius:   16px;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Draggable title-bar region */
+    .drag-region {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 36px;
+      -webkit-app-region: drag;
+    }
+
+    .page {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100%;
+      padding: 48px 24px;
+      gap: 24px;
+      text-align: center;
+    }
+
+    .icon-wrap {
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      background: rgba(248, 113, 113, 0.12);
+      display: flex; align-items: center; justify-content: center;
+      animation: pulse 2.4s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(248,113,113,0.15); }
+      50%       { box-shadow: 0 0 0 16px rgba(248,113,113,0); }
+    }
+
+    .icon-wrap svg {
+      width: 36px; height: 36px;
+      stroke: var(--danger);
+      stroke-width: 1.5;
+      fill: none;
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+    }
+
+    p {
+      font-size: 14px;
+      color: var(--muted);
+      max-width: 340px;
+      line-height: 1.6;
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+      -webkit-app-region: no-drag;
+    }
+
+    button {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.12s;
+      border: none;
+      outline: none;
+    }
+
+    button:active { transform: scale(0.97); }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover { opacity: 0.88; }
+
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { opacity: 0.7; }
+
+    .details {
+      margin-top: 12px;
+      padding: 14px 18px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 12px;
+      color: var(--muted);
+      font-family: 'SF Mono', 'Cascadia Code', monospace;
+      max-width: 420px;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <div class="drag-region"></div>
+
+  <div class="page">
+    <div class="icon-wrap">
+      <!-- WiFi-off icon -->
+      <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="1" y1="1" x2="23" y2="23"/>
+        <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/>
+        <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/>
+        <path d="M10.71 5.05A16 16 0 0 1 22.56 9"/>
+        <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/>
+        <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+        <circle cx="12" cy="20" r="1" fill="currentColor" stroke="none"/>
+      </svg>
+    </div>
+
+    <h1>Unable to load {{appName}}</h1>
+    <p>The page failed to load. This could be a temporary network issue. Check your connection and try again.</p>
+
+    <div class="actions">
+      <button class="btn-primary" onclick="retryLoad()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+        Retry
+      </button>
+      <button class="btn-secondary" onclick="openDevTools()">Dev Tools</button>
+    </div>
+
+    <div class="details" id="error-details">Loading error details…</div>
+  </div>
+
+  <script>
+    function retryLoad() {
+      // If electronAPI is available, reload via IPC; otherwise use location
+      if (window.electronAPI) {
+        window.location.href = 'app://./';
+      } else {
+        window.location.reload();
+      }
+    }
+
+    function openDevTools() {
+      // DevTools can be opened from the Electron menu even without this
+      console.log('[WebToApp] Open DevTools via View > Toggle Developer Tools');
+    }
+
+    // Surface any URL/error info stored in sessionStorage by the main process
+    try {
+      const storedError = sessionStorage.getItem('webtoapp_load_error');
+      const el = document.getElementById('error-details');
+      if (storedError) {
+        el.textContent = storedError;
+      } else {
+        el.textContent = 'No additional details available.';
+      }
+    } catch {}
+  </script>
+</body>
+</html>

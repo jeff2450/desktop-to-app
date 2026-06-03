@@ -22,6 +22,9 @@ extraResources:
       - "**/*"
       - "!**/*.ts"
 
+# ---------------------------------------------------------------------------
+# Windows
+# ---------------------------------------------------------------------------
 {{#if targets.windows}}
 win:
   target:
@@ -33,6 +36,12 @@ win:
   icon: {{icon}}
   {{/if}}
   requestedExecutionLevel: asInvoker
+  {{#if signing.windows.publisherName}}
+  # Code signing — set WIN_CSC_LINK and WIN_CSC_KEY_PASSWORD env vars (or see webtoapp.config.json)
+  signingHashAlgorithms:
+    - sha256
+  certificateSubjectName: "{{signing.windows.publisherName}}"
+  {{/if}}
 
 nsis:
   oneClick: false
@@ -46,9 +55,12 @@ nsis:
   {{/if}}
 {{/if}}
 
-{{#if targets.linux}}
+# ---------------------------------------------------------------------------
+# Linux
 # NOTE: Building Linux targets from Windows requires mksquashfs which is not
 # available on Windows. To build for Linux, use a Linux machine or GitHub Actions.
+# ---------------------------------------------------------------------------
+{{#if targets.linux}}
 linux:
   target:
     - target: AppImage
@@ -63,6 +75,9 @@ linux:
   category: Utility
 {{/if}}
 
+# ---------------------------------------------------------------------------
+# macOS
+# ---------------------------------------------------------------------------
 {{#if targets.mac}}
 mac:
   target:
@@ -76,10 +91,16 @@ mac:
   {{#if icon}}
   icon: {{icon}}
   {{/if}}
+  # Hardened Runtime is required for notarization
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
+  {{#if signing.mac.teamId}}
+  # Notarization — set APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID env vars
+  notarize:
+    teamId: "{{signing.mac.teamId}}"
+  {{/if}}
 
 dmg:
   sign: false
@@ -92,7 +113,37 @@ dmg:
       path: /Applications
 {{/if}}
 
+# ---------------------------------------------------------------------------
+# Auto-Updates — powered by electron-updater
+# See: https://www.electron.build/auto-update
+# ---------------------------------------------------------------------------
+{{#if updates.provider}}
+{{#if_eq updates.provider "github"}}
+publish:
+  provider: github
+  owner: "{{updates.githubOwner}}"
+  repo: "{{updates.githubRepo}}"
+  private: false
+  releaseType: release
+{{/if_eq}}
+{{#if_eq updates.provider "generic"}}
 publish:
   provider: generic
-  url: https://your-update-server.com/releases/
-  channel: latest
+  url: "{{updates.serverUrl}}"
+  channel: "{{updates.channel}}"
+{{/if_eq}}
+{{#if_eq updates.provider "s3"}}
+publish:
+  provider: s3
+  bucket: "{{updates.s3Bucket}}"
+  region: "{{updates.s3Region}}"
+  channel: "{{updates.channel}}"
+{{/if_eq}}
+{{else}}
+# Auto-updates disabled. Add an 'updates' block to webtoapp.config.json to enable.
+publish:
+  provider: github
+  owner: "your-github-username"
+  repo: "your-repo-name"
+  private: false
+{{/if}}

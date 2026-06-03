@@ -131,6 +131,14 @@ async function patchPackageJson(ctx: PipelineContext): Promise<void> {
     delete pkg.devDependencies[name];
   }
 
+  // ── Sentry crash reporting ────────────────────────────────────────────────
+  // Auto-inject @sentry/electron when a DSN is configured (config file or env vars)
+  const sentinelDsn = resolveSentryDsn(ctx);
+  if (sentinelDsn) {
+    pkg.dependencies["@sentry/electron"] ??= "^5.0.0";
+    ctx.log("info", "Added @sentry/electron dependency (Sentry DSN detected)", STAGE);
+  }
+
   pkg.main = "electron/main.cjs";
   pkg.author ??= ctx.config.author ?? "WebToApp Conversion";
 
@@ -140,6 +148,19 @@ async function patchPackageJson(ctx: PipelineContext): Promise<void> {
 
 function isElectronDevDependency(name: string): boolean {
   return name === "electron" || name === "electron-builder" || name === "concurrently" || name === "wait-on";
+}
+
+/**
+ * Resolve a Sentry DSN from (in order of priority):
+ * 1. webtoapp.config.json → crashReporting.dsn
+ * 2. Source project .env files (SENTRY_DSN or VITE_SENTRY_DSN)
+ */
+function resolveSentryDsn(ctx: PipelineContext): string | undefined {
+  const configDsn = (ctx.config as { crashReporting?: { provider?: string; dsn?: string } }).crashReporting?.dsn;
+  if (configDsn) return configDsn;
+
+  // Check env vars already loaded into process.env from source .env
+  return process.env["SENTRY_DSN"] ?? process.env["VITE_SENTRY_DSN"];
 }
 
 async function generateFile(plan: FileGeneratePlan): Promise<string> {
