@@ -26,12 +26,11 @@ export declare type JobStatus = 'QUEUED' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'C
 // ─── Model types ─────────────────────────────────────────────────────────────
 
 export declare type User = {
-  id:               string;
-  email:            string;
-  passwordHash:     string;
-  plan:             Plan;
-  stripeCustomerId: string | null;
-  createdAt:        Date;
+  id:           string;
+  email:        string;
+  passwordHash: string;
+  plan:         Plan;
+  createdAt:    Date;
 };
 
 export declare type Session = {
@@ -65,43 +64,7 @@ export declare type Artifact = {
   sizeBytes: number;
 };
 
-export declare type ClickPesaOrder = {
-  id:             string;
-  orderReference: string;
-  userId:         string;
-  plan:           Plan;
-  status:         string;
-  createdAt:      Date;
-  updatedAt:      Date;
-};
 
-export declare type PaypalOrder = {
-  id:             string;
-  orderReference: string;
-  paypalOrderId:  string | null;
-  userId:         string;
-  plan:           Plan;
-  status:         string;
-  createdAt:      Date;
-  updatedAt:      Date;
-};
-
-export declare type MpesaOrder = {
-  id:                       string;
-  orderReference:           string;
-  conversationId:           string | null;
-  thirdPartyConversationId: string;
-  userId:                   string;
-  plan:                     Plan;
-  phoneNumber:              string;
-  amount:                   number;
-  currency:                 string;
-  status:                   string;
-  responseCode:             string | null;
-  responseDesc:             string | null;
-  createdAt:                Date;
-  updatedAt:                Date;
-};
 
 // ─── Prisma namespace ─────────────────────────────────────────────────────────
 
@@ -148,24 +111,20 @@ export declare class PrismaClient {
   readonly session:        SessionDelegate;
   readonly job:            JobDelegate;
   readonly artifact:       ArtifactDelegate;
-  readonly clickPesaOrder: ClickPesaOrderDelegate;
-  readonly paypalOrder:    PaypalOrderDelegate;
-  readonly mpesaOrder:     MpesaOrderDelegate;
 }
 
 // ─── User delegate ────────────────────────────────────────────────────────────
 
-type UserWhereUnique = { id?: string; email?: string; stripeCustomerId?: string };
+type UserWhereUnique = { id?: string; email?: string };
 
-/** Partial record for user creation — stripeCustomerId and plan are optional */
+/** Partial record for user creation — plan is optional */
 type UserCreateInput = {
-  email:             string;
-  passwordHash:      string;
-  name?:             string | null;
-  plan?:             Plan | string;
-  stripeCustomerId?: string | null;
-  id?:               string;
-  createdAt?:        Date;
+  email:        string;
+  passwordHash: string;
+  name?:        string | null;
+  plan?:        Plan | string;
+  id?:          string;
+  createdAt?:   Date;
 };
 
 interface UserDelegate {
@@ -238,51 +197,6 @@ interface ArtifactDelegate {
   createMany(args: { data: Array<Omit<Artifact, 'id'> & { id?: string }> }): Promise<{ count: number }>;
   delete(args: { where: { id?: string } }): Promise<Artifact>;
   deleteMany(args?: { where?: Partial<Artifact> }): Promise<{ count: number }>;
-}
-
-// ─── ClickPesaOrder delegate ─────────────────────────────────────────────────
-
-type ClickPesaOrderWhereUnique = { id?: string; orderReference?: string };
-
-interface ClickPesaOrderDelegate {
-  findUnique(args: { where: ClickPesaOrderWhereUnique }): Promise<ClickPesaOrder | null>;
-  findFirst(args?: { where?: Partial<ClickPesaOrder> }): Promise<ClickPesaOrder | null>;
-  findMany(args?: { where?: Partial<ClickPesaOrder> }): Promise<ClickPesaOrder[]>;
-  create(args: { data: Omit<ClickPesaOrder, 'id' | 'createdAt' | 'updatedAt'> & { id?: string } }): Promise<ClickPesaOrder>;
-  update(args: { where: ClickPesaOrderWhereUnique; data: Partial<Omit<ClickPesaOrder, 'id'>> }): Promise<ClickPesaOrder>;
-  updateMany(args: { where: Partial<ClickPesaOrder>; data: Partial<Omit<ClickPesaOrder, 'id'>> }): Promise<{ count: number }>;
-  delete(args: { where: ClickPesaOrderWhereUnique }): Promise<ClickPesaOrder>;
-  deleteMany(args?: { where?: Partial<ClickPesaOrder> }): Promise<{ count: number }>;
-}
-
-// ─── PaypalOrder delegate ─────────────────────────────────────────────────────
-
-type PaypalOrderWhereUnique = { id?: string; orderReference?: string; paypalOrderId?: string };
-
-interface PaypalOrderDelegate {
-  findUnique(args: { where: PaypalOrderWhereUnique }): Promise<PaypalOrder | null>;
-  findFirst(args?: { where?: Partial<PaypalOrder> }): Promise<PaypalOrder | null>;
-  findMany(args?: { where?: Partial<PaypalOrder> }): Promise<PaypalOrder[]>;
-  create(args: { data: Omit<PaypalOrder, 'id' | 'createdAt' | 'updatedAt'> & { id?: string } }): Promise<PaypalOrder>;
-  update(args: { where: PaypalOrderWhereUnique; data: Partial<Omit<PaypalOrder, 'id'>> }): Promise<PaypalOrder>;
-  updateMany(args: { where: Partial<PaypalOrder>; data: Partial<Omit<PaypalOrder, 'id'>> }): Promise<{ count: number }>;
-  delete(args: { where: PaypalOrderWhereUnique }): Promise<PaypalOrder>;
-  deleteMany(args?: { where?: Partial<PaypalOrder> }): Promise<{ count: number }>;
-}
-
-// ─── MpesaOrder delegate ─────────────────────────────────────────────────────
-
-type MpesaOrderWhereUnique = { id?: string; orderReference?: string; thirdPartyConversationId?: string };
-
-interface MpesaOrderDelegate {
-  findUnique(args: { where: MpesaOrderWhereUnique }): Promise<MpesaOrder | null>;
-  findFirst(args?: { where?: Partial<MpesaOrder> }): Promise<MpesaOrder | null>;
-  findMany(args?: { where?: Partial<MpesaOrder> }): Promise<MpesaOrder[]>;
-  create(args: { data: Omit<MpesaOrder, 'id' | 'createdAt' | 'updatedAt'> & { id?: string } }): Promise<MpesaOrder>;
-  update(args: { where: MpesaOrderWhereUnique; data: Partial<Omit<MpesaOrder, 'id'>> }): Promise<MpesaOrder>;
-  updateMany(args: { where: Partial<MpesaOrder>; data: Partial<Omit<MpesaOrder, 'id'>> }): Promise<{ count: number }>;
-  delete(args: { where: MpesaOrderWhereUnique }): Promise<MpesaOrder>;
-  deleteMany(args?: { where?: Partial<MpesaOrder> }): Promise<{ count: number }>;
 }
 
 export {};

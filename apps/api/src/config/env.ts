@@ -15,11 +15,6 @@ const envSchema = z.object({
   AWS_REGION: z.string().min(1).default("us-east-1"),
   S3_BUCKET: z.string().min(1).optional(),
 
-  // Stripe — optional; kept for backward compat / gradual migration
-  STRIPE_SECRET_KEY: z.string().min(1).optional(),
-  STRIPE_WEBHOOK_SECRET: z.string().min(1).optional(),
-  STRIPE_PRICE_STARTER: z.string().min(1).optional(),
-  STRIPE_PRICE_PRO: z.string().min(1).optional(),
   DASHBOARD_URL: z.string().url().optional(),
   
   // Email — optional
@@ -36,27 +31,10 @@ const envSchema = z.object({
   OUTPUTS_DIR: z.string().default("outputs"),
   WORKER_CONCURRENCY: z.coerce.number().int().positive().max(8).default(2),
 
-  // ClickPesa
-  CLICKPESA_CLIENT_ID: z.string().optional(),
-  CLICKPESA_API_KEY: z.string().optional(),
-  CLICKPESA_CURRENCY: z.string().default("USD"),
-  CLICKPESA_BASE_URL: z.string().url().default("https://api.clickpesa.com/third-parties"),
-
-  // PayPal
-  PAYPAL_CLIENT_ID: z.string().optional(),
-  PAYPAL_CLIENT_SECRET: z.string().optional(),
-  PAYPAL_MODE: z.enum(["sandbox", "live"]).default("sandbox"),
-  PAYPAL_BASE_URL: z.string().url().default("https://api-m.sandbox.paypal.com"),
-
-  // Vodacom M-Pesa (Tanzania OpenAPI)
-  MPESA_API_KEY: z.string().optional(),
-  MPESA_PUBLIC_KEY: z.string().optional(), // Vodacom RSA public key (PEM, used to encrypt API key)
-  MPESA_SERVICE_PROVIDER_CODE: z.string().optional(), // Business ShortCode
-  MPESA_BASE_URL: z.string().url().default("https://openapi.m-pesa.com/sandbox/ipg/v2/vodacomTZN/"),
-  MPESA_CURRENCY: z.string().default("TZS"),
-  MPESA_CALLBACK_URL: z.string().url().optional(), // Public URL that M-Pesa POSTs results to
-  MPESA_USD_TO_TZS_RATE: z.coerce.number().default(2600),
-  MPESA_WEBHOOK_TOKEN: z.string().optional(),
+  // Mongike - Tanzania Mobile Money
+  MONGIKE_API_KEY: z.string().optional(),
+  MONGIKE_API_URL: z.string().url().default("https://mongike.com/api/v1"),
+  WEBHOOK_BASE_URL: z.string().url().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

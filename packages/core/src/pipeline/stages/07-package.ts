@@ -84,7 +84,10 @@ export async function runPackageStage(ctx: PipelineContext): Promise<void> {
     }
 
     const desktopTargets = allDesktopTargets.filter((t) => t === currentPlatform);
-    if (desktopTargets.length === 0) desktopTargets.push(currentPlatform as "windows" | "linux" | "mac");
+    if (desktopTargets.length === 0) {
+      ctx.skipStage(STAGE, "No desktop targets buildable on this host");
+      return;
+    }
 
     const packager = new ElectronPackager();
     const packResult = await packager.package({
@@ -104,6 +107,7 @@ export async function runPackageStage(ctx: PipelineContext): Promise<void> {
     if (packResult.installerPaths.length > 0) {
       // Primary installer = first result (Windows .exe or Linux .AppImage or macOS .dmg)
       ctx.installerPath = packResult.installerPaths[0];
+      ctx.artifactPaths[desktopTargets[0]!] = packResult.installerPaths[0];
       ctx.log("info", `Installer ready: ${ctx.installerPath}`, STAGE);
     }
 

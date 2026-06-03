@@ -48,8 +48,8 @@ export function PricingTable({ plans, currentPlan }: Props) {
                 <span className="text-2xl font-bold text-white">Free</span>
               ) : (
                 <div>
-                  <span className="text-2xl font-bold text-white">${plan.price}</span>
-                  <span className="text-gray-500 text-sm">/mo</span>
+                  <span className="text-xl font-bold text-white">{plan.price.toLocaleString()} TZS</span>
+                  <span className="text-gray-500 text-xs">/mo</span>
                 </div>
               )}
             </div>

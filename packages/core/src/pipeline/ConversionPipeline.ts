@@ -301,6 +301,7 @@ export class ConversionPipeline {
     return {
       status,
       installerPath: ctx.installerPath,
+      artifactPaths: ctx.artifactPaths,
       detectionResult: ctx.detection,
       stages: stages.map((s) => ({
         name: s.name,

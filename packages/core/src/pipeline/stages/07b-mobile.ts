@@ -84,9 +84,12 @@ export async function runMobileStage(ctx: PipelineContext): Promise<void> {
           throw new Error(`Android build failed: ${result.error}`);
         }
 
-        if (result.outputPath) {
-          ctx.log("info", `Android APK: ${result.outputPath}`, STAGE);
+        if (!result.outputPath) {
+          throw new Error("Android build succeeded, but no APK/AAB output file was found.");
         }
+
+        ctx.artifactPaths.android = result.outputPath;
+        ctx.log("info", `Android artifact: ${result.outputPath}`, STAGE);
       }
 
       if (target === "ios") {
@@ -122,6 +125,11 @@ export async function runMobileStage(ctx: PipelineContext): Promise<void> {
           } else {
             throw new Error(`iOS build failed: ${result.error}`);
           }
+        }
+
+        if (result.outputPath) {
+          ctx.artifactPaths.ios = result.outputPath;
+          ctx.log("info", `iOS artifact: ${result.outputPath}`, STAGE);
         }
       }
     }

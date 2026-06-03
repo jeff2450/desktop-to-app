@@ -157,12 +157,18 @@ async function loadTemplate(generatorType: FileGeneratePlan["generatorType"]): P
     "electron-preload": "electron/preload.js.hbs",
     "electron-builder-config": "electron/electron-builder.yml.hbs",
     "mac-entitlements": "electron/entitlements.mac.plist.hbs",
+    "express-server": "backend/server.js.hbs",
+    "sqlite-database": "backend/database.js.hbs",
+    "jwt-auth": "backend/auth.js.hbs",
+    "crud-routes": "backend/routes/crud.js.hbs",
+    "local-api-client": "localApi/localApi.ts.hbs",
+    "local-auth-client": "localApi/localAuth.ts.hbs",
   };
 
   const relativePath = templateMap[generatorType];
   if (!relativePath) throw new Error(`No template mapping for ${generatorType}`);
 
-  const templatesRoot = path.resolve(__dirname, "../../../../packages/templates");
+  const templatesRoot = path.resolve(__dirname, "../../../../templates");
   return fs.readFile(path.join(templatesRoot, relativePath), "utf-8");
 }
 

@@ -46,8 +46,12 @@ export async function runParityStage(ctx: PipelineContext): Promise<void> {
     }
 
     const findings: Finding[] = [];
-    await checkOnlineSourceParity(ctx, findings);
-    await checkCloudEnvPreserved(ctx, findings);
+    if (ctx.config.mode === "online") {
+      await checkOnlineSourceParity(ctx, findings);
+      await checkCloudEnvPreserved(ctx, findings);
+    } else {
+      await checkOfflineSourceParity(ctx, findings);
+    }
     await checkBuiltDist(ctx, findings);
 
     for (const finding of findings) {
@@ -102,6 +106,36 @@ async function checkOnlineSourceParity(ctx: PipelineContext, findings: Finding[]
         file: rel,
         message: "Online conversion output differs from the original web source.",
         suggestion: "Online conversion is intended to wrap web output without changing app code.",
+      });
+    }
+  }
+}
+
+async function checkOfflineSourceParity(ctx: PipelineContext, findings: Finding[]): Promise<void> {
+  for (const absolutePath of ctx.detection!.scannedFiles) {
+    if (!CODE_EXT_RE.test(absolutePath)) continue;
+
+    const rel = ctx.relative(absolutePath);
+    if (!normalizeRel(rel).startsWith("src/")) continue;
+
+    const sourceContent = await fs.readFile(absolutePath, "utf-8").catch(() => null);
+    if (sourceContent === null) continue;
+
+    if (sourceContent.includes("supabase.rpc(")) {
+      findings.push({
+        level: "error",
+        file: rel,
+        message: "Unsupported Supabase RPC behavior detected: rpc calls cannot be automatically converted for offline mode.",
+        suggestion: "Replace the RPC call with standard table queries or implement a custom backend route.",
+      });
+    }
+
+    if (sourceContent.includes("supabase.functions.invoke(")) {
+      findings.push({
+        level: "warn",
+        file: rel,
+        message: "Supabase Edge Function invocation detected. This will call the local fallback server which returns a 501 status.",
+        suggestion: "Ensure the local backend routes handle these functions or mock them appropriately.",
       });
     }
   }

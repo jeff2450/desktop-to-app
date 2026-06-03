@@ -8,15 +8,15 @@ datasource db {
 }
 
 model User {
-  id               String     @id @default(cuid())
-  email            String     @unique
-  name             String?
-  passwordHash     String
-  plan             Plan       @default(FREE)
-  stripeCustomerId String?    @unique
-  createdAt        DateTime   @default(now())
-  jobs             Job[]
-  sessions         Session[]
+  id           String        @id @default(cuid())
+  email        String        @unique
+  name         String?
+  passwordHash String
+  plan         Plan          @default(FREE)
+  createdAt    DateTime      @default(now())
+  jobs         Job[]
+  sessions     Session[]
+  transactions Transaction[]
 }
 
 model Session {
@@ -72,42 +72,16 @@ enum JobStatus {
   CANCELLED
 }
 
-model ClickPesaOrder {
-  id             String   @id @default(cuid())
-  orderReference String   @unique
-  userId         String
-  plan           Plan
-  status         String   @default("PENDING") // PENDING, SUCCESS, FAILED
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+model Transaction {
+  id        String   @id @default(cuid())
+  userId    String
+  plan      Plan
+  amount    Float
+  gateway   String
+  status    String   @default("PENDING") // PENDING, COMPLETED, FAILED
+  txRef     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model PaypalOrder {
-  id             String   @id @default(cuid())
-  orderReference String   @unique
-  paypalOrderId  String?  @unique
-  userId         String
-  plan           Plan
-  status         String   @default("PENDING") // PENDING, SUCCESS, FAILED
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-}
-
-model MpesaOrder {
-  id                       String   @id @default(cuid())
-  orderReference           String   @unique
-  /// Conversation ID returned by M-Pesa on payment initiation
-  conversationId           String?
-  /// Our unique ID sent to M-Pesa to correlate async callbacks
-  thirdPartyConversationId String   @unique
-  userId                   String
-  plan                     Plan
-  phoneNumber              String
-  amount                   Float
-  currency                 String   @default("TZS")
-  status                   String   @default("PENDING") // PENDING, SUCCESS, FAILED
-  responseCode             String?
-  responseDesc             String?
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
-}

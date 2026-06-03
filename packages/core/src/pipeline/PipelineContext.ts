@@ -68,8 +68,11 @@ export class PipelineContext {
   /** Populated by stage 02-plan */
   plan?: MigrationPlan;
 
-  /** Path to the final installer file, populated by stage 07-package */
+  /** Path to the primary desktop installer file, populated by stage 07-package */
   installerPath?: string;
+
+  /** Artifact paths keyed by target platform, populated by packaging stages */
+  artifactPaths: Partial<Record<"windows" | "linux" | "mac" | "android" | "ios", string>> = {};
 
   private readonly _stages: Map<string, StageRecord> = new Map();
   private readonly _logs: LogEntry[] = [];

@@ -212,7 +212,12 @@ async function runWorkerJob(payload: ConversionQueuePayload): Promise<void> {
 
       const result = await pipeline.run();
 
-      if (result.status !== "success" || !result.installerPath) {
+      const targetKey = PLATFORM_TARGET_MAP[platform] ?? platform as any;
+      const artifactPath =
+        result.artifactPaths?.[targetKey] ??
+        result.installerPath;
+
+      if (result.status !== "success" || !artifactPath) {
         await log(`✗ Build failed for ${platform}: ${result.error ?? "unknown error"}`);
         await prisma.job.update({
           where: { id: jobRecord.id },
@@ -221,14 +226,14 @@ async function runWorkerJob(payload: ConversionQueuePayload): Promise<void> {
         return;
       }
 
-      const artifactFileName = path.basename(result.installerPath);
+      const artifactFileName = path.basename(artifactPath);
       const s3Key = `artifacts/${jobRecord.id}/${platform}/${artifactFileName}`;
 
       await log(`↑ Uploading artifact: ${artifactFileName}`);
       await setJobProgress(jobRecord.id, PROGRESS.UPLOADING);
-      await uploadArtifact(s3Key, fs.createReadStream(result.installerPath), getContentType(artifactFileName));
+      await uploadArtifact(s3Key, fs.createReadStream(artifactPath), getContentType(artifactFileName));
 
-      const stats = await fsp.stat(result.installerPath);
+      const stats = await fsp.stat(artifactPath);
       await prisma.artifact.create({
         data: {
           jobId:     jobRecord.id,

@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Input } from "@/components/ui/input";
+import { useEffect, useState } from "react";
 import { TopBar } from "@/components/layout/TopBar";
 import { billingApi } from "@/lib/api-client";
 import type { UsageStats, BillingPlan, SubscriptionInfo, UsageChartData, Plan } from "@/types";
@@ -16,13 +15,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { 
   Check, 
-  CreditCard, 
   Zap, 
   ShieldCheck, 
   Crown,
   Loader2,
-  X,
-  Wallet,
   Smartphone
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -42,15 +38,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
-
-type GatewayConfig = {
-  credit: boolean;
-  stripe: boolean;
-  paypal: boolean;
-  clickpesa: boolean;
-  mpesa: boolean;
-};
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function BillingPage() {
   const [usage, setUsage] = useState<UsageStats | null>(null);
@@ -59,47 +50,20 @@ export default function BillingPage() {
   const [plans, setPlans] = useState<BillingPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-
-  // States for embedded checkout
-  const [activeCheckoutUrl, setActiveCheckoutUrl] = useState<string | null>(null);
-  const [iframeLoading, setIframeLoading] = useState(true);
-
-  // Gateway availability configurations
-  const [gateways, setGateways] = useState<GatewayConfig>({
-    credit: false,
-    stripe: false,
-    paypal: false,
-    clickpesa: false,
-    mpesa: false,
-  });
-  const [selectedUpgradePlan, setSelectedUpgradePlan] = useState<Plan | null>(null);
-  const [showPaymentSelector, setShowPaymentSelector] = useState(false);
-
-  // M-Pesa phone modal state
-  const [showMpesaModal, setShowMpesaModal] = useState(false);
-  const [mpesaPhone, setMpesaPhone] = useState("");
-  const [mpesaPhoneError, setMpesaPhoneError] = useState("");
-  const [mpesaPending, setMpesaPending] = useState(false);
-  const [mpesaOrderRef, setMpesaOrderRef] = useState<string | null>(null);
-  const [mpesaMessage, setMpesaMessage] = useState("");
-  const [mpesaStatus, setMpesaStatus] = useState<"idle" | "polling" | "success" | "failed">("idle");
-  const mpesaPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Frame detection: redirect parent if loaded inside an iframe (e.g. cancellation)
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.top && window.top !== window.self) {
-      try {
-        window.top.location.href = window.location.href;
-      } catch (e) {
-        console.error("Failed to redirect parent window on iframe cancel:", e);
-      }
-    }
-  }, []);
+  
+  const [config, setConfig] = useState<{ credit: boolean; stripe: boolean; paypal: boolean; clickpesa: boolean; mpesa: boolean; mongike: boolean; mock: boolean } | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const [phone, setPhone] = useState("");
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [pendingModal, setPendingModal] = useState(false);
+  const [pendingMessage, setPendingMessage] = useState("");
+  const [activeTxRef, setActiveTxRef] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const [u, s, uc, p, gConfig] = await Promise.all([
+        const [u, s, uc, p, cfg] = await Promise.all([
           billingApi.usage(),
           billingApi.subscription(),
           billingApi.usageChart(),
@@ -110,7 +74,7 @@ export default function BillingPage() {
         if (s.data) setSubscription(s.data);
         if (uc.data) setUsageChart(uc.data);
         if (p.data) setPlans(p.data);
-        if (gConfig.data) setGateways(gConfig.data);
+        if (cfg.data) setConfig(cfg.data);
       } catch (err) {
         console.error("Failed to fetch billing data:", err);
       } finally {
@@ -120,134 +84,80 @@ export default function BillingPage() {
     fetchData();
   }, []);
 
-  const handleUpgradeClick = (planId: Plan) => {
-    setSelectedUpgradePlan(planId);
-    setShowPaymentSelector(true);
+  const handleUpgradeClick = async (planId: Plan) => {
+    if (config?.mongike) {
+      // Show mobile money modal
+      setSelectedPlan(planId);
+      setPhone("");
+      setPhoneError(null);
+      setModalOpen(true);
+    } else {
+      // Fallback: mock checkout
+      setActionLoading(planId);
+      try {
+        const result = await billingApi.checkout(planId, "mock");
+        if (result.data && "url" in result.data && result.data.url) {
+          window.location.href = result.data.url;
+          return;
+        }
+        alert(result.error || "Failed to start checkout");
+      } catch (err) {
+        console.error("Checkout error:", err);
+        alert("Failed to start checkout");
+      } finally {
+        setActionLoading(null);
+      }
+    }
   };
 
-  const handleUpgrade = async (planId: Plan, gateway?: string) => {
-    if (gateway === "mpesa") {
-      if (!gateways.mpesa) {
-        alert("M-Pesa is not configured yet.");
-        return;
-      }
-      setSelectedUpgradePlan(planId);
-      setShowPaymentSelector(false);
-      setMpesaPhone("");
-      setMpesaPhoneError("");
-      setMpesaStatus("idle");
-      setMpesaMessage("");
-      setMpesaOrderRef(null);
-      setShowMpesaModal(true);
+  const handleMobileSubmit = async () => {
+    if (!selectedPlan) return;
+    const cleaned = phone.replace(/\D/g, "");
+    if (cleaned.length < 9) {
+      setPhoneError("Please enter a valid mobile number (e.g. 0712345678)");
       return;
     }
+    setPhoneError(null);
+    setModalOpen(false);
+    setActionLoading(selectedPlan);
 
-    if (gateway === "credit" && !(gateways.credit || gateways.stripe)) {
-      alert("Credit card checkout is not configured yet.");
-      return;
-    }
-
-    if (gateway === "paypal" && !gateways.paypal) {
-      alert("PayPal checkout is not configured yet.");
-      return;
-    }
-
-    setActionLoading(planId);
-    setShowPaymentSelector(false);
     try {
-      const result = await billingApi.checkout(planId, gateway);
-      if (result.data && "url" in result.data && result.data.url) {
-        const url = result.data.url;
-        const isClickPesa = url.includes("clickpesa") || gateway === "clickpesa";
-        if (isClickPesa) {
-          setIframeLoading(true);
-          setActiveCheckoutUrl(url);
-        } else {
-          window.location.href = url;
-        }
+      setActiveTxRef(null);
+      const result = await billingApi.checkout(selectedPlan, "mongike", phone);
+      if (!result.data) {
+        alert(result.error || "Failed to initiate payment");
         return;
       }
-      alert(result.error || "Failed to start checkout");
+      if ("pending" in result.data && result.data.pending) {
+        const txRef = result.data.orderReference as string;
+        setActiveTxRef(txRef);
+        setPendingMessage(result.data.message as string || "Check your phone for the payment prompt.");
+        setPendingModal(true);
+        // Poll every 3s, timeout after 3 min
+        const interval = setInterval(async () => {
+          try {
+            const v = await billingApi.verifyPayment("", txRef, selectedPlan, "mongike");
+            if (v.data?.success) {
+              clearInterval(interval);
+              setPendingModal(false);
+              window.location.href = `/billing/success?plan=${selectedPlan}&txRef=${txRef}&gateway=mongike`;
+            } else if (v.data && !v.data.success && v.data.message?.includes("failed")) {
+              clearInterval(interval);
+              setPendingModal(false);
+              alert(v.data.message || "Payment failed.");
+            }
+          } catch { /* keep polling */ }
+        }, 3000);
+        setTimeout(() => {
+          clearInterval(interval);
+          setPendingModal(prev => { if (prev) alert("Payment timed out. Please try again."); return false; });
+        }, 180_000);
+      } else if ("url" in result.data && result.data.url) {
+        window.location.href = result.data.url;
+      }
     } catch (err) {
       console.error("Checkout error:", err);
-      alert("Failed to start checkout");
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleMpesaSubmit = async () => {
-    if (!selectedUpgradePlan) return;
-    // Validate phone: must be 12 digits starting with 255
-    const cleaned = mpesaPhone.replace(/\s/g, "").replace(/^\+/, "");
-    if (!/^255\d{9}$/.test(cleaned)) {
-      setMpesaPhoneError("Enter a valid Tanzanian number (e.g. 255712345678)");
-      return;
-    }
-    setMpesaPhoneError("");
-    setMpesaPending(true);
-    setMpesaStatus("idle");
-    try {
-      const result = await billingApi.checkout(selectedUpgradePlan, "mpesa", cleaned);
-      if (result.data && "pending" in result.data && result.data.pending && result.data.orderReference) {
-        const pendingRef = result.data.orderReference;
-        setMpesaOrderRef(pendingRef);
-        setMpesaMessage(result.data.message || "Check your phone for the M-Pesa prompt.");
-        setMpesaStatus("polling");
-        // Start polling every 3 seconds (max 5 minutes)
-        let elapsed = 0;
-        mpesaPollRef.current = setInterval(async () => {
-          elapsed += 3000;
-          try {
-            const status = await billingApi.mpesaStatus(pendingRef);
-            if (status.data?.paid) {
-              clearInterval(mpesaPollRef.current!);
-              setMpesaStatus("success");
-              setMpesaMessage("Payment confirmed! Your plan has been upgraded.");
-              // Refresh billing data
-              const [u, s] = await Promise.all([billingApi.usage(), billingApi.subscription()]);
-              if (u.data) setUsage(u.data);
-              if (s.data) setSubscription(s.data);
-            } else if (status.data?.status === "FAILED") {
-              clearInterval(mpesaPollRef.current!);
-              setMpesaStatus("failed");
-              setMpesaMessage(status.data.responseDesc || "Payment was not completed.");
-            } else if (elapsed >= 5 * 60 * 1000) {
-              clearInterval(mpesaPollRef.current!);
-              setMpesaStatus("failed");
-              setMpesaMessage("Payment timed out. Please try again.");
-            }
-          } catch {
-            // ignore transient poll errors
-          }
-        }, 3000);
-      } else {
-        alert(result.error || "M-Pesa initiation failed");
-        setMpesaStatus("failed");
-      }
-    } catch (err) {
-      console.error("M-Pesa checkout error:", err);
-      alert("Failed to initiate M-Pesa payment");
-    } finally {
-      setMpesaPending(false);
-    }
-  };
-
-  // Clean up polling on unmount
-  useEffect(() => {
-    return () => { if (mpesaPollRef.current) clearInterval(mpesaPollRef.current); };
-  }, []);
-
-  const handlePortal = async () => {
-    setActionLoading('portal');
-    try {
-      const res = await billingApi.portal();
-      if (res.data?.url) {
-        window.location.href = res.data.url;
-      }
-    } catch (err) {
-      console.error("Portal error:", err);
-      alert("Failed to open billing portal");
+      alert("Failed to initiate payment");
     } finally {
       setActionLoading(null);
     }
@@ -271,14 +181,13 @@ export default function BillingPage() {
     <div className="min-h-screen bg-zinc-950">
       <TopBar title="Plans & Billing" />
 
-      
       <div className="p-8 space-y-12 max-w-7xl mx-auto">
         
         {/* Active Plan & Usage Header */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
           <Card className="lg:col-span-1 bg-zinc-900 border-zinc-800 relative overflow-hidden">
             <div className="absolute top-0 right-0 p-4 opacity-10">
-              <CreditCard className="w-24 h-24" />
+              <Zap className="w-24 h-24 text-indigo-400" />
             </div>
             <CardHeader>
               <CardDescription className="text-zinc-500 uppercase font-bold tracking-widest text-[10px]">Your Current Plan</CardDescription>
@@ -308,15 +217,6 @@ export default function BillingPage() {
                   </p>
                 </div>
               )}
-              
-              <Button 
-                onClick={handlePortal} 
-                disabled={actionLoading === 'portal' || usage?.plan === 'free'}
-                className="w-full bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl"
-              >
-                {actionLoading === 'portal' ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CreditCard className="w-4 h-4 mr-2" />}
-                Manage Subscription
-              </Button>
             </CardContent>
           </Card>
 
@@ -364,215 +264,120 @@ export default function BillingPage() {
           </div>
         </section>
 
-        {/* Payment Method Selector Dialog */}
-        <Dialog open={showPaymentSelector} onOpenChange={setShowPaymentSelector}>
-          <DialogContent className="bg-zinc-900 border-zinc-800 text-white rounded-3xl max-w-md p-6 shadow-[0_0_50px_rgba(99,102,241,0.15)]">
-            <DialogHeader className="space-y-3">
-              <DialogTitle className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
-                <Zap className="w-6 h-6 text-indigo-400" />
-                Select Payment Method
-              </DialogTitle>
-              <DialogDescription className="text-zinc-400 text-sm">
-                Choose your preferred payment method to upgrade to the{" "}
-                <span className="text-indigo-400 font-bold uppercase">
-                  {selectedUpgradePlan}
-                </span>{" "}
-                plan.
-              </DialogDescription>
-            </DialogHeader>
+      </div>
 
-            <div className="mt-6 space-y-4">
-              <PaymentChoiceButton
-                enabled={gateways.credit || gateways.stripe}
-                icon={<CreditCard className="w-6 h-6" />}
-                label="Credit / debit card"
-                description="Pay securely by card through Stripe"
-                accent="indigo"
-                onClick={() => selectedUpgradePlan && handleUpgrade(selectedUpgradePlan, "credit")}
-              />
-
-              <PaymentChoiceButton
-                enabled={gateways.paypal}
-                icon={<Wallet className="w-6 h-6" />}
-                label="PayPal"
-                description="Pay with your PayPal account"
-                accent="amber"
-                onClick={() => selectedUpgradePlan && handleUpgrade(selectedUpgradePlan, "paypal")}
-              />
-
-              <PaymentChoiceButton
-                enabled={gateways.mpesa}
-                icon={<Smartphone className="w-6 h-6" />}
-                label="M-Pesa"
-                description="Pay via Vodacom M-Pesa Tanzania"
-                accent="green"
-                onClick={() => selectedUpgradePlan && handleUpgrade(selectedUpgradePlan, "mpesa")}
-              />
+      {/* Mobile Money Modal */}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-white rounded-3xl max-w-sm p-6">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-500/15 flex items-center justify-center">
+                <Smartphone className="w-5 h-5 text-indigo-400" />
+              </div>
+              <DialogTitle className="text-xl font-black">Mobile Money</DialogTitle>
             </div>
-          </DialogContent>
-        </Dialog>
+            <DialogDescription className="text-zinc-500 text-sm">
+              Upgrading to <span className="text-indigo-400 font-bold uppercase">{selectedPlan}</span> plan via Tanzania Mobile Money (M-Pesa, Tigo, Airtel, Halopesa).
+            </DialogDescription>
+          </DialogHeader>
 
-        {/* M-Pesa Phone Number Modal */}
-        <Dialog open={showMpesaModal} onOpenChange={(open) => {
-          if (!open && mpesaPollRef.current) clearInterval(mpesaPollRef.current);
-          setShowMpesaModal(open);
-        }}>
-          <DialogContent className="bg-zinc-900 border-zinc-800 text-white rounded-3xl max-w-md p-6 shadow-[0_0_50px_rgba(34,197,94,0.12)]">
-            <DialogHeader className="space-y-3">
-              <DialogTitle className="text-2xl font-black tracking-tight text-white flex items-center gap-2">
-                <Smartphone className="w-6 h-6 text-green-400" />
-                Pay with M-Pesa
-              </DialogTitle>
-              <DialogDescription className="text-zinc-400 text-sm">
-                Enter your M-Pesa registered phone number. You will receive a USSD prompt to confirm the payment.
-              </DialogDescription>
-            </DialogHeader>
+          <div className="space-y-3 my-4">
+            <Label htmlFor="mobile-phone" className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+              Phone Number
+            </Label>
+            <Input
+              id="mobile-phone"
+              type="tel"
+              placeholder="e.g. 0712 345 678"
+              value={phone}
+              onChange={e => { setPhone(e.target.value); setPhoneError(null); }}
+              onKeyDown={e => e.key === "Enter" && handleMobileSubmit()}
+              className="bg-zinc-950 border-zinc-700 rounded-xl focus-visible:ring-indigo-500 focus-visible:ring-1 text-white text-base py-5"
+            />
+            {phoneError && <p className="text-xs text-rose-400 font-medium">{phoneError}</p>}
+            <p className="text-xs text-zinc-600">You will receive a USSD push prompt on your phone to confirm the payment.</p>
+          </div>
 
-            {mpesaStatus === "idle" && (
-              <div className="mt-6 space-y-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">Phone Number</label>
-                  <Input
-                    id="mpesa-phone-input"
-                    type="tel"
-                    placeholder="255712345678"
-                    value={mpesaPhone}
-                    onChange={(e) => { setMpesaPhone(e.target.value); setMpesaPhoneError(""); }}
-                    className="bg-zinc-950 border-zinc-700 text-white placeholder:text-zinc-600 rounded-xl h-12 text-base focus:border-green-500 focus:ring-green-500/20"
-                    disabled={mpesaPending}
-                  />
-                  {mpesaPhoneError && <p className="text-red-400 text-xs">{mpesaPhoneError}</p>}
-                  <p className="text-zinc-600 text-xs">Format: 255 followed by 9 digits (e.g. 255712345678)</p>
-                </div>
-                <Button
-                  id="mpesa-submit-btn"
-                  onClick={handleMpesaSubmit}
-                  disabled={mpesaPending}
-                  className="w-full bg-green-600 hover:bg-green-500 text-white rounded-xl py-6 font-bold text-base transition-all shadow-lg"
-                >
-                  {mpesaPending
-                    ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Sending prompt...</>
-                    : <><Smartphone className="w-4 h-4 mr-2" />Send M-Pesa Prompt</>}
-                </Button>
-              </div>
-            )}
+          <DialogFooter className="flex gap-2 mt-2">
+            <Button
+              variant="ghost"
+              onClick={() => setModalOpen(false)}
+              className="rounded-xl border border-zinc-800 hover:bg-zinc-800 text-zinc-400 hover:text-white"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleMobileSubmit}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold px-6"
+            >
+              Send Payment Prompt
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-            {mpesaStatus === "polling" && (
-              <div className="mt-6 flex flex-col items-center gap-6 py-4">
-                <div className="relative">
-                  <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center">
-                    <Loader2 className="w-10 h-10 text-green-400 animate-spin" />
-                  </div>
-                  <div className="absolute inset-0 rounded-full border-2 border-green-500/30 animate-ping" />
-                </div>
-                <div className="text-center space-y-2">
-                  <p className="text-white font-bold text-lg">Waiting for confirmation</p>
-                  <p className="text-zinc-400 text-sm max-w-xs">{mpesaMessage}</p>
-                  <p className="text-zinc-600 text-xs">Enter your M-Pesa PIN on your phone to complete the payment.</p>
-                </div>
-              </div>
-            )}
-
-            {mpesaStatus === "success" && (
-              <div className="mt-6 flex flex-col items-center gap-4 py-4">
-                <div className="w-20 h-20 rounded-full bg-green-500/20 flex items-center justify-center">
-                  <Check className="w-10 h-10 text-green-400" />
-                </div>
-                <div className="text-center space-y-2">
-                  <p className="text-white font-bold text-lg">Payment Successful! 🎉</p>
-                  <p className="text-zinc-400 text-sm">{mpesaMessage}</p>
-                </div>
-                <Button
-                  onClick={() => setShowMpesaModal(false)}
-                  className="w-full bg-green-600 hover:bg-green-500 text-white rounded-xl py-4 font-bold"
-                >
-                  Done
-                </Button>
-              </div>
-            )}
-
-            {mpesaStatus === "failed" && (
-              <div className="mt-6 flex flex-col items-center gap-4 py-4">
-                <div className="w-20 h-20 rounded-full bg-red-500/20 flex items-center justify-center">
-                  <X className="w-10 h-10 text-red-400" />
-                </div>
-                <div className="text-center space-y-2">
-                  <p className="text-white font-bold text-lg">Payment Failed</p>
-                  <p className="text-zinc-400 text-sm">{mpesaMessage}</p>
-                </div>
-                <Button
-                  onClick={() => { setMpesaStatus("idle"); setMpesaMessage(""); }}
-                  className="w-full bg-zinc-700 hover:bg-zinc-600 text-white rounded-xl py-4 font-bold"
-                >
-                  Try Again
-                </Button>
-              </div>
-            )}
-
-            <div className="mt-4 pt-4 border-t border-zinc-800 flex items-center justify-between text-[10px] text-zinc-600">
-              <span className="flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-green-500" />
-                Secured by Vodacom M-Pesa
-              </span>
-              <span>Tanzania OpenAPI</span>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* ClickPesa Embedded Payment Modal */}
-        {activeCheckoutUrl && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-3xl w-full max-w-2xl overflow-hidden relative shadow-[0_0_50px_rgba(99,102,241,0.15)] flex flex-col h-[80vh] sm:h-[650px] animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
-              
-              {/* Modal Header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-md sticky top-0 z-10">
-                <div>
-                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Zap className="w-5 h-5 text-indigo-400" />
-                    Complete Secure Payment
-                  </h3>
-                  <p className="text-zinc-500 text-xs">ClickPesa Embedded Checkout</p>
-                </div>
-                <button 
-                  onClick={() => setActiveCheckoutUrl(null)}
-                  className="w-8 h-8 rounded-full bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white flex items-center justify-center transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Modal Content - Iframe */}
-              <div className="flex-1 relative bg-zinc-950">
-                {iframeLoading && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 gap-4">
-                    <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
-                    <p className="text-zinc-500 text-sm animate-pulse">Loading secure payment widget...</p>
-                  </div>
-                )}
-                <iframe
-                  src={activeCheckoutUrl}
-                  onLoad={() => setIframeLoading(false)}
-                  className="w-full h-full border-0"
-                  allow="payment"
-                />
-              </div>
-
-              {/* Modal Footer / Security Info */}
-              <div className="bg-zinc-900/50 border-t border-zinc-800 px-6 py-3 flex items-center justify-between text-[10px] text-zinc-500">
-                <span className="flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                  PCI-DSS Compliant & SSL Encrypted
-                </span>
-                <span>Powered by ClickPesa</span>
-              </div>
+      {/* USSD Pending Modal */}
+      <Dialog open={pendingModal} onOpenChange={setPendingModal}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 text-white rounded-3xl max-w-sm p-8 text-center">
+          <div className="flex justify-center mb-5">
+            <div className="relative w-16 h-16 rounded-full bg-indigo-500/10 flex items-center justify-center">
+              <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
+              <div className="absolute inset-0 rounded-full bg-indigo-500/20 animate-ping" />
             </div>
           </div>
-        )}
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black text-white text-center">Awaiting Payment</DialogTitle>
+            <DialogDescription className="text-zinc-400 text-center mt-2 text-sm leading-relaxed">
+              {pendingMessage}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-5 p-4 bg-zinc-950 border border-zinc-800 rounded-2xl text-left text-xs text-zinc-400 space-y-1.5">
+            <p className="font-bold text-zinc-300">Steps:</p>
+            <ol className="list-decimal pl-4 space-y-1">
+              <li>Wait for the USSD prompt on your phone.</li>
+              <li>Enter your Mobile Money PIN to confirm.</li>
+              <li>This page will update automatically.</li>
+            </ol>
+          </div>
+          {process.env.NODE_ENV === "development" && activeTxRef && (
+            <div className="mt-6 pt-4 border-t border-zinc-800/60 flex flex-col gap-2">
+              <div className="text-[10px] text-yellow-500 font-bold uppercase tracking-widest">Dev Simulation Tool</div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const res = await fetch("http://localhost:3001/billing/webhooks/mongike", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        order_id: activeTxRef,
+                        payment_status: "COMPLETED",
+                        reference: "dev_mock_ref"
+                      })
+                    });
+                    if (res.ok) {
+                      console.log("Simulated webhook trigger success");
+                    } else {
+                      alert("Failed to trigger webhook simulation");
+                    }
+                  } catch (err: any) {
+                    alert("Error: " + err.message);
+                  }
+                }}
+                className="w-full bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 border-yellow-500/30 hover:border-yellow-500/50 font-bold py-2 text-xs rounded-xl"
+              >
+                Simulate Webhook Trigger
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
-      </div>
     </div>
   );
 }
+
 
 const FAKE_CHART_DATA: UsageChartData[] = [
   { date: '01 May', jobs: 2 },
@@ -590,77 +395,8 @@ function getPlanTier(plan: Plan): number {
     case 'pro': return 1;
     case 'team': return 2;
     case 'ultra': return 3;
-
     default: return 0;
   }
-}
-
-function PaymentChoiceButton({
-  enabled,
-  icon,
-  label,
-  description,
-  accent,
-  onClick,
-}: {
-  enabled: boolean;
-  icon: ReactNode;
-  label: string;
-  description: string;
-  accent: "indigo" | "amber" | "green";
-  onClick: () => void;
-}) {
-  const colors = {
-    indigo: {
-      border: "hover:border-indigo-500/50",
-      icon: "bg-indigo-500/10 text-indigo-400 group-hover:bg-indigo-500",
-      check: "text-indigo-500",
-    },
-    amber: {
-      border: "hover:border-amber-500/50",
-      icon: "bg-amber-500/10 text-amber-400 group-hover:bg-amber-500",
-      check: "text-amber-500",
-    },
-    green: {
-      border: "hover:border-green-500/50",
-      icon: "bg-green-500/10 text-green-400 group-hover:bg-green-500",
-      check: "text-green-500",
-    },
-  }[accent];
-
-  return (
-    <button
-      onClick={onClick}
-      disabled={!enabled}
-      className={cn(
-        "group w-full flex items-center justify-between gap-4 p-4 rounded-2xl bg-zinc-950/50 border border-zinc-800 text-left transition-all duration-300",
-        enabled ? `${colors.border} hover:bg-zinc-800/30` : "opacity-50 cursor-not-allowed",
-      )}
-    >
-      <div className="flex items-center gap-4 min-w-0">
-        <div
-          className={cn(
-            "w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-300",
-            enabled ? `${colors.icon} group-hover:text-white` : "bg-zinc-800 text-zinc-500",
-          )}
-        >
-          {icon}
-        </div>
-        <div className="min-w-0">
-          <p className="font-bold text-white text-sm">{label}</p>
-          <p className="text-zinc-500 text-xs">
-            {enabled ? description : "Not configured yet"}
-          </p>
-        </div>
-      </div>
-      <Check
-        className={cn(
-          "w-5 h-5 flex-shrink-0 opacity-0 transition-opacity duration-300",
-          enabled && `group-hover:opacity-100 ${colors.check}`,
-        )}
-      />
-    </button>
-  );
 }
 
 function PricingCard({ plan, currentPlan, onUpgrade, loading }: { plan: BillingPlan, currentPlan?: Plan, onUpgrade: () => void, loading: boolean }) {
@@ -692,17 +428,17 @@ function PricingCard({ plan, currentPlan, onUpgrade, loading }: { plan: BillingP
             isPro ? "bg-indigo-500/20 text-indigo-400" : 
             isTeam ? "bg-cyan-500/20 text-cyan-400" : 
             isUltra ? "bg-purple-500/20 text-purple-400" : "bg-zinc-800 text-zinc-500"
-
           )}>
             {isPro ? <Zap className="w-8 h-8" /> : isTeam ? <Crown className="w-8 h-8" /> : isUltra ? <ShieldCheck className="w-8 h-8" /> : <Check className="w-8 h-8" />}
-
           </div>
         </div>
         <CardTitle className="text-2xl font-black">{plan.name}</CardTitle>
         <div className="mt-4 flex flex-col items-center">
           <div className="flex items-baseline gap-1">
-            <span className="text-4xl font-black text-white">${plan.price ?? '?'}</span>
-            <span className="text-zinc-500 text-sm">/mo</span>
+            <span className="text-3xl font-black text-white">
+              {plan.price === 0 ? "Free" : plan.price ? `${plan.price.toLocaleString()} TZS` : "Custom"}
+            </span>
+            {plan.price && plan.price > 0 ? <span className="text-zinc-500 text-xs">/mo</span> : null}
           </div>
           <p className="text-zinc-600 text-xs mt-1">
             {plan.conversionsPerMonth === 9999 ? "Unlimited" : plan.conversionsPerMonth} conversions / mo
@@ -725,7 +461,6 @@ function PricingCard({ plan, currentPlan, onUpgrade, loading }: { plan: BillingP
         <Button 
           onClick={onUpgrade}
           disabled={isCurrent || loading || isFree}
-
           className={cn(
             "w-full rounded-xl py-6 font-bold transition-all",
             isCurrent ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 cursor-default" :
@@ -738,7 +473,6 @@ function PricingCard({ plan, currentPlan, onUpgrade, loading }: { plan: BillingP
            isCurrent ? "Current Plan" : 
            isFree ? "Included" :
            isHigherTier ? `Upgrade to ${plan.name}` :
-
            isLowerTier ? `Downgrade to ${plan.name}` :
            `Switch to ${plan.name}`}
         </Button>

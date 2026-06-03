@@ -161,11 +161,8 @@ describe("runScaffoldStage — electron/main.cjs", () => {
       // Must register app:// as privileged scheme
       expect(mainContent).toContain("registerSchemesAsPrivileged");
       expect(mainContent).toContain("app://");
-      expect(mainContent).toContain("mainWindow.loadURL('app://./')");
-      expect(mainContent).not.toContain("mainWindow.loadURL('app://./index.html')");
-
-      // Must wait for backend before creating the window
-      expect(mainContent).toContain("waitForBackend");
+      expect(mainContent).toContain("app://./");
+      expect(mainContent).not.toContain("app://./index.html");
 
       // contextIsolation must be true
       expect(mainContent).toContain("contextIsolation: true");

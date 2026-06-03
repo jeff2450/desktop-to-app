@@ -408,7 +408,7 @@ export const billingApi = {
   subscription: () => request<SubscriptionInfo>("/api/billing/subscription"),
   usageChart: () => request<UsageChartData[]>("/api/billing/usage-chart"),
   config: () =>
-    request<{ credit: boolean; stripe: boolean; paypal: boolean; clickpesa: boolean; mpesa: boolean }>(
+    request<{ credit: boolean; stripe: boolean; paypal: boolean; clickpesa: boolean; mpesa: boolean; mongike: boolean; mock: boolean }>(
       "/api/billing/config",
     ),
   checkout: (plan: string, gateway?: string, phoneNumber?: string) =>
@@ -432,15 +432,4 @@ export const billingApi = {
       method: "POST",
       body: JSON.stringify({ transactionId, txRef, plan, gateway }),
     }),
-  portal: () =>
-    request<{ url: string }>("/api/billing/portal", { method: "POST" }),
-  mpesaStatus: (orderReference: string) =>
-    request<{
-      status: string;
-      paid: boolean;
-      orderReference: string;
-      responseCode: string | null;
-      responseDesc: string | null;
-      plan: string;
-    }>(`/api/billing/mpesa/status/${encodeURIComponent(orderReference)}`),
 };

@@ -11,6 +11,9 @@ export interface BuildResult {
   /** Absolute path to the generated installer file (only set on success) */
   installerPath?: string;
 
+  /** Absolute artifact paths keyed by target platform */
+  artifactPaths?: Partial<Record<"windows" | "linux" | "mac" | "android" | "ios", string>>;
+
   /** Detection result from stage 01 */
   detectionResult?: DetectionResult;
 

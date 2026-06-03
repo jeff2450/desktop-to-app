@@ -22,7 +22,7 @@ function baseConfig(overrides: Record<string, unknown> = {}) {
     version: "1.0.0",
     appId: "com.test.app",
     source: "",        // filled in by each test
-    mode: "offline",
+    mode: "online",
     targets: ["linux"],
     backend: { type: "auto", port: 3001 },
     auth: { type: "local" },

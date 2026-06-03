@@ -98,14 +98,14 @@ describe("Pipeline Stages (00-07b) Integration and Unit Tests", () => {
     );
   }
 
-  function makeContext(opts: { mode?: "offline" | "online" | "hybrid"; targets?: string[]; dryRun?: boolean } = {}) {
+  function makeContext(opts: { mode?: "online"; targets?: string[]; dryRun?: boolean } = {}) {
     return new PipelineContext({
       config: {
         name: "Test Fixture App",
         version: "1.2.3",
         source: sourceDir,
         targets: opts.targets ?? ["windows"],
-        mode: opts.mode ?? "offline",
+        mode: opts.mode ?? "online",
         appId: "com.test.fixtureapp",
         backend: { type: "auto", port: 3001 },
         auth: { type: "local" },
@@ -131,22 +131,23 @@ describe("Pipeline Stages (00-07b) Integration and Unit Tests", () => {
       await createValidFixture(sourceDir);
     });
 
-    it("creates an offline plan when offline mode is selected", async () => {
-      const ctx = makeContext({ mode: "offline" });
+    it("creates an online wrapper plan", async () => {
+      const ctx = makeContext({ mode: "online" });
       
       await runDetectStage(ctx);
       await runPlanStage(ctx);
 
       expect(ctx.plan).toBeDefined();
       expect(ctx.plan?.dependenciesToAdd).toHaveProperty("electron");
-      expect(ctx.plan?.dependenciesToAdd).toHaveProperty("better-sqlite3");
-      expect(ctx.plan?.dependenciesToRemove).toContain("@supabase/supabase-js");
-      expect(ctx.plan?.scriptsToInject).toHaveProperty("backend:start");
+      expect(ctx.plan?.dependenciesToAdd).toHaveProperty("electron-updater");
+      expect(ctx.plan?.dependenciesToRemove).toHaveLength(0);
+      expect(ctx.plan?.scriptsToInject).toHaveProperty("electron:dev");
       
       const fileToGen = ctx.plan?.filesToGenerate.map(f => f.outputPath);
       expect(fileToGen).toContain("electron/main.cjs");
-      expect(fileToGen).toContain("backend/server.cjs");
-      expect(fileToGen).toContain("backend/database.cjs");
+      expect(fileToGen).toContain("electron/preload.cjs");
+      expect(fileToGen).toContain("electron-builder.yml");
+      expect(fileToGen).not.toContain("backend/server.cjs");
     });
 
     it("creates an online wrapper plan when online mode is selected", async () => {
@@ -167,7 +168,7 @@ describe("Pipeline Stages (00-07b) Integration and Unit Tests", () => {
   });
 
   describe("Stage 03 — Transform", () => {
-    it("copies files, rewrites BrowserRouter to HashRouter, and rewrites Supabase createClient() calls", async () => {
+    it("copies files without rewriting routes or Supabase clients in online mode", async () => {
       await createValidFixture(sourceDir);
 
       await fs.writeFile(
@@ -192,51 +193,22 @@ describe("Pipeline Stages (00-07b) Integration and Unit Tests", () => {
         "utf-8"
       );
 
-      const ctx = makeContext({ mode: "offline" });
+      const ctx = makeContext({ mode: "online" });
       
       await runDetectStage(ctx);
       await runPlanStage(ctx);
-
-      ctx.plan!.filesToTransform = [
-        {
-          sourcePath: "src/RouterFile.tsx",
-          outputPath: "src/RouterFile.tsx",
-          transformerType: "supabase-query",
-          confidence: 0.9,
-          reason: "react-router-dom tests",
-        },
-        {
-          sourcePath: "src/supabase-client.ts",
-          outputPath: "src/supabase-client.ts",
-          transformerType: "supabase-auth",
-          confidence: 0.9,
-          reason: "supabase-client tests",
-        },
-        {
-          sourcePath: "src/integrations/supabase/client.ts",
-          outputPath: "src/integrations/supabase/client.ts",
-          transformerType: "supabase-query",
-          confidence: 0.9,
-          reason: "supabase integration client tests",
-        }
-      ];
-
       await runTransformStage(ctx);
 
-      // 1. Verify Browser Router was replaced by HashRouter
       const routerFileContent = await fs.readFile(path.join(outputDir, "src/RouterFile.tsx"), "utf-8");
-      expect(routerFileContent).toContain("HashRouter");
-      expect(routerFileContent).not.toContain("BrowserRouter");
+      expect(routerFileContent).toContain("BrowserRouter");
+      expect(routerFileContent).not.toContain("HashRouter");
 
-      // 2. Verify Supabase client was rewritten to re-export localApi (asserting function call '= createClient(' is removed)
       const clientFileContent = await fs.readFile(path.join(outputDir, "src/supabase-client.ts"), "utf-8");
-      expect(clientFileContent).toContain("supabase = localApi");
-      expect(clientFileContent).not.toContain("= createClient(");
+      expect(clientFileContent).toContain("= createClient(");
 
       const integrationClientContent = await fs.readFile(path.join(outputDir, "src/integrations/supabase/client.ts"), "utf-8");
-      expect(integrationClientContent).toContain("supabase = localApi");
-      expect(integrationClientContent).not.toContain("removed by WebToApp");
-      expect(integrationClientContent).not.toContain("VITE_SUPABASE");
+      expect(integrationClientContent).toContain("@supabase/supabase-js");
+      expect(integrationClientContent).toContain("VITE_SUPABASE");
     });
 
     it("does not rewrite BrowserRouter to HashRouter in online mode", async () => {
@@ -245,6 +217,17 @@ describe("Pipeline Stages (00-07b) Integration and Unit Tests", () => {
       await fs.writeFile(
         path.join(sourceDir, "src/RouterFile.tsx"),
         "import { BrowserRouter, Route } from 'react-router-dom';\nconst App = () => <BrowserRouter></BrowserRouter>;",
+        "utf-8"
+      );
+      await fs.mkdir(path.join(sourceDir, "src/integrations/supabase"), { recursive: true });
+      await fs.writeFile(
+        path.join(sourceDir, "src/integrations/supabase/client.ts"),
+        [
+          "import { createClient } from '@supabase/supabase-js';",
+          "const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;",
+          "const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;",
+          "export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);",
+        ].join("\n"),
         "utf-8"
       );
 
@@ -257,6 +240,14 @@ describe("Pipeline Stages (00-07b) Integration and Unit Tests", () => {
       const routerFileContent = await fs.readFile(path.join(outputDir, "src/RouterFile.tsx"), "utf-8");
       expect(routerFileContent).toContain("BrowserRouter");
       expect(routerFileContent).not.toContain("HashRouter");
+
+      const supabaseClientContent = await fs.readFile(
+        path.join(outputDir, "src/integrations/supabase/client.ts"),
+        "utf-8"
+      );
+      expect(supabaseClientContent).toContain("createClient");
+      expect(supabaseClientContent).toContain("@supabase/supabase-js");
+      expect(supabaseClientContent).not.toContain("@/lib/localApi");
     });
   });
 
@@ -271,7 +262,7 @@ describe("Pipeline Stages (00-07b) Integration and Unit Tests", () => {
       pkg.dependencies["vite-plugin-pwa"] = "^0.20.0";
       await fs.writeFile(path.join(sourceDir, "package.json"), JSON.stringify(pkg), "utf-8");
 
-      const ctx = makeContext({ mode: "offline", dryRun: true });
+      const ctx = makeContext({ mode: "online", dryRun: true });
       await runDetectStage(ctx);
       await runPlanStage(ctx);
       await runInstallStage(ctx);
@@ -288,7 +279,7 @@ describe("Pipeline Stages (00-07b) Integration and Unit Tests", () => {
   describe("Stage 06 — Build", () => {
     it("patches the vite config, fixes css imports, and runs vite build", async () => {
       await createValidFixture(sourceDir);
-      const ctx = makeContext({ mode: "offline", dryRun: false });
+      const ctx = makeContext({ mode: "online", dryRun: false });
 
       // Create fake node_modules/vite etc so stage doesn't call npm install
       await fs.mkdir(path.join(outputDir, "node_modules/vite"), { recursive: true });
@@ -342,6 +333,24 @@ describe("Pipeline Stages (00-07b) Integration and Unit Tests", () => {
     it("completes mobile stage successfully in dry-run when mobile targets exist", async () => {
       const ctx = makeContext({ targets: ["android", "ios"], dryRun: true });
       await expect(runMobileStage(ctx)).resolves.not.toThrow();
+    });
+
+    it("does not create a desktop installer for mobile-only targets", async () => {
+      const ctx = makeContext({ targets: ["android"], dryRun: false });
+
+      await expect(runPackageStage(ctx)).resolves.not.toThrow();
+
+      expect(ctx.installerPath).toBeUndefined();
+      expect(ctx.artifactPaths.android).toBeUndefined();
+      expect(ctx.getStages().find((stage) => stage.name === "07-package")?.status).toBe("skipped");
+    });
+
+    it("records the Android APK/AAB output path as the android artifact", async () => {
+      const ctx = makeContext({ targets: ["android"], dryRun: false });
+
+      await expect(runMobileStage(ctx)).resolves.not.toThrow();
+
+      expect(ctx.artifactPaths.android).toBe("/mock/android.apk");
     });
   });
 });

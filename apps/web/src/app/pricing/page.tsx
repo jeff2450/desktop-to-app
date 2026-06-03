@@ -59,11 +59,11 @@ export default function PricingPage() {
           />
           <PricingPlanCard 
             name="Pro"
-            price="9"
+            price="10000"
             desc="For individual developers getting started."
             features={[
               "10 conversions / mo",
-              "All targets (Win, Linux, Mac)",
+              "Windows builds only",
               "Priority Build Queue",
               "Custom App Icons",
               "Email Support"
@@ -73,12 +73,12 @@ export default function PricingPage() {
           />
           <PricingPlanCard 
             name="Team"
-            price="15"
+            price="20000"
             isPro
             desc="For active developers and small teams."
             features={[
-              "20 conversions / mo",
-              "All targets (Win, Linux, Mac)",
+              "15 conversions / mo",
+              "Windows and Linux builds only",
               "Priority Build Queue",
               "Private S3 Storage",
               "Team Collaboration",
@@ -89,11 +89,11 @@ export default function PricingPage() {
           />
           <PricingPlanCard 
             name="Ultra"
-            price="24"
+            price="30000"
             desc="For power users and growing teams."
             features={[
-              "50 conversions / mo",
-              "All targets + architectures",
+              "20 conversions / mo",
+              "All build targets (Win, Linux, Mac)",
               "Ultra Priority Queue",
               "CI/CD API Access",
               "Custom Integrations",
@@ -114,9 +114,9 @@ export default function PricingPage() {
                   <div className="inline-flex items-center gap-2 bg-purple-500/10 border border-purple-500/20 rounded-full px-4 py-1 text-purple-400 text-sm font-bold mb-6">
                     <ShieldCheck className="w-4 h-4" /> Ultra — Maximum Power
                   </div>
-                  <h2 className="text-3xl font-bold mb-4">$24/mo · 50 conversions</h2>
+                  <h2 className="text-3xl font-bold mb-4">30,000 TZS/mo · 20 conversions</h2>
                   <p className="text-zinc-500 mb-8">
-                    Need serious build volume? The Ultra plan gives you 50 conversions per month 
+                    Need serious build volume? The Ultra plan gives you 20 conversions per month 
                     with ultra priority queue access, CI/CD API, and dedicated support.
                   </p>
                   <Button asChild className="bg-purple-600 text-white hover:bg-purple-500 rounded-xl px-8 h-12 font-bold">
@@ -125,10 +125,10 @@ export default function PricingPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   {[
-                    { label: "Conversions", val: "50/mo" },
+                    { label: "Conversions", val: "20/mo" },
                     { label: "Queue", val: "Ultra" },
                     { label: "Support", val: "Dedicated" },
-                    { label: "Price", val: "$24" },
+                    { label: "Price", val: "30,000 TZS" },
                   ].map(stat => (
                     <div key={stat.label} className="bg-zinc-950/50 border border-zinc-800 p-6 rounded-2xl">
                       <p className="text-2xl font-black text-purple-400">{stat.val}</p>
@@ -174,8 +174,10 @@ function PricingPlanCard({ name, price, desc, features, isPro, isUltra, cta, hre
       </CardHeader>
       <CardContent className="flex-1 space-y-4 pt-4">
         <div className="flex items-baseline gap-1 mb-6">
-          <span className="text-4xl font-black text-white">${price}</span>
-          <span className="text-zinc-500 text-sm">/mo</span>
+          <span className="text-3xl font-black text-white">
+            {price === "0" ? "Free" : `${Number(price).toLocaleString()} TZS`}
+          </span>
+          {price !== "0" && <span className="text-zinc-500 text-xs">/mo</span>}
         </div>
         <div className="space-y-3">
           {features.map((f: string, i: number) => (

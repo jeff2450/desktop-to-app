@@ -1,37 +1,24 @@
 import { Plan, type User } from "@prisma/client";
-import { Router, raw } from "express";
-import Stripe from "stripe";
+import express, { Router } from "express";
 import { z } from "zod";
+import crypto from "crypto";
 import { env } from "../config/env.js";
 import { prisma } from "../db/prisma.js";
 import { ApiError } from "../lib/errors.js";
 import type { AuthenticatedRequest } from "../lib/types.js";
 import { requireAuth } from "../middleware/auth.js";
-import {
-  ensureStripeCustomer,
-  getPlanFromPriceId,
-  getPriceIdForPlan,
-  getUsageStats,
-  markWebhookProcessed,
-  sendPaymentFailedEmail,
-  stripe
-} from "../services/billing.service.js";
+import { getUsageStats } from "../services/billing.service.js";
 import { getPlanLimit } from "../services/jobs.service.js";
-import {
-  isClickPesaConfigured,
-  createClickPesaCheckout,
-  queryClickPesaPayment
-} from "../services/clickpesa.service.js";
-import {
-  isPaypalConfigured,
-  createPaypalOrder,
-  capturePaypalOrder
-} from "../services/paypal.service.js";
-import {
-  isMpesaConfigured,
-  initiateC2BPayment,
-  parseMpesaCallback
-} from "../services/mpesa.service.js";
+
+
+function normalizeTanzanianPhone(phone: string): string {
+  let cleaned = phone.replace(/\D/g, "");
+  if (cleaned.startsWith("0")) cleaned = "255" + cleaned.slice(1);
+  else if (!cleaned.startsWith("255") && cleaned.length === 9 && /^[6789]/.test(cleaned)) cleaned = "255" + cleaned;
+  if (!/^255[6789]\d{8}$/.test(cleaned))
+    throw new ApiError(400, "Invalid phone number. Use format 07XXXXXXXX or 2557XXXXXXXX.", "INVALID_PHONE");
+  return cleaned;
+}
 
 function toFrontendPlan(plan: Plan): "free" | "pro" | "team" | "ultra" {
   switch (plan) {
@@ -58,47 +45,16 @@ function normalizePlan(plan: string): Plan {
 
 const PLANS_METADATA = [
   { id: "free", name: "Free", price: 0, conversionsPerMonth: 1, features: ["1 free conversion", "Choose Windows, Linux, or macOS", "Community support", "Basic templates"] },
-  { id: "pro", name: "Pro", price: 9, conversionsPerMonth: 10, features: ["10 conversions per month", "Windows, Linux & macOS builds", "Priority support", "Advanced templates", "Custom configurations"] },
-  { id: "team", name: "Team", price: 15, conversionsPerMonth: 20, features: ["20 conversions per month", "All platforms + architectures", "Priority queue processing", "Team collaboration tools", "Advanced analytics"] },
-  { id: "ultra", name: "Ultra", price: 24, conversionsPerMonth: 50, features: ["50 conversions per month", "All platforms + architectures", "Ultra priority queue", "CI/CD API access", "Custom integrations", "Dedicated support"] }
+  { id: "pro", name: "Pro", price: 10000, conversionsPerMonth: 10, features: ["10 conversions per month", "Windows builds only", "Priority support", "Advanced templates", "Custom configurations"] },
+  { id: "team", name: "Team", price: 20000, conversionsPerMonth: 15, features: ["15 conversions per month", "Windows & Linux builds only", "Priority queue processing", "Team collaboration tools", "Advanced analytics"] },
+  { id: "ultra", name: "Ultra", price: 30000, conversionsPerMonth: 20, features: ["20 conversions per month", "All build targets (Win, Linux, Mac)", "Ultra priority queue", "CI/CD API access", "Custom integrations", "Dedicated support"] }
 ];
 
-const checkoutGatewaySchema = z.enum(["credit", "stripe", "paypal", "mpesa", "clickpesa", "mock"]);
-type CheckoutGateway = z.infer<typeof checkoutGatewaySchema>;
-type RuntimeGateway = Exclude<CheckoutGateway, "credit">;
-
-function normalizeGateway(gateway?: CheckoutGateway): RuntimeGateway | undefined {
-  if (!gateway) return undefined;
-  return gateway === "credit" ? "stripe" : gateway;
-}
-
-function isGatewayConfigured(gateway: RuntimeGateway): boolean {
-  switch (gateway) {
-    case "stripe":
-      return Boolean(stripe);
-    case "paypal":
-      return isPaypalConfigured();
-    case "mpesa":
-      return isMpesaConfigured();
-    case "clickpesa":
-      return isClickPesaConfigured();
-    case "mock":
-      return env.NODE_ENV !== "production";
-  }
-}
-
-function getDefaultGateway(): RuntimeGateway {
-  if (stripe) return "stripe";
-  if (isPaypalConfigured()) return "paypal";
-  if (isMpesaConfigured()) return "mpesa";
-  if (isClickPesaConfigured()) return "clickpesa";
-  return "mock";
-}
-
+const checkoutGatewaySchema = z.enum(["credit", "stripe", "paypal", "mpesa", "clickpesa", "mock", "mongike"]);
 const checkoutSchema = z.object({
   plan: z.string().min(1),
   gateway: checkoutGatewaySchema.optional(),
-  phoneNumber: z.string().optional(), // required when gateway=mpesa (format: 255XXXXXXXXX)
+  phoneNumber: z.string().optional(),
 });
 
 export const billingRouter: import("express").Router = Router();
@@ -178,11 +134,13 @@ billingRouter.get("/usage-chart", requireAuth, async (req, res, next) => {
 billingRouter.get("/config", requireAuth, async (req, res, next) => {
   try {
     res.json({
-      credit: !!stripe,
-      stripe: !!stripe,
-      paypal: isPaypalConfigured(),
-      clickpesa: isClickPesaConfigured(),
-      mpesa: isMpesaConfigured()
+      credit: false,
+      stripe: false,
+      paypal: false,
+      clickpesa: false,
+      mpesa: false,
+      mongike: !!env.MONGIKE_API_KEY,
+      mock: true
     });
   } catch (error) {
     next(error);
@@ -195,7 +153,7 @@ billingRouter.post("/checkout", requireAuth, async (req, res, next) => {
     const authReq = req as unknown as AuthenticatedRequest;
     const user = await prisma.user.findUnique({
       where: { id: authReq.auth.userId },
-      select: { id: true, email: true, name: true, stripeCustomerId: true }
+      select: { id: true, email: true, name: true }
     });
 
     if (!user) {
@@ -210,149 +168,108 @@ billingRouter.post("/checkout", requireAuth, async (req, res, next) => {
       throw new ApiError(400, "Invalid plan", "INVALID_PLAN");
     }
 
-    const selectedGateway = normalizeGateway(gateway) ?? getDefaultGateway();
-    if (!isGatewayConfigured(selectedGateway)) {
-      throw new ApiError(
-        503,
-        `${gateway === "credit" ? "Credit card" : gateway ?? selectedGateway} checkout is not configured`,
-        "GATEWAY_NOT_CONFIGURED",
-      );
-    }
+    // ── Mongike Mobile Money ──────────────────────────────────────
+    if (gateway === "mongike") {
+      if (!phoneNumber) throw new ApiError(400, "Phone number is required", "PHONE_REQUIRED");
+      if (!env.MONGIKE_API_KEY) throw new ApiError(503, "Mobile Money payments are not enabled", "GATEWAY_DISABLED");
 
-    // ── M-Pesa (Vodacom Tanzania USSD Push) ────────────────────────────────
-    if (selectedGateway === "mpesa") {
-      if (!phoneNumber) {
-        throw new ApiError(400, "phoneNumber is required for M-Pesa payments (format: 255XXXXXXXXX)", "MPESA_PHONE_REQUIRED");
-      }
+      const phone = normalizeTanzanianPhone(phoneNumber);
+      const txRef = `tx_mk_${crypto.randomUUID()}`;
 
-      const orderReference = `wta_mpesa_${frontendPlanId}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-      const thirdPartyConversationId = `wta_${Date.now()}_${Math.random().toString(36).slice(2, 14)}`;
+      await prisma.transaction.create({
+        data: { userId: user.id, plan: dbPlan, amount: billingPlan.price, gateway: "mongike", status: "PENDING", txRef }
+      });
 
-      let amount = billingPlan.price;
-      if (env.MPESA_CURRENCY === "TZS") {
-        amount = amount * env.MPESA_USD_TO_TZS_RATE;
-      }
-
-      try {
-        const result = await initiateC2BPayment({
-          orderReference,
-          thirdPartyConversationId,
-          customerMSISDN: phoneNumber.replace(/^\+/, ""),
-          amount,
-          description: `${billingPlan.name} plan subscription`,
-        });
-
-        await prisma.mpesaOrder.create({
-          data: {
-            orderReference,
-            thirdPartyConversationId,
-            conversationId: result.conversationId || null,
-            userId: user.id,
-            plan: dbPlan,
-            phoneNumber: phoneNumber.replace(/^\+/, ""),
-            amount,
-            currency: env.MPESA_CURRENCY,
-            status: "PENDING",
-            responseCode: result.responseCode,
-            responseDesc: result.responseDesc,
-          },
-        });
-
-        return res.json({
-          pending: true,
-          orderReference,
-          message: result.responseDesc || "A USSD prompt has been sent to your phone. Please enter your M-Pesa PIN to complete the payment.",
-        });
-      } catch (err) {
-        console.error("[billing] M-Pesa checkout initiation failed:", err);
-        throw new ApiError(502, (err as Error).message || "M-Pesa payment initiation failed", "MPESA_ERROR");
-      }
-    }
-
-    if (selectedGateway === "clickpesa") {
-      const orderReference = `wta_${frontendPlanId}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      const host = req.get("host") || "localhost:3001";
+      const protocol = req.headers["x-forwarded-proto"] ?? req.protocol ?? "http";
       
-      try {
-        const checkoutUrl = await createClickPesaCheckout({
-          orderReference,
-          price: billingPlan.price,
-          customerName: user.name || user.email,
-          customerEmail: user.email,
-          description: `${billingPlan.name} plan subscription`,
-        });
-
-        await prisma.clickPesaOrder.create({
-          data: {
-            orderReference,
-            userId: user.id,
-            plan: dbPlan,
-            status: "PENDING",
-          }
-        });
-
-        return res.json({ url: checkoutUrl });
-      } catch (err) {
-        console.error("[billing] ClickPesa checkout creation failed:", err);
-        throw new ApiError(502, (err as Error).message || "ClickPesa checkout initiation failed", "CLICKPESA_ERROR");
+      let webhookUrl = `${protocol}://${host}/billing/webhooks/mongike`;
+      if (env.WEBHOOK_BASE_URL) {
+        webhookUrl = `${env.WEBHOOK_BASE_URL}/billing/webhooks/mongike`;
+      } else if (webhookUrl.includes("localhost") || webhookUrl.includes("127.0.0.1")) {
+        // Mongike requires HTTPS and a valid domain for webhooks.
+        // Fall back to a placeholder HTTPS URL so payment creation does not error in dev.
+        webhookUrl = "https://example.com/webhook";
       }
-    }
 
-    if (selectedGateway === "paypal") {
-      const orderReference = `wta_pp_${frontendPlanId}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-      const successUrl = `${env.DASHBOARD_URL ?? "http://localhost:3000"}/billing/success?plan=${frontendPlanId}&gateway=paypal&orderReference=${orderReference}`;
-      const failureUrl = `${env.DASHBOARD_URL ?? "http://localhost:3000"}/billing?error=payment_failed`;
+      const tzsAmount = billingPlan.price;
 
       try {
-        const paypalOrder = await createPaypalOrder({
-          orderReference,
-          price: billingPlan.price,
-          description: `${billingPlan.name} plan subscription`,
-          successUrl,
-          failureUrl,
+        const resp = await fetch(`${env.MONGIKE_API_URL}/payments/mobile-money/tanzania`, {
+          method: "POST",
+          headers: { "x-api-key": env.MONGIKE_API_KEY, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            order_id: txRef,
+            amount: tzsAmount,
+            buyer_phone: phone,
+            fee_payer: "MERCHANT",
+            webhook_url: webhookUrl
+          })
         });
-
-        await prisma.paypalOrder.create({
-          data: {
-            orderReference,
-            paypalOrderId: paypalOrder.id,
-            userId: user.id,
-            plan: dbPlan,
-            status: "PENDING",
-          }
-        });
-
-        return res.json({ url: paypalOrder.url });
-      } catch (err) {
-        console.error("[billing] PayPal checkout creation failed:", err);
-        throw new ApiError(502, (err as Error).message || "PayPal checkout initiation failed", "PAYPAL_ERROR");
+        if (!resp.ok) {
+          const errText = await resp.text().catch(() => "");
+          console.error("[billing] Mongike error:", resp.status, errText);
+          throw new Error(`HTTP ${resp.status}`);
+        }
+      } catch (err: any) {
+        await prisma.transaction.update({ where: { txRef }, data: { status: "FAILED" } });
+        throw new ApiError(502, "Failed to initiate mobile payment. Please try again.", "GATEWAY_ERROR");
       }
+
+      return res.json({
+        pending: true,
+        orderReference: txRef,
+        message: "A payment prompt has been sent to your phone. Enter your PIN to confirm."
+      });
     }
 
-    if (selectedGateway === "stripe" && stripe) {
-      try {
-        const customerId = await ensureStripeCustomer(user);
-        const session = await stripe.checkout.sessions.create({
-          mode: "subscription",
-          line_items: [{ price: getPriceIdForPlan(dbPlan), quantity: 1 }],
-          success_url: `${env.DASHBOARD_URL ?? "http://localhost:3000"}/billing/success?plan=${frontendPlanId}&gateway=credit&session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${env.DASHBOARD_URL ?? "http://localhost:3000"}/billing`,
-          customer: customerId,
-          metadata: { userId: user.id, plan: dbPlan }
-        });
-
-        return res.json({ url: session.url });
-      } catch (stripeError) {
-        console.error("[billing] Credit card checkout creation failed:", stripeError);
-        throw new ApiError(502, "Credit card checkout initiation failed", "STRIPE_ERROR");
-      }
+    // ── Mock / fallback ───────────────────────────────────────────
+    let dashboardUrl = env.DASHBOARD_URL ?? "http://localhost:3000";
+    if (dashboardUrl.endsWith("/billing")) {
+      dashboardUrl = dashboardUrl.slice(0, -8);
+    } else if (dashboardUrl.endsWith("/billing/")) {
+      dashboardUrl = dashboardUrl.slice(0, -9);
     }
 
-    if (selectedGateway !== "mock") {
-      throw new ApiError(503, "Selected payment gateway is not available", "GATEWAY_NOT_CONFIGURED");
-    }
-
-    const mockSuccessUrl = `${env.DASHBOARD_URL ?? "http://localhost:3000"}/billing/success?plan=${frontendPlanId}&txRef=mock_tx_${Date.now()}`;
+    const mockSuccessUrl = `${dashboardUrl}/billing/success?plan=${frontendPlanId}&txRef=mock_tx_${Date.now()}&gateway=${gateway || "mock"}`;
     return res.json({ url: mockSuccessUrl });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
+billingRouter.post(["/mongike", "/webhooks/mongike"], express.json(), async (req, res, next) => {
+  try {
+    const apiKey = (req.headers["x-api-key"] || req.headers["X-API-KEY"]) as string;
+    
+    // Security check: Verify the webhook call is signed with the correct API key.
+    // In local development, we bypass it if not provided to allow dev simulation.
+    if (env.NODE_ENV === "production" || apiKey) {
+      if (apiKey !== env.MONGIKE_API_KEY) {
+        throw new ApiError(401, "Unauthorized webhook trigger", "UNAUTHORIZED");
+      }
+    }
+
+    const { order_id, payment_status, reference } = req.body;
+    console.log("[billing-webhook] Mongike:", { order_id, payment_status, reference });
+
+    if (!order_id) throw new ApiError(400, "Missing order_id", "BAD_REQUEST");
+
+    const transaction = await prisma.transaction.findUnique({ where: { txRef: order_id } });
+    if (!transaction) return res.status(404).json({ success: false, message: "Transaction not found" });
+    if (transaction.status !== "PENDING") return res.json({ success: true, message: "Already processed" });
+
+    const status = String(payment_status).toUpperCase();
+    if (status === "COMPLETED") {
+      await prisma.transaction.update({ where: { txRef: order_id }, data: { status: "COMPLETED" } });
+      await prisma.user.update({ where: { id: transaction.userId }, data: { plan: transaction.plan } });
+      console.log(`[billing-webhook] Upgraded user ${transaction.userId} to ${transaction.plan}`);
+    } else {
+      await prisma.transaction.update({ where: { txRef: order_id }, data: { status: "FAILED" } });
+    }
+
+    return res.json({ success: true });
   } catch (error) {
     next(error);
   }
@@ -369,81 +286,13 @@ billingRouter.post("/verify", requireAuth, async (req, res, next) => {
     const authReq = req as unknown as AuthenticatedRequest;
     const userId = authReq.auth.userId;
 
-    if (gateway === "paypal" || (!gateway && isPaypalConfigured() && txRef.startsWith("wta_pp_"))) {
-      const order = await prisma.paypalOrder.findUnique({
-        where: { orderReference: txRef }
-      });
-
-      if (!order) {
-        throw new ApiError(404, "PayPal order not found", "NOT_FOUND");
-      }
-
-      let paid = order.status === "SUCCESS";
-
-      if (!paid) {
-        const paypalOrderId = transactionId || order.paypalOrderId;
-        if (!paypalOrderId) {
-          throw new ApiError(400, "PayPal Order ID is required to verify", "BAD_REQUEST");
-        }
-
-        const success = await capturePaypalOrder(paypalOrderId);
-        if (success) {
-          await prisma.user.update({
-            where: { id: userId },
-            data: { plan: dbPlan }
-          });
-
-          await prisma.paypalOrder.update({
-            where: { id: order.id },
-            data: { status: "SUCCESS" }
-          });
-          paid = true;
-        } else {
-          await prisma.paypalOrder.update({
-            where: { id: order.id },
-            data: { status: "FAILED" }
-          });
-        }
-      }
-
-      return res.json({
-        success: paid,
-        plan: toFrontendPlan(dbPlan),
-        txRef,
-        transactionId: transactionId || order.paypalOrderId || "",
-        message: paid ? "PayPal payment verified and captured successfully" : "PayPal payment capture failed",
-      });
-    }
-
-    if (gateway === "clickpesa" || isClickPesaConfigured()) {
-      const payment = await queryClickPesaPayment(txRef);
-      const status = payment?.status?.toUpperCase();
-      const paid = status === "SUCCESS" || status === "SETTLED";
-
-      if (paid) {
-        await prisma.user.update({
-          where: { id: userId },
-          data: { plan: dbPlan }
-        });
-
-        await prisma.clickPesaOrder.updateMany({
-          where: { orderReference: txRef },
-          data: { status: "SUCCESS" }
-        });
-      } else if (status === "FAILED") {
-        await prisma.clickPesaOrder.updateMany({
-          where: { orderReference: txRef },
-          data: { status: "FAILED" }
-        });
-      }
-
-      return res.json({
-        success: paid,
-        plan: toFrontendPlan(dbPlan),
-        txRef,
-        transactionId: payment?.paymentReference ?? payment?.id ?? transactionId,
-        message: payment?.message ?? (paid ? "ClickPesa payment verified" : `Payment status: ${status ?? "UNKNOWN"}`),
-      });
+    // Mongike: check DB transaction status
+    if (gateway === "mongike") {
+      const tx = await prisma.transaction.findUnique({ where: { txRef } });
+      if (!tx) throw new ApiError(404, "Transaction not found", "NOT_FOUND");
+      if (tx.status === "COMPLETED") return res.json({ success: true, plan: toFrontendPlan(dbPlan), txRef, message: "Payment confirmed" });
+      if (tx.status === "FAILED") return res.json({ success: false, plan: toFrontendPlan(dbPlan), txRef, message: "Payment failed or was cancelled" });
+      return res.json({ success: false, plan: toFrontendPlan(dbPlan), txRef, message: "Waiting for payment confirmation…" });
     }
 
     await prisma.user.update({
@@ -463,28 +312,6 @@ billingRouter.post("/verify", requireAuth, async (req, res, next) => {
   }
 });
 
-billingRouter.post("/portal", requireAuth, async (req, res, next) => {
-  try {
-    const authReq = req as unknown as AuthenticatedRequest;
-    const user = await prisma.user.findUnique({
-      where: { id: authReq.auth.userId },
-      select: { stripeCustomerId: true }
-    });
-
-    if (stripe && user?.stripeCustomerId) {
-      const session = await stripe.billingPortal.sessions.create({
-        customer: user.stripeCustomerId,
-        return_url: `${env.DASHBOARD_URL ?? "http://localhost:3000"}/billing`
-      });
-      return res.json({ url: session.url });
-    }
-
-    return res.json({ url: `${env.DASHBOARD_URL ?? "http://localhost:3000"}/billing?portal=mock` });
-  } catch (error) {
-    next(error);
-  }
-});
-
 billingRouter.get("/subscription", requireAuth, async (req, res, next) => {
   try {
     const authReq = req as unknown as AuthenticatedRequest;
@@ -492,8 +319,7 @@ billingRouter.get("/subscription", requireAuth, async (req, res, next) => {
       where: { id: authReq.auth.userId },
       select: {
         id: true,
-        plan: true,
-        stripeCustomerId: true
+        plan: true
       }
     });
 
@@ -507,26 +333,6 @@ billingRouter.get("/subscription", requireAuth, async (req, res, next) => {
     let cancelAtPeriodEnd = false;
     let stripePortalUrl: string | null = null;
     let usageByDay: Array<{ date: string; count: number }> = [];
-
-    if (stripe && user.stripeCustomerId) {
-      const subscriptions = await stripe.subscriptions.list({
-        customer: user.stripeCustomerId,
-        limit: 1,
-        status: "all"
-      });
-      const subscription = subscriptions.data[0];
-
-      if (subscription) {
-        renewsAt = new Date(subscription.current_period_end * 1000).toISOString();
-        cancelAtPeriodEnd = subscription.cancel_at_period_end;
-      }
-
-      const portal = await stripe.billingPortal.sessions.create({
-        customer: user.stripeCustomerId,
-        return_url: `${env.DASHBOARD_URL ?? ""}/billing`
-      });
-      stripePortalUrl = portal.url;
-    }
 
     const groupedUsage = await prisma.job.groupBy({
       by: ["createdAt"],
@@ -559,234 +365,3 @@ billingRouter.get("/subscription", requireAuth, async (req, res, next) => {
     next(error);
   }
 });
-
-// ── M-Pesa async callback (Vodacom POSTs result here) ───────────────────────
-billingRouter.post("/mpesa/callback", async (req, res, next) => {
-  try {
-    const token = req.query["token"] as string | undefined;
-    if (env.MPESA_WEBHOOK_TOKEN && token !== env.MPESA_WEBHOOK_TOKEN) {
-      console.warn("[mpesa] Callback unauthorized: invalid webhook token");
-      return res.status(401).json({ success: false, message: "Unauthorized" });
-    }
-
-    const body = req.body || {};
-    const thirdPartyConversationId =
-      body.output_ThirdPartyConversationID ||
-      body.ThirdPartyConversationID ||
-      "";
-
-    if (!thirdPartyConversationId) {
-      console.warn("[mpesa] Callback missing ThirdPartyConversationID", body);
-      return res.status(400).json({ success: false, message: "Missing ThirdPartyConversationID" });
-    }
-
-    const order = await prisma.mpesaOrder.findUnique({
-      where: { thirdPartyConversationId },
-    });
-
-    if (!order) {
-      console.warn("[mpesa] Unknown thirdPartyConversationId:", thirdPartyConversationId);
-      return res.status(404).json({ success: false, message: "Order not found" });
-    }
-
-    const { paid, responseCode, responseDesc, conversationId } = parseMpesaCallback(body);
-
-    if (paid) {
-      await prisma.user.update({
-        where: { id: order.userId },
-        data: { plan: order.plan },
-      });
-      await prisma.mpesaOrder.update({
-        where: { id: order.id },
-        data: { status: "SUCCESS", responseCode, responseDesc, conversationId: conversationId || order.conversationId },
-      });
-    } else {
-      await prisma.mpesaOrder.update({
-        where: { id: order.id },
-        data: { status: "FAILED", responseCode, responseDesc },
-      });
-    }
-
-    console.log(`[mpesa] Callback processed: ${order.orderReference} → ${paid ? "SUCCESS" : "FAILED"} (${responseCode})`)
-    return res.json({ success: true, paid });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// ── M-Pesa status poll (frontend polls this after initiating payment) ─────────
-billingRouter.get("/mpesa/status/:orderReference", requireAuth, async (req, res, next) => {
-  try {
-    const orderReference = req.params["orderReference"] as string;
-    const authReq = req as unknown as AuthenticatedRequest;
-
-    const order = await prisma.mpesaOrder.findUnique({
-      where: { orderReference },
-    });
-
-    if (!order) {
-      throw new ApiError(404, "M-Pesa order not found", "NOT_FOUND");
-    }
-
-    // Security: only the owner can poll
-    if (order.userId !== authReq.auth.userId) {
-      throw new ApiError(403, "Forbidden", "FORBIDDEN");
-    }
-
-    return res.json({
-      status: order.status,
-      paid: order.status === "SUCCESS",
-      orderReference: order.orderReference,
-      responseCode: order.responseCode,
-      responseDesc: order.responseDesc,
-      plan: toFrontendPlan(order.plan),
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-billingRouter.all("/clickpesa/callback", async (req, res, next) => {
-  try {
-    const queryOrderRef = req.query.orderReference as string | undefined;
-    const body = req.body || {};
-    const orderReference = queryOrderRef || body?.data?.orderReference || body?.orderReference;
-
-    if (!orderReference) {
-      throw new ApiError(400, "Order reference is required", "BAD_REQUEST");
-    }
-
-    const order = await prisma.clickPesaOrder.findUnique({
-      where: { orderReference }
-    });
-
-    if (!order) {
-      throw new ApiError(404, "Unknown ClickPesa order reference", "NOT_FOUND");
-    }
-
-    const payment = await queryClickPesaPayment(orderReference);
-    const status = payment?.status?.toUpperCase();
-    const paid = status === "SUCCESS" || status === "SETTLED";
-
-    if (paid) {
-      await prisma.user.update({
-        where: { id: order.userId },
-        data: { plan: order.plan }
-      });
-
-      await prisma.clickPesaOrder.update({
-        where: { id: order.id },
-        data: { status: "SUCCESS" }
-      });
-    } else if (status === "FAILED") {
-      await prisma.clickPesaOrder.update({
-        where: { id: order.id },
-        data: { status: "FAILED" }
-      });
-    }
-
-    res.json({ success: paid, message: payment?.message || `Payment status: ${status ?? "UNKNOWN"}` });
-  } catch (error) {
-    next(error);
-  }
-});
-
-billingRouter.post(
-  "/webhooks",
-  raw({ type: "application/json" }),
-  async (req, res, next) => {
-    try {
-      if (!stripe || !env.STRIPE_WEBHOOK_SECRET) {
-        throw new ApiError(503, "Stripe webhook is not configured", "STRIPE_NOT_CONFIGURED");
-      }
-
-      const signature = req.headers["stripe-signature"];
-      if (typeof signature !== "string") {
-        throw new ApiError(400, "Missing Stripe signature", "MISSING_STRIPE_SIGNATURE");
-      }
-
-      const event = stripe.webhooks.constructEvent(req.body, signature, env.STRIPE_WEBHOOK_SECRET);
-      res.status(200).json({ received: true });
-
-      setImmediate(async () => {
-        const firstTime = await markWebhookProcessed(event.id);
-        if (!firstTime) {
-          return;
-        }
-
-        await handleStripeEvent(event);
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-async function handleStripeEvent(event: Stripe.Event): Promise<void> {
-  switch (event.type) {
-    case "checkout.session.completed": {
-      const session = event.data.object as Stripe.Checkout.Session;
-      const userId = session.metadata?.["userId"];
-      const plan = session.metadata?.["plan"];
-
-      if (!userId || !plan) {
-        return;
-      }
-
-      await prisma.user.update({
-        where: { id: userId },
-        data: {
-          plan: plan as Plan,
-          stripeCustomerId: typeof session.customer === "string" ? session.customer : null
-        }
-      });
-      break;
-    }
-    case "customer.subscription.updated": {
-      const subscription = event.data.object as Stripe.Subscription;
-      const priceId = subscription.items.data[0]?.price.id;
-      const plan = getPlanFromPriceId(priceId);
-
-      await prisma.user.updateMany({
-        where: { stripeCustomerId: String(subscription.customer) },
-        data: { plan }
-      });
-      break;
-    }
-    case "customer.subscription.deleted": {
-      const subscription = event.data.object as Stripe.Subscription;
-      await prisma.user.updateMany({
-        where: { stripeCustomerId: String(subscription.customer) },
-        data: { plan: "FREE" }
-      });
-      break;
-    }
-    case "invoice.payment_failed": {
-      const invoice = event.data.object as Stripe.Invoice;
-      const customerId = typeof invoice.customer === "string" ? invoice.customer : null;
-      if (!customerId) {
-        return;
-      }
-
-      const user = await prisma.user.findFirst({
-        where: { stripeCustomerId: customerId }
-      });
-
-      if (!user) {
-        return;
-      }
-
-      await sendPaymentFailedEmail(user.email);
-
-      if ((invoice.attempt_count ?? 0) >= 3) {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { plan: "FREE" }
-        });
-      }
-      break;
-    }
-    default:
-      break;
-  }
-}

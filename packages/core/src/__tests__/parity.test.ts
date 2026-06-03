@@ -93,7 +93,7 @@ describe("runParityStage", () => {
   });
 
   afterEach(async () => {
-    await fs.rm(tmpRoot, { recursive: true, force: true });
+    await fs.rm(tmpRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it("blocks offline packaging when unsupported Supabase RPC behavior is detected", async () => {

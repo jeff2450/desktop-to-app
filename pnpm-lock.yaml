@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      axios:
+        specifier: ^1.16.0
+        version: 1.16.0
     devDependencies:
       '@types/node':
         specifier: ^20.0.0
@@ -80,9 +84,6 @@ importers:
       nodemailer:
         specifier: ^6.10.1
         version: 6.10.1
-      stripe:
-        specifier: ^15.12.0
-        version: 15.12.0
       unzipper:
         specifier: ^0.12.3
         version: 0.12.3
@@ -3729,10 +3730,6 @@ packages:
 
   strip-literal@2.1.1:
     resolution: {integrity: sha512-631UJ6O00eNGfMiWG78ck80dfBab8X6IVFB51jZK5Icd7XAs60Z5y7QdSd/wGIklnWvRbUNloVzhOKKmutxQ6Q==}
-
-  stripe@15.12.0:
-    resolution: {integrity: sha512-slTbYS1WhRJXVB8YXU8fgHizkUrM9KJyrw4Dd8pLEwzKHYyQTIE46EePC2MVbSDZdE24o1GdNtzmJV4PrPpmJA==}
-    engines: {node: '>=12.*'}
 
   strnum@2.2.3:
     resolution: {integrity: sha512-oKx6RUCuHfT3oyVjtnrmn19H1SiCqgJSg+54XqURKp5aCMbrXrhLjRN9TjuwMjiYstZ0MzDrHqkGZ5dFTKd+zg==}
@@ -7647,11 +7644,6 @@ snapshots:
   strip-literal@2.1.1:
     dependencies:
       js-tokens: 9.0.1
-
-  stripe@15.12.0:
-    dependencies:
-      '@types/node': 20.19.39
-      qs: 6.15.1
 
   strnum@2.2.3: {}
 

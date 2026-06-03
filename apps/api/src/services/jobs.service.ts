@@ -11,9 +11,9 @@ const PLAN_LIMITS: Record<
   { monthlyLimit: number | null; platforms: string[]; priority: number }
 > = {
   FREE:    { monthlyLimit: 1,    platforms: ["windows", "linux", "macos", "mac", "android", "ios"], priority: 10 },
-  STARTER: { monthlyLimit: 10,   platforms: ["windows", "linux", "macos", "mac", "android", "ios"], priority: 5  },
-  PRO:     { monthlyLimit: 20,   platforms: ["windows", "linux", "macos", "mac", "android", "ios"], priority: 3  },
-  ULTRA:   { monthlyLimit: 50,   platforms: ["windows", "linux", "macos", "mac", "android", "ios"], priority: 1  },
+  STARTER: { monthlyLimit: 10,   platforms: ["windows"], priority: 5  }, // Pro plan: Windows only
+  PRO:     { monthlyLimit: 15,   platforms: ["windows", "linux"], priority: 3  }, // Team plan: Windows and Linux
+  ULTRA:   { monthlyLimit: 20,   platforms: ["windows", "linux", "macos", "mac", "android", "ios"], priority: 1  }, // Ultra plan: All platforms
 };
 
 
@@ -112,13 +112,25 @@ export async function listJobs(input: {
 }): Promise<{ data: Array<Job & { artifacts: Artifact[] }>; total: number; page: number }> {
   const [data, total] = await Promise.all([
     prisma.job.findMany({
-      where: { userId: input.userId },
+      where: {
+        userId: input.userId,
+        NOT: {
+          inputName: { startsWith: "[DELETED]" }
+        }
+      },
       include: { artifacts: true },
       orderBy: { createdAt: "desc" },
       skip: (input.page - 1) * input.pageSize,
       take: input.pageSize,
     }),
-    prisma.job.count({ where: { userId: input.userId } }),
+    prisma.job.count({
+      where: {
+        userId: input.userId,
+        NOT: {
+          inputName: { startsWith: "[DELETED]" }
+        }
+      }
+    }),
   ]);
 
   return { data, total, page: input.page };
@@ -129,7 +141,13 @@ export async function getJob(
   jobId: string
 ): Promise<Job & { artifacts: Artifact[] }> {
   const job = await prisma.job.findFirst({
-    where: { id: jobId, userId },
+    where: {
+      id: jobId,
+      userId,
+      NOT: {
+        inputName: { startsWith: "[DELETED]" }
+      }
+    },
     include: { artifacts: true },
   });
 
@@ -193,7 +211,15 @@ export async function deleteJob(
   userId: string,
   jobId: string
 ): Promise<{ id: string; success: boolean }> {
-  const job = await prisma.job.findFirst({ where: { id: jobId, userId } });
+  const job = await prisma.job.findFirst({
+    where: {
+      id: jobId,
+      userId,
+      NOT: {
+        inputName: { startsWith: "[DELETED]" }
+      }
+    }
+  });
 
   if (!job) {
     throw new ApiError(404, "Job not found", "JOB_NOT_FOUND");
@@ -211,9 +237,19 @@ export async function deleteJob(
     }
   }
 
-  // Delete from database
-  await prisma.job.delete({
+  // Delete associated artifacts from the database to clean up storage references
+  await prisma.artifact.deleteMany({
+    where: { jobId: job.id },
+  });
+
+  // Soft delete the job record by marking it
+  await prisma.job.update({
     where: { id: job.id },
+    data: {
+      inputName: `[DELETED] ${job.inputName}`,
+      logs: null,
+      outputPath: null,
+    },
   });
 
   return { id: jobId, success: true };

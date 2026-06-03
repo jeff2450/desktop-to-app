@@ -399,6 +399,10 @@ async function scrubOrphanedImports(ctx: PipelineContext): Promise<void> {
  * re-export localApi as "supabase" so all existing import sites work unchanged.
  */
 async function fixOrphanedSupabaseClient(ctx: PipelineContext): Promise<void> {
+  // Online conversions keep the cloud Supabase client and do not generate
+  // src/lib/localApi.ts, so only rewrite when a local API client exists.
+  if (!planGeneratesLocalApi(ctx)) return;
+
   const srcDir = path.join(ctx.outputDir, "src");
   if (!(await dirExists(srcDir))) return;
 
@@ -450,6 +454,13 @@ async function fixOrphanedSupabaseClient(ctx: PipelineContext): Promise<void> {
   }
 
   await walkAndFix(srcDir);
+}
+
+function planGeneratesLocalApi(ctx: PipelineContext): boolean {
+  return (ctx.plan?.filesToGenerate ?? []).some((file) => {
+    const outputPath = file.outputPath.replace(/\\/g, "/").toLowerCase();
+    return file.generatorType === "local-api-client" || outputPath === "src/lib/localapi.ts";
+  });
 }
 
 /**

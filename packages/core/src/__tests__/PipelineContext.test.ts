@@ -46,7 +46,7 @@ describe("PipelineContext — stage lifecycle", () => {
   });
 
   afterEach(async () => {
-    await fs.rm(tmpDir, { recursive: true, force: true });
+    await fs.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it("tracks a stage as running after startStage", () => {
@@ -97,7 +97,7 @@ describe("PipelineContext — logging", () => {
   });
 
   afterEach(async () => {
-    await fs.rm(tmpDir, { recursive: true, force: true });
+    await fs.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it("accumulates log entries", () => {
@@ -179,7 +179,7 @@ describe("PipelineContext — state persistence and resume", () => {
   });
 
   afterEach(async () => {
-    await fs.rm(tmpDir, { recursive: true, force: true });
+    await fs.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it("saves state after completeStage and loads it back", async () => {
@@ -258,7 +258,7 @@ describe("PipelineContext — helpers", () => {
       const rel = ctx.relative("/fake/source/src/components/App.tsx");
       expect(rel).toBe(path.join("src", "components", "App.tsx"));
     } finally {
-      await fs.rm(tmpDir, { recursive: true, force: true });
+      await fs.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     }
   });
 
@@ -273,7 +273,7 @@ describe("PipelineContext — helpers", () => {
       });
       expect(ctx.hasTargets).toBe(true);
     } finally {
-      await fs.rm(tmpDir, { recursive: true, force: true });
+      await fs.rm(tmpDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     }
   });
 });
