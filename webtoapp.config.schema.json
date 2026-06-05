@@ -26,7 +26,7 @@
     "source": {
       "type": "string",
       "minLength": 1,
-      "description": "Absolute or relative path to the source project root"
+      "description": "Absolute/relative path to the source project root, or a live website URL (e.g. https://example.com) to wrap"
     },
     "output": {
       "type": "string",

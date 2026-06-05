@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebToApp Migration Report</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #030712;
+      color: #f9fafb;
+      padding: 32px 24px;
+      min-height: 100vh;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 24px;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      margin-bottom: 24px;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border-radius: 9999px;
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 0.05em;
+    }
+    .card {
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #e2e8f0;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      text-align: left;
+      padding: 6px 12px;
+      color: #6b7280;
+      font-size: 12px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid #1e293b;
+    }
+    td { vertical-align: top; }
+    .info-table td { padding: 6px 12px; color: #9ca3af; }
+    .info-table td:first-child { color: #6b7280; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; width: 140px; }
+    .info-table tr:not(:last-child) td { border-bottom: 1px solid #1e293b; }
+    .log-container {
+      background: #030712;
+      border-radius: 8px;
+      padding: 12px;
+      max-height: 500px;
+      overflow-y: auto;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    footer { text-align: center; color: #374151; font-size: 12px; margin-top: 32px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <!-- Header -->
+    <div class="header">
+      <div style="flex:1">
+        <div style="font-size:22px;font-weight:700;color:#f1f5f9;margin-bottom:4px">
+          WebToApp Migration Report
+        </div>
+        <div style="color:#6b7280;font-size:13px">Generated 05/06/2026, 18:32:19</div>
+        <div style="color:#6b7280;font-size:13px;margin-top:2px">C:\Users\JEFF-PC\Documents\desktop-to-app\packages\core\example-wordpress-com-desktop</div>
+      </div>
+      <div>
+        <span class="status-badge" style="background:#22c55e20;color:#22c55e;border:1px solid #22c55e40">
+          ✔ SUCCESS
+        </span>
+        <div style="text-align:center;color:#6b7280;font-size:12px;margin-top:6px">
+          0.2s total
+        </div>
+      </div>
+    </div>
+
+    
+    
+    
+
+    <!-- Pipeline Stages -->
+    <div class="card">
+      <h2>⚙ Pipeline Stages</h2>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:40px"></th>
+            <th>Stage</th>
+            <th style="text-align:right">Duration</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+      <tr>
+        <td style="color:#22c55e;font-size:18px;text-align:center;padding:6px 12px">✔</td>
+        <td style="padding:6px 12px;font-weight:500">00-preflight</td>
+        <td style="padding:6px 12px;color:#9ca3af;text-align:right">0.1s</td>
+        <td style="padding:6px 12px">done</td>
+      </tr>
+      <tr>
+        <td style="color:#22c55e;font-size:18px;text-align:center;padding:6px 12px">✔</td>
+        <td style="padding:6px 12px;font-weight:500">01-detect</td>
+        <td style="padding:6px 12px;color:#9ca3af;text-align:right">0.0s</td>
+        <td style="padding:6px 12px">done</td>
+      </tr>
+      <tr>
+        <td style="color:#22c55e;font-size:18px;text-align:center;padding:6px 12px">✔</td>
+        <td style="padding:6px 12px;font-weight:500">02-plan</td>
+        <td style="padding:6px 12px;color:#9ca3af;text-align:right">0.0s</td>
+        <td style="padding:6px 12px">done</td>
+      </tr>
+      <tr>
+        <td style="color:#22c55e;font-size:18px;text-align:center;padding:6px 12px">✔</td>
+        <td style="padding:6px 12px;font-weight:500">03-transform</td>
+        <td style="padding:6px 12px;color:#9ca3af;text-align:right">0.0s</td>
+        <td style="padding:6px 12px">done</td>
+      </tr>
+      <tr>
+        <td style="color:#22c55e;font-size:18px;text-align:center;padding:6px 12px">✔</td>
+        <td style="padding:6px 12px;font-weight:500">04-scaffold</td>
+        <td style="padding:6px 12px;color:#9ca3af;text-align:right">0.0s</td>
+        <td style="padding:6px 12px">done</td>
+      </tr>
+      <tr>
+        <td style="color:#22c55e;font-size:18px;text-align:center;padding:6px 12px">✔</td>
+        <td style="padding:6px 12px;font-weight:500">05-install</td>
+        <td style="padding:6px 12px;color:#9ca3af;text-align:right">0.0s</td>
+        <td style="padding:6px 12px">done</td>
+      </tr>
+      <tr>
+        <td style="color:#22c55e;font-size:18px;text-align:center;padding:6px 12px">✔</td>
+        <td style="padding:6px 12px;font-weight:500">06-build</td>
+        <td style="padding:6px 12px;color:#9ca3af;text-align:right">0.0s</td>
+        <td style="padding:6px 12px">done</td>
+      </tr>
+      <tr>
+        <td style="color:#22c55e;font-size:18px;text-align:center;padding:6px 12px">✔</td>
+        <td style="padding:6px 12px;font-weight:500">06b-parity</td>
+        <td style="padding:6px 12px;color:#9ca3af;text-align:right">0.0s</td>
+        <td style="padding:6px 12px">done</td>
+      </tr>
+      <tr>
+        <td style="color:#22c55e;font-size:18px;text-align:center;padding:6px 12px">✔</td>
+        <td style="padding:6px 12px;font-weight:500">07-package</td>
+        <td style="padding:6px 12px;color:#9ca3af;text-align:right">0.0s</td>
+        <td style="padding:6px 12px">done</td>
+      </tr>
+      <tr>
+        <td style="color:#6b7280;font-size:18px;text-align:center;padding:6px 12px">⊘</td>
+        <td style="padding:6px 12px;font-weight:500">07b-mobile</td>
+        <td style="padding:6px 12px;color:#9ca3af;text-align:right">—</td>
+        <td style="padding:6px 12px">skipped</td>
+      </tr>
+      <tr>
+        <td style="color:#22c55e;font-size:18px;text-align:center;padding:6px 12px">✔</td>
+        <td style="padding:6px 12px;font-weight:500">07c-sign</td>
+        <td style="padding:6px 12px;color:#9ca3af;text-align:right">0.0s</td>
+        <td style="padding:6px 12px">done</td>
+      </tr>
+      <tr>
+        <td style="color:#6b7280;font-size:18px;text-align:center;padding:6px 12px">⊘</td>
+        <td style="padding:6px 12px;font-weight:500">08-ci-emit</td>
+        <td style="padding:6px 12px;color:#9ca3af;text-align:right">—</td>
+        <td style="padding:6px 12px">skipped</td>
+      </tr></tbody>
+      </table>
+    </div>
+
+    
+    <div class="card">
+      <h2>🔍 Detection</h2>
+      <table class="info-table">
+        <tr><td>Framework</td><td>react</td></tr>
+        <tr><td>Bundler</td><td>vite</td></tr>
+        <tr><td>Backend</td><td>none</td></tr>
+        <tr><td>Auth</td><td>none</td></tr>
+        <tr><td>UI Library</td><td>other</td></tr>
+        <tr><td>Tables</td><td>—</td></tr>
+        <tr><td>Confidence</td><td>100%</td></tr>
+      </table>
+    </div>
+
+    <!-- Conversion Log -->
+    <div class="card">
+      <h2>📋 Conversion Log</h2>
+      <div class="log-container">
+        <div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#d1d5db">WebToApp conversion started</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#d1d5db">Source:  https://example-wordpress.com</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#d1d5db">Output:  C:\Users\JEFF-PC\Documents\desktop-to-app\packages\core\example-wordpress-com-desktop</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#d1d5db">Targets: linux</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#d1d5db">Mode:    online</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#d1d5db">🔍 DRY-RUN — no files will be written</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#d1d5db">Backup created: C:\Users\JEFF-PC\Documents\desktop-to-app\packages\core\example-wordpress-com-desktop.backup</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[00-preflight]</span><span style="color:#d1d5db">Starting stage: 00-preflight</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[00-preflight]</span><span style="color:#d1d5db">✅ Config schema valid</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[00-preflight]</span><span style="color:#d1d5db">🔍 DRY-RUN MODE — no files will be written or installed</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#f59e0b;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">warn</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[00-preflight]</span><span style="color:#d1d5db">⚠  Cross-platform targets requested: linux. On this windows machine, only the windows installer will be built. To build linux installers, run on the target OS or use a CI matrix (see .github/workflows/publish-cli.yml for an example).</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[00-preflight]</span><span style="color:#d1d5db">✅ Pre-flight checks passed</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[00-preflight]</span><span style="color:#d1d5db">Stage complete: 00-preflight (141ms)</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[01-detect]</span><span style="color:#d1d5db">Starting stage: 01-detect</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[01-detect]</span><span style="color:#d1d5db">Framework:  react</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[01-detect]</span><span style="color:#d1d5db">Bundler:    vite</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[01-detect]</span><span style="color:#d1d5db">Backend:    none</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[01-detect]</span><span style="color:#d1d5db">Auth:       none</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[01-detect]</span><span style="color:#d1d5db">Tables:     none detected</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[01-detect]</span><span style="color:#d1d5db">Confidence: 100%</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[01-detect]</span><span style="color:#d1d5db">Stage complete: 01-detect (1ms)</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[02-plan]</span><span style="color:#d1d5db">Starting stage: 02-plan</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[02-plan]</span><span style="color:#d1d5db">Conversion mode: online</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[02-plan]</span><span style="color:#d1d5db">Files to transform: 0</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[02-plan]</span><span style="color:#d1d5db">Files to copy:      0</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[02-plan]</span><span style="color:#d1d5db">Files to generate:  6</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[02-plan]</span><span style="color:#d1d5db">Deps to add:        electron, electron-updater, concurrently, wait-on, react, react-dom, vite, @vitejs/plugin-react</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[02-plan]</span><span style="color:#d1d5db">Deps to remove:     none</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[02-plan]</span><span style="color:#d1d5db">Online mode - wrapping live website https://example-wordpress.com in Electron app.</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[02-plan]</span><span style="color:#d1d5db">Stage complete: 02-plan (1ms)</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[03-transform]</span><span style="color:#d1d5db">Starting stage: 03-transform</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[03-transform]</span><span style="color:#d1d5db">[DRY-RUN] Would transform 0 files and copy 0 files</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[03-transform]</span><span style="color:#d1d5db">[DRY-RUN] Would sanitize .env and scrub orphaned imports</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[03-transform]</span><span style="color:#d1d5db">Stage complete: 03-transform (0ms)</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[04-scaffold]</span><span style="color:#d1d5db">Starting stage: 04-scaffold</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[04-scaffold]</span><span style="color:#d1d5db">[DRY-RUN] Would generate: index.html</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[04-scaffold]</span><span style="color:#d1d5db">[DRY-RUN] Would generate: src/App.jsx</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[04-scaffold]</span><span style="color:#d1d5db">[DRY-RUN] Would generate: src/main.jsx</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[04-scaffold]</span><span style="color:#d1d5db">[DRY-RUN] Would generate: electron/main.cjs</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[04-scaffold]</span><span style="color:#d1d5db">[DRY-RUN] Would generate: electron/preload.cjs</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[04-scaffold]</span><span style="color:#d1d5db">[DRY-RUN] Would generate: electron-builder.yml</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[04-scaffold]</span><span style="color:#d1d5db">[DRY-RUN] Would patch package.json</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[04-scaffold]</span><span style="color:#d1d5db">[DRY-RUN] Would generate .env</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[04-scaffold]</span><span style="color:#d1d5db">Scaffolded 6 files</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[04-scaffold]</span><span style="color:#d1d5db">Stage complete: 04-scaffold (9ms)</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[05-install]</span><span style="color:#d1d5db">Starting stage: 05-install</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#f59e0b;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">warn</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[05-install]</span><span style="color:#d1d5db">Source package.json not found — creating minimal one</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[05-install]</span><span style="color:#d1d5db">Moved electron from dependencies → devDependencies</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[05-install]</span><span style="color:#d1d5db">Wrote output package.json</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[05-install]</span><span style="color:#d1d5db">[DRY-RUN] Would run npm install</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[05-install]</span><span style="color:#d1d5db">Stage complete: 05-install (5ms)</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[06-build]</span><span style="color:#d1d5db">Starting stage: 06-build</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[06-build]</span><span style="color:#d1d5db">[DRY-RUN] Would run: vite build</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[06-build]</span><span style="color:#d1d5db">Stage complete: 06-build (0ms)</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[06b-parity]</span><span style="color:#d1d5db">Starting stage: 06b-parity</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[06b-parity]</span><span style="color:#d1d5db">[DRY-RUN] Would validate behavior parity (strict)</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[06b-parity]</span><span style="color:#d1d5db">Stage complete: 06b-parity (1ms)</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[07-package]</span><span style="color:#d1d5db">Starting stage: 07-package</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[07-package]</span><span style="color:#d1d5db">[DRY-RUN] Would rebuild native modules and package the desktop app</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[07-package]</span><span style="color:#d1d5db">Stage complete: 07-package (1ms)</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[07b-mobile]</span><span style="color:#d1d5db">Stage skipped: 07b-mobile — No mobile targets requested</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[07c-sign]</span><span style="color:#d1d5db">Starting stage: 07c-sign</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[07c-sign]</span><span style="color:#d1d5db">Stage complete: 07c-sign (0ms)</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[08-ci-emit]</span><span style="color:#d1d5db">Starting stage: 08-ci-emit</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#6366f1;font-size:10px;margin-right:6px">[08-ci-emit]</span><span style="color:#d1d5db">Stage skipped: 08-ci-emit — CI emit disabled. Set ci.autoEmit=true in webtoapp.config.json to enable.</span></div><div style="padding:2px 0;border-bottom:1px solid #1f2937"><span style="color:#d1d5db;font-weight:600;text-transform:uppercase;font-size:10px;min-width:40px;display:inline-block">info</span> <span style="color:#d1d5db">Conversion complete — backup removed</span></div>
+      </div>
+    </div>
+
+    <footer>
+      Generated by <strong>WebToApp</strong> — web to desktop converter
+    </footer>
+  </div>
+</body>
+</html>

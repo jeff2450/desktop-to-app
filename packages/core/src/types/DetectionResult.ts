@@ -33,8 +33,12 @@ export interface RlsPolicy {
  * Passed through the entire pipeline so every stage has full context.
  */
 export interface DetectionResult {
+  isLiveUrl?: boolean;
+  liveUrl?: string;
+  isStaticPlain?: boolean;
+
   /** Primary UI framework detected in the project */
-  framework: "react" | "vue" | "svelte" | "angular" | "unknown";
+  framework: "react" | "vue" | "svelte" | "angular" | "unknown" | "static";
 
   /** Module bundler / meta-framework */
   bundler: "vite" | "webpack" | "next" | "unknown";
@@ -63,8 +67,8 @@ export interface DetectionResult {
   /** UI component library / styling approach */
   uiLibrary: "shadcn" | "mui" | "tailwind" | "other";
 
-  /** Whether the project already uses browser-local persistence */
-  hasLocalPersistence: boolean;
+  /** Whether the project already has offline / local-persistence support */
+  hasOfflineSupport: boolean;
 
   /**
    * Overall confidence score for the detection (0–1).

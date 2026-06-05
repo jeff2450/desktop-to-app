@@ -123,7 +123,7 @@ conversionsRouter.post("/", async (req: Request, res: Response, next) => {
 
     if (isMultipart) {
       await handleUpload(req, res);
-      const { archiveFile, iconFile } = extractUploadedFiles(req);
+      const { archiveFile, iconFile, keystoreFile } = extractUploadedFiles(req);
 
       if (archiveFile) {
         // ── Zip upload path ──────────────────────────────────────────────────
@@ -165,6 +165,7 @@ conversionsRouter.post("/", async (req: Request, res: Response, next) => {
           zipPath: archiveFile.path,
           zipName: archiveFile.originalname,
           iconPath: iconFile?.path,
+          keystorePath: keystoreFile?.path,
           config,
           platforms,
         });
@@ -198,6 +199,7 @@ conversionsRouter.post("/", async (req: Request, res: Response, next) => {
           config,
           platforms,
           iconPath: iconFile?.path,
+          keystorePath: keystoreFile?.path,
         });
 
         res.status(201).json(

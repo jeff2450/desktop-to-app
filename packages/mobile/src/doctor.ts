@@ -1,6 +1,7 @@
 import { execSync } from 'child_process';
 import { existsSync } from 'fs';
 import path from 'path';
+import os from 'os';
 import { DoctorCheck, DoctorResult } from './types.js';
 import {
   ANDROID_JDK_MAJOR,
@@ -41,6 +42,9 @@ function findAndroidSdk(): string | null {
   const candidates = [
     process.env['LOCALAPPDATA'] ? path.join(process.env['LOCALAPPDATA'], 'Android', 'Sdk') : null,
     process.env['ANDROID_SDK_HOME'] ? path.join(process.env['ANDROID_SDK_HOME'], 'Sdk') : null,
+    process.platform === 'win32' && !process.env['WEBTOAPP_TEST_NO_SDK_DISCOVERY']
+      ? path.join(os.homedir(), 'AppData', 'Local', 'Android', 'Sdk')
+      : null,
   ].filter((candidate): candidate is string => !!candidate);
 
   return candidates.find((candidate) => existsSync(candidate)) ?? null;

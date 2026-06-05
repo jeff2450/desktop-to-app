@@ -59,14 +59,14 @@ export default function DashboardPage() {
   const recentJobs = conversions.slice(0, 5);
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="min-h-screen bg-[#020514]">
       <TopBar title="Overview" />
 
       <div className="p-8 space-y-8 max-w-7xl mx-auto">
         {/* Welcome & Stats Row */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Usage Meter */}
-          <Card className="lg:col-span-2 bg-zinc-900/50 border-zinc-800 backdrop-blur-sm overflow-hidden relative">
+          <Card className="lg:col-span-2 bg-[#030720]/50 border-[#8d99c4]/15 backdrop-blur-sm overflow-hidden relative">
             <div className="absolute top-0 right-0 p-8 opacity-5">
               <History className="w-32 h-32" />
             </div>
@@ -76,14 +76,14 @@ export default function DashboardPage() {
                   <CardTitle className="text-xl font-bold">
                     Monthly Usage
                   </CardTitle>
-                  <CardDescription className="text-zinc-500">
+                  <CardDescription className="text-[#8d99c4]">
                     Track your conversion limits for this month
                   </CardDescription>
                 </div>
                 {usage && (
                   <Badge
                     variant="outline"
-                    className="bg-indigo-500/10 text-indigo-400 border-indigo-500/20 px-3 py-1"
+                    className="bg-[#2b72f5]/15 text-[#2b72f5] border-[#2b72f5]/20 px-3 py-1"
                   >
                     {usage.plan.toUpperCase()} PLAN
                   </Badge>
@@ -93,8 +93,8 @@ export default function DashboardPage() {
             <CardContent>
               {loading ? (
                 <div className="space-y-4">
-                  <Skeleton className="h-4 w-full bg-zinc-800" />
-                  <Skeleton className="h-2 w-full bg-zinc-800" />
+                  <Skeleton className="h-4 w-full bg-[#030720]" />
+                  <Skeleton className="h-2 w-full bg-[#030720]" />
                 </div>
               ) : usage ? (
                 <div className="space-y-6">
@@ -102,18 +102,18 @@ export default function DashboardPage() {
                     <div className="space-y-1">
                       <p className="text-3xl font-bold text-white">
                         {usage.usage}{" "}
-                        <span className="text-zinc-500 text-lg font-normal">
+                        <span className="text-[#8d99c4] text-lg font-normal">
                           / {usage.limit === 9999 ? "∞" : usage.limit}
                         </span>
                       </p>
-                      <p className="text-xs text-zinc-500">
+                      <p className="text-xs text-[#8d99c4]">
                         Conversions performed this month
                       </p>
                     </div>
                     <Button
                       asChild
                       variant="ghost"
-                      className="text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10"
+                      className="text-[#2b72f5] hover:text-[#1a5ecc] hover:bg-[#2b72f5]/10"
                     >
                       <Link href="/billing" className="flex items-center gap-2">
                         Upgrade Plan <ArrowUpRight className="w-4 h-4" />
@@ -122,27 +122,27 @@ export default function DashboardPage() {
                   </div>
                   <Progress
                     value={usage.percentUsed}
-                    className="h-2 bg-zinc-800 [&>div]:bg-indigo-500"
+                    className="h-2 bg-[#030720] [&>div]:bg-[#2b72f5]"
                   />
                 </div>
               ) : (
-                <p className="text-zinc-500">No usage data available.</p>
+                <p className="text-[#8d99c4]">No usage data available.</p>
               )}
             </CardContent>
           </Card>
 
           {/* Quick Action */}
-          <Card className="bg-indigo-600 border-indigo-500 shadow-[0_0_30px_rgba(99,102,241,0.2)]">
+          <Card className="bg-[#2b72f5] border-[#2b72f5]/30 shadow-[0_0_30px_rgba(43,114,245,0.25)]">
             <CardHeader>
               <CardTitle className="text-white">Ready to convert?</CardTitle>
-              <CardDescription className="text-indigo-100">
+              <CardDescription className="text-white/80">
                 Transform your web app into a desktop installer in minutes.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <Button
                 asChild
-                className="w-full bg-white text-indigo-600 hover:bg-indigo-50 shadow-lg font-bold py-6 rounded-xl"
+                className="w-full bg-white text-[#2b72f5] hover:bg-[#dee3f7] shadow-lg font-bold py-6 rounded-xl"
               >
                 <Link href="/jobs/new" className="flex items-center gap-2">
                   <Plus className="w-5 h-5" />
@@ -158,10 +158,10 @@ export default function DashboardPage() {
           {/* Active Jobs List */}
           <div className="md:col-span-3 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-500">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-[#8d99c4]">
                 Active Jobs
               </h3>
-              <Badge variant="secondary" className="bg-zinc-800 text-zinc-400">
+              <Badge variant="secondary" className="bg-[#030720] text-[#dee3f7]/80 border border-[#8d99c4]/15">
                 {activeJobs.length} Running
               </Badge>
             </div>
@@ -170,7 +170,7 @@ export default function DashboardPage() {
               [1, 2].map((i) => (
                 <Skeleton
                   key={i}
-                  className="h-24 w-full bg-zinc-900 border-zinc-800 rounded-2xl"
+                  className="h-24 w-full bg-[#030720]/45 border-[#8d99c4]/15 rounded-2xl"
                 />
               ))
             ) : activeJobs.length > 0 ? (
@@ -179,33 +179,33 @@ export default function DashboardPage() {
                   const jobProgress = job.progress ?? 0;
                   return (
                     <Link key={job.id} href={`/jobs/${job.id}`}>
-                      <div className="group bg-zinc-900/50 border border-zinc-800 p-5 rounded-2xl hover:border-indigo-500/50 transition-all flex items-center justify-between">
+                      <div className="group bg-[#030720]/50 border border-[#8d99c4]/15 p-5 rounded-2xl hover:border-[#2b72f5]/50 transition-all flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center relative">
-                            <Clock className="w-6 h-6 text-indigo-400 animate-pulse" />
+                          <div className="w-12 h-12 bg-[#020514] rounded-xl flex items-center justify-center relative">
+                            <Clock className="w-6 h-6 text-[#2b72f5] animate-pulse" />
                           </div>
                           <div>
-                            <h4 className="font-bold text-white group-hover:text-indigo-400 transition-colors">
+                            <h4 className="font-bold text-white group-hover:text-[#2b72f5] transition-colors">
                               {job.name}
                             </h4>
-                            <p className="text-xs text-zinc-500 uppercase font-medium tracking-tighter">
+                            <p className="text-xs text-[#8d99c4] uppercase font-medium tracking-tighter">
                               Status: {job.status}
                             </p>
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
                           <div className="flex items-center gap-2">
-                            <div className="w-32 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                            <div className="w-32 h-1.5 bg-[#020514] rounded-full overflow-hidden">
                               <div
-                                className="h-full bg-indigo-500 animate-progress-flow transition-all duration-500"
+                                className="h-full bg-[#2b72f5] animate-progress-flow transition-all duration-500"
                                 style={{ width: `${jobProgress}%` }}
                               />
                             </div>
-                            <span className="text-xs text-zinc-500 font-mono w-8 text-right">
+                            <span className="text-xs text-[#8d99c4] font-mono w-8 text-right">
                               {jobProgress}%
                             </span>
                           </div>
-                          <ChevronRight className="w-4 h-4 text-zinc-600" />
+                          <ChevronRight className="w-4 h-4 text-[#8d99c4]/40" />
                         </div>
                       </div>
                     </Link>
@@ -213,8 +213,8 @@ export default function DashboardPage() {
                 })}
               </div>
             ) : (
-              <div className="p-12 border border-dashed border-zinc-800 rounded-3xl text-center">
-                <p className="text-zinc-500 text-sm">
+              <div className="p-12 border border-dashed border-[#8d99c4]/15 rounded-3xl text-center">
+                <p className="text-[#8d99c4] text-sm">
                   No active conversions at the moment.
                 </p>
               </div>
@@ -223,7 +223,7 @@ export default function DashboardPage() {
 
           {/* Quick Stats Grid */}
           <div className="space-y-4">
-            <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-500">
+            <h3 className="text-sm font-bold uppercase tracking-widest text-[#8d99c4]">
               History
             </h3>
             <div className="grid grid-cols-1 gap-4">
@@ -231,15 +231,15 @@ export default function DashboardPage() {
                 label="Completed"
                 value={conversions.filter((c) => c.status === "done").length}
                 icon={CheckCircle2}
-                color="text-emerald-500"
-                bg="bg-emerald-500/10"
+                color="text-emerald-400"
+                bg="bg-emerald-500/10 border border-emerald-500/20"
               />
               <StatCard
                 label="Failed"
                 value={conversions.filter((c) => c.status === "failed").length}
                 icon={XCircle}
-                color="text-rose-500"
-                bg="bg-rose-500/10"
+                color="text-rose-400"
+                bg="bg-rose-500/10 border border-rose-500/20"
               />
             </div>
           </div>
@@ -248,53 +248,53 @@ export default function DashboardPage() {
         {/* Recent Jobs Table/List */}
         <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-500">
+            <h3 className="text-sm font-bold uppercase tracking-widest text-[#8d99c4]">
               Recent Conversions
             </h3>
             <Button
               asChild
               variant="link"
-              className="text-zinc-500 hover:text-white"
+              className="text-[#8d99c4] hover:text-white"
             >
               <Link href="/jobs">View all history</Link>
             </Button>
           </div>
 
-          <div className="bg-zinc-900/30 border border-zinc-800 rounded-3xl overflow-hidden backdrop-blur-sm">
+          <div className="bg-[#030720]/30 border border-[#8d99c4]/15 rounded-3xl overflow-hidden backdrop-blur-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
-                  <tr className="border-b border-zinc-800/50">
-                    <th className="px-6 py-4 text-xs font-bold text-zinc-500 uppercase">
+                  <tr className="border-b border-[#8d99c4]/15">
+                    <th className="px-6 py-4 text-xs font-bold text-[#8d99c4]/70 uppercase">
                       App Name
                     </th>
-                    <th className="px-6 py-4 text-xs font-bold text-zinc-500 uppercase">
+                    <th className="px-6 py-4 text-xs font-bold text-[#8d99c4]/70 uppercase">
                       Targets
                     </th>
-                    <th className="px-6 py-4 text-xs font-bold text-zinc-500 uppercase">
+                    <th className="px-6 py-4 text-xs font-bold text-[#8d99c4]/70 uppercase">
                       Status
                     </th>
-                    <th className="px-6 py-4 text-xs font-bold text-zinc-500 uppercase">
+                    <th className="px-6 py-4 text-xs font-bold text-[#8d99c4]/70 uppercase">
                       Date
                     </th>
-                    <th className="px-6 py-4 text-xs font-bold text-zinc-500 uppercase"></th>
+                    <th className="px-6 py-4 text-xs font-bold text-[#8d99c4]/70 uppercase"></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-800/30">
+                <tbody className="divide-y divide-[#8d99c4]/10">
                   {loading ? (
                     [1, 2, 3].map((i) => (
                       <tr key={i}>
                         <td className="px-6 py-4">
-                          <Skeleton className="h-4 w-32 bg-zinc-800" />
+                          <Skeleton className="h-4 w-32 bg-[#020514]" />
                         </td>
                         <td className="px-6 py-4">
-                          <Skeleton className="h-4 w-24 bg-zinc-800" />
+                          <Skeleton className="h-4 w-24 bg-[#020514]" />
                         </td>
                         <td className="px-6 py-4">
-                          <Skeleton className="h-4 w-20 bg-zinc-800" />
+                          <Skeleton className="h-4 w-20 bg-[#020514]" />
                         </td>
                         <td className="px-6 py-4">
-                          <Skeleton className="h-4 w-24 bg-zinc-800" />
+                          <Skeleton className="h-4 w-24 bg-[#020514]" />
                         </td>
                         <td className="px-6 py-4"></td>
                       </tr>
@@ -303,11 +303,11 @@ export default function DashboardPage() {
                     recentJobs.map((job) => (
                       <tr
                         key={job.id}
-                        className="hover:bg-zinc-800/20 transition-colors group"
+                        className="hover:bg-[#030720]/50 transition-colors group"
                       >
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-zinc-800 rounded-lg flex items-center justify-center font-bold text-xs text-zinc-400 group-hover:bg-indigo-500/20 group-hover:text-indigo-400 transition-colors">
+                            <div className="w-8 h-8 bg-[#020514] rounded-lg flex items-center justify-center font-bold text-xs text-[#8d99c4] group-hover:bg-[#2b72f5]/15 group-hover:text-[#2b72f5] transition-colors">
                               {job?.name?.[0] || "?"}
                             </div>
                             <span className="text-sm font-medium text-white">
@@ -321,7 +321,7 @@ export default function DashboardPage() {
                               <Badge
                                 key={t}
                                 variant="outline"
-                                className="text-[10px] py-0 border-zinc-700 bg-zinc-800/50 text-zinc-400"
+                                className="text-[10px] py-0 border-[#8d99c4]/15 bg-[#030720]/50 text-[#8d99c4]"
                               >
                                 {t}
                               </Badge>
@@ -331,7 +331,7 @@ export default function DashboardPage() {
                         <td className="px-6 py-4">
                           <StatusBadge status={job.status} />
                         </td>
-                        <td className="px-6 py-4 text-sm text-zinc-500">
+                        <td className="px-6 py-4 text-sm text-[#8d99c4]/70">
                           {new Date(job.createdAt).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 text-right">
@@ -350,7 +350,7 @@ export default function DashboardPage() {
                     <tr>
                       <td
                         colSpan={5}
-                        className="px-6 py-12 text-center text-zinc-600 text-sm"
+                        className="px-6 py-12 text-center text-[#8d99c4]/50 text-sm"
                       >
                         No conversion history found.
                       </td>
@@ -376,7 +376,7 @@ interface StatCardProps {
 
 function StatCard({ label, value, icon: Icon, color, bg }: StatCardProps) {
   return (
-    <div className="bg-zinc-900/50 border border-zinc-800 p-5 rounded-2xl flex items-center gap-4">
+    <div className="bg-[#030720]/50 border border-[#8d99c4]/15 p-5 rounded-2xl flex items-center gap-4">
       <div
         className={cn(
           "w-10 h-10 rounded-xl flex items-center justify-center",
@@ -387,7 +387,7 @@ function StatCard({ label, value, icon: Icon, color, bg }: StatCardProps) {
       </div>
       <div>
         <p className="text-2xl font-bold text-white">{value}</p>
-        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+        <p className="text-[10px] font-bold text-[#8d99c4] uppercase tracking-widest">
           {label}
         </p>
       </div>
@@ -407,9 +407,9 @@ function StatusBadge({ status }: { status: ConversionStatus }) {
   const styles: Partial<Record<ConversionStatus | "default", string>> = {
     done: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
     failed: "bg-rose-500/10 text-rose-500 border-rose-500/20",
-    cancelled: "bg-zinc-800 text-zinc-500 border-zinc-700",
+    cancelled: "bg-[#030720] text-[#8d99c4] border-[#8d99c4]/15",
     default:
-      "bg-indigo-500/10 text-indigo-400 border-indigo-500/20 animate-pulse",
+      "bg-[#2b72f5]/10 text-[#2b72f5] border-[#2b72f5]/20 animate-pulse",
   };
 
   const style = styles[status] || styles.default;

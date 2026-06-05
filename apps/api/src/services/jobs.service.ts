@@ -6,14 +6,16 @@ import { PlanLimitError, ApiError } from "../lib/errors.js";
 import type { WebToAppConfig } from "../lib/types.js";
 import { addJob, estimateWaitSeconds, getQueuedBullJob } from "./queue.service.js";
 
+const ALL_PLATFORMS = ["windows", "linux", "macos", "mac", "android", "ios"];
+
 const PLAN_LIMITS: Record<
   Plan,
   { monthlyLimit: number | null; platforms: string[]; priority: number }
 > = {
-  FREE:    { monthlyLimit: 1,    platforms: ["windows", "linux", "macos", "mac", "android", "ios"], priority: 10 },
-  STARTER: { monthlyLimit: 10,   platforms: ["windows"], priority: 5  }, // Pro plan: Windows only
-  PRO:     { monthlyLimit: 15,   platforms: ["windows", "linux"], priority: 3  }, // Team plan: Windows and Linux
-  ULTRA:   { monthlyLimit: 20,   platforms: ["windows", "linux", "macos", "mac", "android", "ios"], priority: 1  }, // Ultra plan: All platforms
+  FREE:    { monthlyLimit: 1,    platforms: ALL_PLATFORMS, priority: 10 }, // Free plan: 1 conversion, all platforms
+  STARTER: { monthlyLimit: 10,   platforms: ALL_PLATFORMS, priority: 5  }, // Pro plan: 10 conversions, all platforms
+  PRO:     { monthlyLimit: 50,   platforms: ALL_PLATFORMS, priority: 3  }, // Team (semi-pro) plan: 50 conversions, all platforms
+  ULTRA:   { monthlyLimit: 100,  platforms: ALL_PLATFORMS, priority: 1  }, // Ultra plan: 100 conversions, all platforms
 };
 
 
@@ -25,6 +27,7 @@ export async function createJobFromUpload(input: {
   zipPath: string;      // absolute path to uploaded zip on disk
   zipName: string;      // original filename shown to user
   iconPath?: string;    // optional path to uploaded icon file on disk
+  keystorePath?: string;// optional path to uploaded keystore file on disk
   config: WebToAppConfig;
   platforms: string[];
 }): Promise<{ job: Job; estimatedWait: number }> {
@@ -41,7 +44,7 @@ export async function createJobFromUpload(input: {
     },
   });
 
-  await addJob({ jobId: job.id, zipPath: input.zipPath, iconPath: input.iconPath }, policy.priority);
+  await addJob({ jobId: job.id, zipPath: input.zipPath, iconPath: input.iconPath, keystorePath: input.keystorePath }, policy.priority);
   const estimatedWait = await estimateWaitSeconds();
 
   return { job, estimatedWait };
@@ -56,6 +59,7 @@ export async function createJob(input: {
   config: WebToAppConfig;
   platforms: string[];
   iconPath?: string;    // optional path to uploaded icon file on disk
+  keystorePath?: string;// optional path to uploaded keystore file on disk
 }): Promise<{ job: Job; estimatedWait: number }> {
   const policy = PLAN_LIMITS[input.plan];
   await assertPlanLimits(input.userId, input.plan, policy, input.platforms);
@@ -70,7 +74,7 @@ export async function createJob(input: {
     },
   });
 
-  await addJob({ jobId: job.id, iconPath: input.iconPath }, policy.priority);
+  await addJob({ jobId: job.id, iconPath: input.iconPath, keystorePath: input.keystorePath }, policy.priority);
   const estimatedWait = await estimateWaitSeconds();
 
   return { job, estimatedWait };

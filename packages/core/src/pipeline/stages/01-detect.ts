@@ -54,15 +54,41 @@ async function detectProject(
   sourceDir: string,
   ctx: PipelineContext
 ): Promise<DetectionResult> {
+  const isUrl = sourceDir.startsWith("http://") || sourceDir.startsWith("https://");
+  
+  if (isUrl) {
+    return {
+      isLiveUrl: true,
+      liveUrl: sourceDir,
+      framework: "react", // wrapper shell is built using react
+      bundler: "vite",
+      backend: "none",
+      auth: "none",
+      tables: [],
+      tableColumns: {},
+      rlsPolicies: {},
+      uiLibrary: "other",
+      hasOfflineSupport: false,
+      confidence: 1.0,
+      warnings: [],
+      scannedFiles: [],
+      dependencies: {},
+      devDependencies: {},
+      pathAliases: {},
+    };
+  }
+
   // Read package.json
   const pkgPath = path.join(sourceDir, "package.json");
   let pkg: Record<string, unknown> = {};
+  let isStaticPlain = false;
 
   try {
     const raw = await fs.readFile(pkgPath, "utf-8");
     pkg = JSON.parse(raw) as Record<string, unknown>;
   } catch {
-    ctx.log("warn", "Could not read package.json — detection will be limited", STAGE);
+    ctx.log("warn", "Could not read package.json — treating as static site", STAGE);
+    isStaticPlain = true;
   }
 
   const deps = flattenDeps(pkg);
@@ -74,6 +100,28 @@ async function detectProject(
   const importedModules = await extractImports(sourceFiles);
 
   const warnings: string[] = [];
+
+  if (isStaticPlain) {
+    ctx.log("info", "Detected static/plain web files. Configuring minimal build pipeline.", STAGE);
+    return {
+      isStaticPlain: true,
+      framework: "static",
+      bundler: "vite",
+      backend: "none",
+      auth: "none",
+      tables: [],
+      tableColumns: {},
+      rlsPolicies: {},
+      uiLibrary: "other",
+      hasOfflineSupport: false,
+      confidence: 1.0,
+      warnings: [],
+      scannedFiles: sourceFiles,
+      dependencies: {},
+      devDependencies: {},
+      pathAliases: {},
+    };
+  }
 
   // ── Framework ─────────────────────────────────────────────────
   let framework: DetectionResult["framework"] = "unknown";
@@ -136,8 +184,8 @@ async function detectProject(
   // ── Tables ─────────────────────────────────────────────────────
   const tables = await extractTableNames(sourceDir);
 
-  // Browser-local persistence
-  const hasLocalPersistence =
+  // Browser-local / offline persistence
+  const hasOfflineSupport =
     "idb" in allDeps ||
     "dexie" in allDeps ||
     (await fileExists(path.join(sourceDir, "public", "sw.js"))) ||
@@ -186,7 +234,7 @@ async function detectProject(
     tableColumns,
     rlsPolicies,
     uiLibrary,
-    hasLocalPersistence,
+    hasOfflineSupport,
     confidence,
     warnings,
     scannedFiles: sourceFiles,

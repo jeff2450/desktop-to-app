@@ -24,6 +24,11 @@ const config: CapacitorConfig = {
       signingType: 'apksigner',
     },
     allowMixedContent: true,
+    // Use https scheme so the WebView behaves like a modern browser
+    // (enables SharedArrayBuffer, Service Workers, etc.)
+    androidScheme: 'https',
+    // Prevent the WebView from overriding the viewport meta tag
+    // so the page fills the phone screen at 1:1 scale
     webContentsDebuggingEnabled: false,
   },
   {{/if}}
@@ -36,6 +41,12 @@ const config: CapacitorConfig = {
   {{/if}}
 
   plugins: {
+    CapacitorHttp: {
+      enabled: true,
+    },
+    CapacitorCookies: {
+      enabled: true,
+    },
     SplashScreen: {
       launchShowDuration: 1500,
       launchAutoHide: true,

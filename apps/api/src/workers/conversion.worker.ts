@@ -118,6 +118,19 @@ async function runWorkerJob(payload: ConversionQueuePayload): Promise<void> {
     }
 
     const rawConfig = jobRecord.config as unknown as WebToAppConfig;
+
+    // ── Inject user-supplied Android keystore into sourceDir ───────────────────
+    if (payload.keystorePath && fs.existsSync(payload.keystorePath)) {
+      const keystoreDestName = "_webtoapp_key.keystore";
+      const keystoreDest = path.join(sourceDir, keystoreDestName);
+      await fsp.copyFile(payload.keystorePath, keystoreDest);
+
+      if (!rawConfig.mobile) rawConfig.mobile = {};
+      if (!rawConfig.mobile.android) rawConfig.mobile.android = {};
+      rawConfig.mobile.android.keystorePath = keystoreDestName;
+
+      await log(`🔑 Android release signing keystore uploaded — will be injected into Android package`);
+    }
     const requestedPlatforms = jobRecord.platforms;
     const buildablePlatforms = requestedPlatforms.filter(isPlatformBuildable);
     const skippedPlatforms = requestedPlatforms.filter((platform) => !isPlatformBuildable(platform));
@@ -339,8 +352,15 @@ async function materializeSource(
     return targetDir;
   }
 
-  // 3. HTTP archive URL
+  // 3. HTTP archive URL vs Live Website URL
   if (sourceRepo.startsWith("http://") || sourceRepo.startsWith("https://")) {
+    const urlWithoutQuery = sourceRepo.split("?")[0]!.split("#")[0]!;
+    const isArchive = /\.(zip|tar\.gz|tgz|rar)$/i.test(urlWithoutQuery);
+    if (!isArchive) {
+      await log(`🌐 Live website URL detected: ${sourceRepo}`);
+      return sourceRepo;
+    }
+
     await log(`⬇ Downloading archive: ${sourceRepo}`);
     const response = await fetch(sourceRepo);
     if (!response.ok) {

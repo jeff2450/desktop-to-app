@@ -24,6 +24,7 @@ import {
   AlertCircle,
   ImagePlus,
   X,
+  Key,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
@@ -88,6 +89,17 @@ export default function NewJobPage() {
     targets: ["linux"],
   });
 
+  const [androidSigning, setAndroidSigning] = useState({
+    enabled: false,
+    buildVariant: "release" as "debug" | "release",
+    artifactType: "aab" as "apk" | "aab",
+    keystoreAlias: "",
+    keystorePassword: "",
+    keystoreAliasPassword: "",
+  });
+  const [keystoreFile, setKeystoreFile] = useState<File | null>(null);
+  const keystoreInputRef = useRef<HTMLInputElement>(null);
+
   const nextStep = () => {
     setFieldError(null);
 
@@ -110,6 +122,20 @@ export default function NewJobPage() {
       if (formData.targets.length === 0) {
         setFieldError("Please select at least one target platform.");
         return;
+      }
+      if (formData.targets.includes("android") && androidSigning.enabled) {
+        if (!keystoreFile) {
+          setFieldError("Please upload your Android release keystore file (.keystore or .jks).");
+          return;
+        }
+        if (!androidSigning.keystoreAlias.trim()) {
+          setFieldError("Please enter your keystore key alias.");
+          return;
+        }
+        if (!androidSigning.keystorePassword.trim()) {
+          setFieldError("Please enter your keystore password.");
+          return;
+        }
       }
     }
 
@@ -196,39 +222,47 @@ export default function NewJobPage() {
     try {
       const appName = formData.name.trim() || "Untitled App";
       const appId = formData.appId.trim();
-      const config = {
+      const config: any = {
         name: appName,
         appId,
         mode: formData.mode,
         targets: formData.targets,
       };
 
+      if (formData.targets.includes("android") && androidSigning.enabled) {
+        config.mobile = {
+          android: {
+            buildVariant: androidSigning.buildVariant,
+            artifactType: androidSigning.artifactType,
+            keystoreAlias: androidSigning.keystoreAlias.trim() || undefined,
+            keystorePassword: androidSigning.keystorePassword || undefined,
+            keystoreAliasPassword: androidSigning.keystoreAliasPassword || androidSigning.keystorePassword || undefined,
+          }
+        };
+      }
+
+      const isMultipart = formData.sourceType === "upload" || !!iconFile || !!keystoreFile;
+
       let res;
-      if (formData.sourceType === "upload") {
+      if (isMultipart) {
         const data = new FormData();
-        data.append("archive", selectedFile!);
+        if (formData.sourceType === "upload") {
+          data.append("archive", selectedFile!);
+        } else {
+          data.append("sourceRepo", formData.sourceUrl.trim());
+          config.sourceRepo = formData.sourceUrl.trim();
+        }
         data.append("config", JSON.stringify(config));
         data.append("platforms", JSON.stringify(formData.targets));
         if (iconFile) data.append("icon", iconFile);
+        if (keystoreFile) data.append("keystore", keystoreFile);
         res = await conversionsApi.create(data);
       } else {
-        // For git-source jobs, embed the icon as a base64 string
-        // so the API can store and pass it along.
-        // (We use a FormData approach even for git jobs when an icon is set)
-        if (iconFile) {
-          const data = new FormData();
-          data.append("config", JSON.stringify({ ...config, sourceRepo: formData.sourceUrl.trim() }));
-          data.append("sourceRepo", formData.sourceUrl.trim());
-          data.append("platforms", JSON.stringify(formData.targets));
-          data.append("icon", iconFile);
-          res = await conversionsApi.create(data);
-        } else {
-          res = await conversionsApi.create({
-            sourceRepo: formData.sourceUrl.trim(),
-            platforms: formData.targets,
-            config,
-          });
-        }
+        res = await conversionsApi.create({
+          sourceRepo: formData.sourceUrl.trim(),
+          platforms: formData.targets,
+          config,
+        });
       }
       
       if (res.data) {
@@ -245,7 +279,7 @@ export default function NewJobPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="min-h-screen bg-[#020514]">
       <TopBar title="New Conversion" />
       
       <div className="p-8 max-w-3xl mx-auto">
@@ -256,17 +290,17 @@ export default function NewJobPage() {
               <div className="flex flex-col items-center gap-2">
                 <div className={cn(
                   "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-all",
-                  step === i ? "bg-indigo-600 border-indigo-600 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]" : 
-                  step > i ? "bg-zinc-800 border-zinc-800 text-emerald-500" : "bg-zinc-950 border-zinc-800 text-zinc-500"
+                  step === i ? "bg-[#2b72f5] border-[#2b72f5] text-white shadow-[0_0_15px_rgba(43,114,245,0.5)]" : 
+                  step > i ? "bg-[#030720] border-[#8d99c4]/15 text-[#2b72f5]" : "bg-[#020514] border-[#8d99c4]/15 text-[#8d99c4]/60"
                 )}>
                   {step > i ? <Check className="w-5 h-5" /> : i + 1}
                 </div>
-                <span className={cn("text-xs font-bold uppercase tracking-widest", step === i ? "text-white" : "text-zinc-500")}>
+                <span className={cn("text-xs font-bold uppercase tracking-widest", step === i ? "text-white" : "text-[#8d99c4]/60")}>
                   {label}
                 </span>
               </div>
               {i < STEPS.length - 1 && (
-                <div className={cn("h-[2px] flex-1 mx-4 bg-zinc-800 transition-colors", step > i && "bg-indigo-600/50")} />
+                <div className={cn("h-[2px] flex-1 mx-4 bg-[#8d99c4]/10 transition-colors", step > i && "bg-[#2b72f5]/50")} />
               )}
             </div>
           ))}
@@ -285,20 +319,20 @@ export default function NewJobPage() {
           {submitError && (
             <Card className={cn(
               "border p-5",
-              showUpgradePrompt ? "bg-amber-500/10 border-amber-500/30" : "bg-red-500/10 border-red-500/30"
+              showUpgradePrompt ? "bg-amber-500/10 border-amber-500/30" : "bg-rose-500/10 border-rose-500/30"
             )}>
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className={cn("text-sm font-bold", showUpgradePrompt ? "text-amber-200" : "text-red-200")}>
                     {showUpgradePrompt ? "Free conversion used" : "Conversion failed"}
                   </p>
-                  <p className="mt-1 text-sm text-zinc-300">{submitError}</p>
+                  <p className="mt-1 text-sm text-[#dee3f7]/85">{submitError}</p>
                 </div>
                 {showUpgradePrompt && (
                   <Button
                     type="button"
                     onClick={() => router.push("/billing")}
-                    className="shrink-0 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl"
+                    className="shrink-0 bg-[#2b72f5] hover:bg-[#1a5ecc] text-white rounded-xl"
                   >
                     <CreditCard className="w-4 h-4 mr-2" />
                     Upgrade
@@ -330,15 +364,15 @@ export default function NewJobPage() {
 
               {formData.sourceType === "github" ? (
                 <div className="space-y-2">
-                  <Label className="text-zinc-400">Repository URL</Label>
+                  <Label className="text-[#8d99c4]">Repository URL</Label>
                   <Input 
                     id="source-url"
                     placeholder="https://github.com/user/repo" 
-                    className="bg-zinc-900 border-zinc-800 h-12 rounded-xl text-white placeholder:text-zinc-600 focus:ring-indigo-500"
+                    className="bg-[#030720]/50 border-[#8d99c4]/15 h-12 rounded-xl text-white placeholder-[#8d99c4]/40 focus:ring-[#2b72f5]"
                     value={formData.sourceUrl}
                     onChange={(e) => setFormData(f => ({ ...f, sourceUrl: e.target.value }))}
                   />
-                  <p className="text-[10px] text-zinc-600 flex items-center gap-1"><Info className="w-3 h-3" /> Must be a valid GitHub URL</p>
+                  <p className="text-[10px] text-[#8d99c4]/65 flex items-center gap-1"><Info className="w-3 h-3" /> Must be a valid GitHub URL</p>
                 </div>
               ) : (
                 <div 
@@ -349,7 +383,7 @@ export default function NewJobPage() {
                     const file = e.dataTransfer.files?.[0];
                     if (file) handleFileSelect(file);
                   }}
-                  className="border-2 border-dashed border-zinc-800 rounded-2xl p-12 text-center bg-zinc-900/10 hover:bg-zinc-900/20 transition-colors cursor-pointer group"
+                  className="border-2 border-dashed border-[#8d99c4]/15 rounded-2xl p-12 text-center bg-[#030720]/30 hover:bg-[#030720]/50 transition-colors cursor-pointer group"
                 >
                   <input 
                     type="file" 
@@ -361,11 +395,11 @@ export default function NewJobPage() {
                       if (file) handleFileSelect(file);
                     }}
                   />
-                  <FileArchive className={cn("w-12 h-12 mx-auto mb-4 transition-colors", selectedFile ? "text-indigo-400" : "text-zinc-700 group-hover:text-indigo-500")} />
-                  <p className="text-zinc-400 font-medium">
+                  <FileArchive className={cn("w-12 h-12 mx-auto mb-4 transition-colors", selectedFile ? "text-[#2b72f5]" : "text-[#8d99c4]/50 group-hover:text-[#2b72f5]")} />
+                  <p className="text-[#dee3f7]/85 font-medium">
                     {selectedFile ? selectedFile.name : "Click to select or drag and drop"}
                   </p>
-                  <p className="text-zinc-600 text-xs mt-1">
+                  <p className="text-[#8d99c4] text-xs mt-1">
                     {selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB` : ".zip files only · max 200 MB"}
                   </p>
                 </div>
@@ -375,29 +409,29 @@ export default function NewJobPage() {
 
           {/* STEP 2: CONFIGURATION */}
           {step === 1 && (
-            <Card className="bg-zinc-900/50 border-zinc-800">
+            <Card className="bg-[#030720]/50 border-[#8d99c4]/15">
               <CardContent className="pt-6 space-y-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="app-name" className="text-zinc-400">App Name</Label>
+                    <Label htmlFor="app-name" className="text-[#8d99c4]">App Name</Label>
                     <Input 
                       id="app-name"
                       placeholder="My Amazing App" 
-                      className="bg-zinc-950 border-zinc-800 text-white"
+                      className="bg-[#020514] border-[#8d99c4]/15 text-white"
                       value={formData.name}
                       onChange={(e) => setFormData(f => ({ ...f, name: e.target.value }))}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="app-id" className="text-zinc-400">App ID (Bundle ID)</Label>
+                    <Label htmlFor="app-id" className="text-[#8d99c4]">App ID (Bundle ID)</Label>
                     <Input 
                       id="app-id"
                       placeholder="com.example.myapp" 
-                      className="bg-zinc-950 border-zinc-800 text-white font-mono"
+                      className="bg-[#020514] border-[#8d99c4]/15 text-white font-mono"
                       value={formData.appId}
                       onChange={(e) => setFormData(f => ({ ...f, appId: e.target.value }))}
                     />
-                    <p className="text-[10px] text-zinc-600 flex items-center gap-1">
+                    <p className="text-[10px] text-[#8d99c4] flex items-center gap-1">
                       <Info className="w-3 h-3" /> Reverse-domain format, e.g. com.acme.app
                     </p>
                   </div>
@@ -405,7 +439,7 @@ export default function NewJobPage() {
 
                 {/* App Icon Upload */}
                 <div className="space-y-3">
-                  <Label className="text-zinc-400">App Icon <span className="text-zinc-600 font-normal">(optional)</span></Label>
+                  <Label className="text-[#8d99c4]">App Icon <span className="text-[#8d99c4]/50 font-normal">(optional)</span></Label>
                   <div
                     onClick={() => !iconFile && iconInputRef.current?.click()}
                     onDragOver={(e) => e.preventDefault()}
@@ -417,8 +451,8 @@ export default function NewJobPage() {
                     className={cn(
                       "relative flex items-center gap-5 p-4 rounded-xl border-2 transition-all",
                       iconFile
-                        ? "border-indigo-500/50 bg-indigo-600/5 cursor-default"
-                        : "border-dashed border-zinc-800 bg-zinc-950 hover:border-zinc-700 hover:bg-zinc-900/30 cursor-pointer"
+                        ? "border-[#2b72f5]/50 bg-[#2b72f5]/5 cursor-default"
+                        : "border-dashed border-[#8d99c4]/15 bg-[#020514] hover:border-[#2b72f5]/30 hover:bg-[#030720]/50 cursor-pointer"
                     )}
                   >
                     <input
@@ -439,18 +473,18 @@ export default function NewJobPage() {
                           <img
                             src={iconPreview}
                             alt="App icon preview"
-                            className="w-16 h-16 rounded-xl object-cover border border-zinc-700 shadow-lg"
+                            className="w-16 h-16 rounded-xl object-cover border border-[#8d99c4]/20 shadow-lg"
                           />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-white truncate">{iconFile.name}</p>
-                          <p className="text-xs text-zinc-500">{(iconFile.size / 1024).toFixed(1)} KB</p>
+                          <p className="text-xs text-[#8d99c4]/70">{(iconFile.size / 1024).toFixed(1)} KB</p>
                           <p className="text-[10px] text-emerald-400 mt-1">✓ Will be used as application icon</p>
                         </div>
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); clearIcon(); }}
-                          className="shrink-0 p-1.5 rounded-lg text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                          className="shrink-0 p-1.5 rounded-lg text-[#8d99c4] hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                           aria-label="Remove icon"
                         >
                           <X className="w-4 h-4" />
@@ -458,12 +492,12 @@ export default function NewJobPage() {
                       </>
                     ) : (
                       <>
-                        <div className="w-16 h-16 rounded-xl border-2 border-dashed border-zinc-800 flex items-center justify-center shrink-0">
-                          <ImagePlus className="w-6 h-6 text-zinc-600" />
+                        <div className="w-16 h-16 rounded-xl border-2 border-dashed border-[#8d99c4]/10 flex items-center justify-center shrink-0">
+                          <ImagePlus className="w-6 h-6 text-[#8d99c4]/40" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-zinc-400">Upload app icon</p>
-                          <p className="text-xs text-zinc-600 mt-0.5">PNG, JPG, or ICO · 512×512 px recommended</p>
+                          <p className="text-sm font-medium text-[#8d99c4]">Upload app icon</p>
+                          <p className="text-xs text-[#8d99c4]/60 mt-0.5">PNG, JPG, or ICO · 512×512 px recommended</p>
                         </div>
                       </>
                     )}
@@ -471,13 +505,13 @@ export default function NewJobPage() {
                 </div>
 
                 <div className="space-y-4">
-                  <Label className="text-zinc-400">Target Platforms</Label>
-                  <div className="flex flex-wrap gap-6 p-4 bg-zinc-950 border border-zinc-800 rounded-xl">
+                  <Label className="text-[#8d99c4]">Target Platforms</Label>
+                  <div className="flex flex-wrap gap-6 p-4 bg-[#020514] border border-[#8d99c4]/15 rounded-xl">
                     <TargetCheckbox label="Windows" value="windows" checked={formData.targets.includes("windows")} onCheckedChange={() => toggleTarget("windows")} />
                     <TargetCheckbox label="Linux"   value="linux"   checked={formData.targets.includes("linux")}   onCheckedChange={() => toggleTarget("linux")} />
                     <TargetCheckbox label="macOS"   value="mac"     checked={formData.targets.includes("mac")}     onCheckedChange={() => toggleTarget("mac")} />
                     <TargetCheckbox label="Android" value="android" checked={formData.targets.includes("android")} onCheckedChange={() => toggleTarget("android")} />
-                    <TargetCheckbox label="iOS"     value="ios"     checked={formData.targets.includes("ios")}     onCheckedChange={() => toggleTarget("ios")} disabled={user?.plan === "free"} />
+                    <TargetCheckbox label="iOS"     value="ios"     checked={formData.targets.includes("ios")}     onCheckedChange={() => toggleTarget("ios")} />
                   </div>
                   {formData.targets.includes("ios") && (
                     <p className="text-[10px] text-amber-400 flex items-center gap-1">
@@ -489,6 +523,166 @@ export default function NewJobPage() {
                       <Info className="w-3 h-3" /> macOS (.dmg) builds require a macOS worker. This target will be skipped if the pipeline runs on a Linux or Windows machine.
                     </p>
                   )}
+
+                  {formData.targets.includes("android") && (
+                    <div className="mt-4 p-4 border border-[#8d99c4]/15 bg-[#020514]/60 rounded-xl space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="enable-android-signing"
+                          checked={androidSigning.enabled}
+                          onCheckedChange={(checked) =>
+                            setAndroidSigning((prev) => ({
+                              ...prev,
+                              enabled: !!checked,
+                            }))
+                          }
+                        />
+                        <label
+                          htmlFor="enable-android-signing"
+                          className="text-sm font-semibold text-white cursor-pointer select-none"
+                        >
+                          Enable Android Release Signing (for Play Store deployment)
+                        </label>
+                      </div>
+
+                      {androidSigning.enabled && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-[#8d99c4]/10 animate-in fade-in slide-in-from-top-2 duration-200">
+                          <div className="space-y-2 md:col-span-2">
+                            <Label className="text-[#8d99c4] flex items-center gap-1.5">
+                              <Key className="w-4 h-4 text-[#2b72f5]" /> Keystore File (.keystore or .jks)
+                            </Label>
+                            <div
+                              onClick={() => !keystoreFile && keystoreInputRef.current?.click()}
+                              className={cn(
+                                "relative flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer",
+                                keystoreFile
+                                  ? "border-[#2b72f5]/50 bg-[#2b72f5]/5"
+                                  : "border-dashed border-[#8d99c4]/15 bg-[#020514] hover:border-[#2b72f5]/30"
+                              )}
+                            >
+                              <input
+                                ref={keystoreInputRef}
+                                type="file"
+                                accept=".keystore,.jks"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) setKeystoreFile(file);
+                                }}
+                              />
+                              <div className="flex items-center gap-2 overflow-hidden">
+                                <FileArchive className={cn("w-5 h-5 flex-shrink-0", keystoreFile ? "text-[#2b72f5]" : "text-[#8d99c4]/40")} />
+                                <span className="text-sm text-[#dee3f7]/85 truncate">
+                                  {keystoreFile ? keystoreFile.name : "Select or drag and drop your keystore file"}
+                                </span>
+                              </div>
+                              {keystoreFile && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setKeystoreFile(null);
+                                    if (keystoreInputRef.current) keystoreInputRef.current.value = "";
+                                  }}
+                                  className="p-1 rounded text-[#8d99c4] hover:text-rose-400 transition-colors"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="keystore-alias" className="text-[#8d99c4]">Key Alias</Label>
+                            <Input
+                              id="keystore-alias"
+                              placeholder="my-key-alias"
+                              className="bg-[#020514] border-[#8d99c4]/15 text-white"
+                              value={androidSigning.keystoreAlias}
+                              onChange={(e) =>
+                                setAndroidSigning((prev) => ({
+                                  ...prev,
+                                  keystoreAlias: e.target.value,
+                                }))
+                              }
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="keystore-password" className="text-[#8d99c4]">Keystore Password</Label>
+                            <Input
+                              id="keystore-password"
+                              type="password"
+                              placeholder="••••••••"
+                              className="bg-[#020514] border-[#8d99c4]/15 text-white"
+                              value={androidSigning.keystorePassword}
+                              onChange={(e) =>
+                                setAndroidSigning((prev) => ({
+                                  ...prev,
+                                  keystorePassword: e.target.value,
+                                }))
+                              }
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="keystore-alias-password" className="text-[#8d99c4]">
+                              Key Password <span className="text-[#8d99c4]/50 text-xs font-normal">(optional)</span>
+                            </Label>
+                            <Input
+                              id="keystore-alias-password"
+                              type="password"
+                              placeholder="Leave blank to use keystore password"
+                              className="bg-[#020514] border-[#8d99c4]/15 text-white"
+                              value={androidSigning.keystoreAliasPassword}
+                              onChange={(e) =>
+                                setAndroidSigning((prev) => ({
+                                  ...prev,
+                                  keystoreAliasPassword: e.target.value,
+                                }))
+                              }
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="build-variant" className="text-[#8d99c4]">Build Variant</Label>
+                            <select
+                              id="build-variant"
+                              className="w-full h-10 px-3 rounded-md bg-[#020514] border border-[#8d99c4]/15 text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#2b72f5]"
+                              value={androidSigning.buildVariant}
+                              onChange={(e) =>
+                                setAndroidSigning((prev) => ({
+                                  ...prev,
+                                  buildVariant: e.target.value as "debug" | "release",
+                                }))
+                              }
+                            >
+                              <option value="release">Release (Production)</option>
+                              <option value="debug">Debug</option>
+                            </select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="artifact-type" className="text-[#8d99c4]">Artifact Type</Label>
+                            <select
+                              id="artifact-type"
+                              className="w-full h-10 px-3 rounded-md bg-[#020514] border border-[#8d99c4]/15 text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#2b72f5]"
+                              value={androidSigning.artifactType}
+                              onChange={(e) =>
+                                setAndroidSigning((prev) => ({
+                                  ...prev,
+                                  artifactType: e.target.value as "apk" | "aab",
+                                }))
+                              }
+                            >
+                              <option value="aab">AAB (Google Play Store Bundle)</option>
+                              <option value="apk">APK (Direct Installation / Sharing)</option>
+                            </select>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -496,15 +690,15 @@ export default function NewJobPage() {
 
           {/* STEP 3: REVIEW */}
           {step === 2 && (
-            <Card className="bg-zinc-900 border-zinc-800 overflow-hidden">
-              <div className="bg-indigo-600/10 p-6 border-b border-indigo-500/20">
+            <Card className="bg-[#030720]/50 border-[#8d99c4]/15 overflow-hidden">
+              <div className="bg-[#2b72f5]/15 p-6 border-b border-[#2b72f5]/20">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-indigo-500/20 rounded-2xl flex items-center justify-center text-indigo-400">
+                  <div className="w-12 h-12 bg-[#2b72f5]/25 rounded-2xl flex items-center justify-center text-[#2b72f5]">
                     <Rocket className="w-6 h-6" />
                   </div>
                   <div>
                     <h3 className="text-white font-bold">Ready to Launch</h3>
-                    <p className="text-indigo-400/80 text-xs">Review your configuration before starting.</p>
+                    <p className="text-[#2b72f5]/80 text-xs">Review your configuration before starting.</p>
                   </div>
                 </div>
               </div>
@@ -514,13 +708,19 @@ export default function NewJobPage() {
                 <ReviewItem label="Source" value={formData.sourceType === "github" ? formData.sourceUrl : selectedFile?.name ?? "ZIP Upload"} />
                 <ReviewItem label="Targets" value={formData.targets.join(", ").toUpperCase()} />
                 <ReviewItem label="App Icon" value={iconFile ? `✓ ${iconFile.name}` : "Auto-detect from source"} />
+                {formData.targets.includes("android") && (
+                  <ReviewItem 
+                    label="Android Signing" 
+                    value={androidSigning.enabled ? `Enabled (${androidSigning.artifactType.toUpperCase()} - ${androidSigning.buildVariant})` : "Disabled"} 
+                  />
+                )}
                 
-                <div className="mt-8 p-4 bg-zinc-950 rounded-xl border border-zinc-800">
+                <div className="mt-8 p-4 bg-[#020514] rounded-xl border border-[#8d99c4]/15">
                   <div className="flex items-center gap-2 mb-2">
-                    <Info className="w-4 h-4 text-indigo-400" />
+                    <Info className="w-4 h-4 text-[#2b72f5]" />
                     <span className="text-sm font-bold text-white">Estimated Build Time</span>
                   </div>
-                  <p className="text-sm text-zinc-500">
+                  <p className="text-sm text-[#8d99c4]">
                     Based on {formData.targets.length} target platform{formData.targets.length !== 1 ? "s" : ""}, this build will take approximately {formData.targets.length * 2}–{formData.targets.length * 2 + 3} minutes.
                   </p>
                 </div>
@@ -533,7 +733,7 @@ export default function NewJobPage() {
             <Button 
               variant="ghost" 
               onClick={prevStep} 
-              className={cn("text-zinc-500 hover:text-white hover:bg-zinc-900 rounded-xl", step === 0 && "invisible")}
+              className={cn("text-[#8d99c4] hover:text-white hover:bg-[#030720]/50 rounded-xl", step === 0 && "invisible")}
             >
               <ChevronLeft className="w-4 h-4 mr-2" />
               Back
@@ -543,7 +743,7 @@ export default function NewJobPage() {
               <Button 
                 id="step-next"
                 onClick={nextStep}
-                className="bg-zinc-100 text-zinc-950 hover:bg-white rounded-xl px-8"
+                className="bg-white text-[#020514] hover:bg-[#dee3f7] rounded-xl px-8"
               >
                 Continue
                 <ChevronRight className="w-4 h-4 ml-2" />
@@ -553,7 +753,7 @@ export default function NewJobPage() {
                 id="start-conversion"
                 onClick={handleSubmit} 
                 disabled={loading}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-8 shadow-[0_0_20px_rgba(99,102,241,0.3)]"
+                className="bg-[#2b72f5] hover:bg-[#1a5ecc] text-white rounded-xl px-8 shadow-[0_0_20px_rgba(43,114,245,0.3)]"
               >
                 {loading ? (
                   <span className="flex items-center gap-2">
@@ -579,13 +779,13 @@ function SourceOption({ icon: Icon, label, description, active, onClick }: Sourc
       onClick={onClick}
       className={cn(
         "p-6 border-2 rounded-2xl cursor-pointer transition-all group",
-        active ? "bg-indigo-600/10 border-indigo-600 ring-1 ring-indigo-600/50 shadow-[0_0_20px_rgba(99,102,241,0.1)]" : 
-        "bg-zinc-900/30 border-zinc-800 hover:border-zinc-700"
+        active ? "bg-[#2b72f5]/15 border-[#2b72f5] ring-1 ring-[#2b72f5]/50 shadow-[0_0_20px_rgba(43,114,245,0.1)]" : 
+        "bg-[#030720]/30 border-[#8d99c4]/15 hover:border-[#2b72f5]/30"
       )}
     >
-      <Icon className={cn("w-8 h-8 mb-4 transition-colors", active ? "text-indigo-400" : "text-zinc-600 group-hover:text-zinc-500")} />
-      <h3 className={cn("font-bold text-sm", active ? "text-white" : "text-zinc-400")}>{label}</h3>
-      <p className="text-xs text-zinc-600 mt-1">{description}</p>
+      <Icon className={cn("w-8 h-8 mb-4 transition-colors", active ? "text-[#2b72f5]" : "text-[#8d99c4]/60 group-hover:text-[#2b72f5]/70")} />
+      <h3 className={cn("font-bold text-sm", active ? "text-white" : "text-[#8d99c4]")}>{label}</h3>
+      <p className="text-xs text-[#8d99c4]/70 mt-1">{description}</p>
     </div>
   );
 }
@@ -594,9 +794,9 @@ function TargetCheckbox({ label, value, checked, onCheckedChange, disabled }: Ta
   return (
     <div className={cn("flex items-center space-x-2", disabled && "opacity-40 cursor-not-allowed")}>
       <Checkbox id={`target-${value}`} checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} />
-      <label htmlFor={`target-${value}`} className="text-sm font-medium text-zinc-300 cursor-pointer uppercase tracking-tight">
+      <label htmlFor={`target-${value}`} className="text-sm font-medium text-[#dee3f7]/85 cursor-pointer uppercase tracking-tight">
         {label}
-        {disabled && <span className="ml-1 text-[9px] text-amber-500 normal-case tracking-normal">Pro</span>}
+        {disabled && <span className="ml-1 text-[9px] text-[#fcc8b7] normal-case tracking-normal">Pro</span>}
       </label>
     </div>
   );
@@ -604,9 +804,9 @@ function TargetCheckbox({ label, value, checked, onCheckedChange, disabled }: Ta
 
 function ReviewItem({ label, value }: ReviewItemProps) {
   return (
-    <div className="flex justify-between items-start py-2 border-b border-zinc-800/50 last:border-0">
-      <span className="text-xs font-bold text-zinc-600 uppercase tracking-widest">{label}</span>
-      <span className="text-sm font-medium text-zinc-300 text-right max-w-xs truncate">{value}</span>
+    <div className="flex justify-between items-start py-2 border-b border-[#8d99c4]/10 last:border-0">
+      <span className="text-xs font-bold text-[#8d99c4]/80 uppercase tracking-widest">{label}</span>
+      <span className="text-sm font-medium text-white text-right max-w-xs truncate">{value}</span>
     </div>
   );
 }

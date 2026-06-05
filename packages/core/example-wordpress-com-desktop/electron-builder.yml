@@ -1,0 +1,48 @@
+appId: com.test.app
+productName: Test App
+copyright: Copyright ©  Test App
+
+directories:
+  output: release
+  buildResources: assets
+
+files:
+  - dist/**/*
+  - electron/**/*
+  - backend/**/*
+  - package.json
+  - "!node_modules/.cache"
+  - "!**/*.map"
+  - "!**/*.ts"
+
+extraResources:
+  - from: backend/
+    to: backend/
+    filter:
+      - "**/*"
+      - "!**/*.ts"
+
+# ---------------------------------------------------------------------------
+# Windows
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Linux
+# NOTE: Building Linux targets from Windows requires mksquashfs which is not
+# available on Windows. To build for Linux, use a Linux machine or GitHub Actions.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# macOS
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Auto-Updates — powered by electron-updater
+# See: https://www.electron.build/auto-update
+# ---------------------------------------------------------------------------
+# Auto-updates disabled. Add an 'updates' block to webtoapp.config.json to enable.
+publish:
+  provider: github
+  owner: "your-github-username"
+  repo: "your-repo-name"
+  private: false

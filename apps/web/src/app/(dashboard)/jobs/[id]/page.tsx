@@ -401,11 +401,11 @@ export default function JobDetailPage() {
   // ── Loading skeleton ──────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950">
+      <div className="min-h-screen bg-[#020514]">
         <TopBar title="Loading Job..." />
         <div className="p-8 max-w-7xl mx-auto space-y-6">
-          <Skeleton className="h-40 w-full bg-zinc-900" />
-          <Skeleton className="h-64 w-full bg-zinc-900" />
+          <Skeleton className="h-40 w-full bg-[#030720]/50 border border-[#8d99c4]/15" />
+          <Skeleton className="h-64 w-full bg-[#030720]/50 border border-[#8d99c4]/15" />
         </div>
       </div>
     );
@@ -413,10 +413,10 @@ export default function JobDetailPage() {
 
   if (!job) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center">
-        <AlertTriangle className="w-16 h-16 text-zinc-800 mb-4" />
+      <div className="min-h-screen bg-[#020514] flex flex-col items-center justify-center">
+        <AlertTriangle className="w-16 h-16 text-[#8d99c4]/30 mb-4" />
         <h2 className="text-xl font-bold text-white">Job Not Found</h2>
-        <Button variant="link" onClick={() => router.push("/jobs")}>
+        <Button variant="link" onClick={() => router.push("/jobs")} className="text-[#2b72f5] hover:text-[#1a5ecc]">
           Back to My Jobs
         </Button>
       </div>
@@ -436,7 +436,7 @@ export default function JobDetailPage() {
       : STAGE_LABELS[normStatus] || job.status;
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="min-h-screen bg-[#020514]">
       <TopBar title={job.name} />
 
       <div className="p-8 space-y-8 max-w-7xl mx-auto">
@@ -445,7 +445,7 @@ export default function JobDetailPage() {
             variant="ghost"
             size="icon"
             onClick={() => router.push("/jobs")}
-            className="text-zinc-500 hover:text-white"
+            className="text-[#8d99c4] hover:text-white"
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
@@ -454,8 +454,8 @@ export default function JobDetailPage() {
             <StatusBadge status={job.status} />
             {/* Estimated wait time */}
             {isActive && countdown !== null && countdown > 0 && (
-              <span className="flex items-center gap-1 text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 rounded-full px-2.5 py-1">
-                <Timer className="w-3 h-3 animate-pulse text-indigo-400" />
+              <span className="flex items-center gap-1 text-xs text-[#8d99c4] bg-[#030720]/50 border border-[#8d99c4]/15 rounded-full px-2.5 py-1">
+                <Timer className="w-3 h-3 animate-pulse text-[#2b72f5]" />
                 ~{formatCountdown(countdown)} remaining
               </span>
             )}
@@ -465,13 +465,13 @@ export default function JobDetailPage() {
         {/* Pipeline progress bar */}
         {(isActive || normStatus === "done") && (
           <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs text-zinc-500">
+            <div className="flex items-center justify-between text-xs text-[#8d99c4]">
               <span className="font-medium uppercase tracking-widest">
                 {activeLabel}
               </span>
               <span>{displayProgress}%</span>
             </div>
-            <Progress value={displayProgress} className="h-2 bg-zinc-900" />
+            <Progress value={displayProgress} className="h-2 bg-[#020514] [&>div]:bg-[#2b72f5]" />
             {/* Stage markers */}
             <div className="flex justify-between px-0.5">
               {STAGE_ORDER.slice(0, -1).map((stage, i) => {
@@ -484,10 +484,10 @@ export default function JobDetailPage() {
                       className={cn(
                         "w-1.5 h-1.5 rounded-full transition-colors",
                         isCurrent
-                          ? "bg-indigo-500 ring-2 ring-indigo-500/30"
+                          ? "bg-[#2b72f5] ring-2 ring-[#2b72f5]/30"
                           : isPast
                             ? "bg-emerald-500"
-                            : "bg-zinc-700",
+                            : "bg-[#8d99c4]/30",
                       )}
                     />
                   </div>
@@ -500,9 +500,9 @@ export default function JobDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column: Summary & Downloads */}
           <div className="space-y-6">
-            <Card className="bg-zinc-900/50 border-zinc-800 overflow-hidden">
-              <CardHeader className="bg-zinc-900/80 border-b border-zinc-800">
-                <CardTitle className="text-sm font-bold uppercase tracking-widest text-zinc-400 flex items-center gap-2">
+            <Card className="bg-[#030720]/50 border-[#8d99c4]/15 overflow-hidden">
+              <CardHeader className="bg-[#030720]/80 border-b border-[#8d99c4]/15">
+                <CardTitle className="text-sm font-bold uppercase tracking-widest text-[#8d99c4] flex items-center gap-2">
                   <Settings className="w-4 h-4" /> Build Summary
                 </CardTitle>
               </CardHeader>
@@ -528,11 +528,11 @@ export default function JobDetailPage() {
                 "border-2",
                 job.status === "done" && artifacts.length > 0
                   ? "bg-emerald-500/5 border-emerald-500/20"
-                  : "bg-zinc-900/50 border-zinc-800",
+                  : "bg-[#030720]/50 border-[#8d99c4]/15",
               )}
             >
               <CardHeader>
-                <CardTitle className="text-sm font-bold uppercase tracking-widest text-zinc-400">
+                <CardTitle className="text-sm font-bold uppercase tracking-widest text-[#8d99c4]">
                   Artifacts
                 </CardTitle>
               </CardHeader>
@@ -542,17 +542,17 @@ export default function JobDetailPage() {
                     {artifacts.map((artifact) => (
                       <div
                         key={artifact.id}
-                        className="flex items-center justify-between p-3 bg-zinc-950 border border-zinc-800 rounded-xl group hover:border-indigo-500/50 transition-colors"
+                        className="flex items-center justify-between p-3 bg-[#020514] border border-[#8d99c4]/10 rounded-xl group hover:border-[#2b72f5]/50 transition-colors"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center font-bold text-[10px] text-zinc-500">
+                          <div className="w-8 h-8 rounded-lg bg-[#030720] flex items-center justify-center font-bold text-[10px] text-[#8d99c4]">
                             {artifact.platform?.[0]?.toUpperCase()}
                           </div>
                           <div>
                             <p className="text-xs font-bold text-white uppercase">
                               {artifact.platform}
                             </p>
-                            <p className="text-[10px] text-zinc-500">
+                            <p className="text-[10px] text-[#8d99c4]/70">
                               {artifactLabel(
                                 artifact.s3Key,
                                 artifact.sizeBytes,
@@ -579,10 +579,10 @@ export default function JobDetailPage() {
                 ) : job.status === "done" ? (
                   <div className="text-center py-6">
                     <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
-                    <p className="text-sm text-zinc-400 font-medium">
+                    <p className="text-sm text-[#8d99c4] font-medium">
                       No artifacts were produced
                     </p>
-                    <p className="text-xs text-zinc-600 mt-1 max-w-[220px] mx-auto">
+                    <p className="text-xs text-[#8d99c4]/60 mt-1 max-w-[220px] mx-auto">
                       Check the build log for skipped platforms or worker
                       constraints.
                     </p>
@@ -590,17 +590,17 @@ export default function JobDetailPage() {
                 ) : job.status === "failed" ? (
                   <div className="text-center py-6">
                     <XCircle className="w-12 h-12 text-rose-500 mx-auto mb-3" />
-                    <p className="text-sm text-zinc-400 font-medium">
+                    <p className="text-sm text-[#8d99c4] font-medium">
                       Build failed
                     </p>
-                    <p className="text-xs text-zinc-600 mt-1 max-w-[180px] mx-auto">
+                    <p className="text-xs text-[#8d99c4]/60 mt-1 max-w-[180px] mx-auto">
                       {job.errorMessage ||
                         "An unknown error occurred during the pipeline."}
                     </p>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="mt-4 border-zinc-800 text-zinc-400 hover:text-white"
+                      className="mt-4 border-[#8d99c4]/15 text-[#8d99c4] hover:text-white hover:bg-[#030720]"
                       onClick={() => router.push("/jobs/new")}
                     >
                       <RefreshCw className="w-3 h-3 mr-1" /> Retry
@@ -608,11 +608,11 @@ export default function JobDetailPage() {
                   </div>
                 ) : (
                   <div className="text-center py-12">
-                    <Clock className="w-10 h-10 text-zinc-700 mx-auto mb-3 animate-pulse" />
-                    <p className="text-xs text-zinc-500 uppercase font-bold tracking-widest">
+                    <Clock className="w-10 h-10 text-[#8d99c4]/30 mx-auto mb-3 animate-pulse" />
+                    <p className="text-xs text-[#8d99c4] uppercase font-bold tracking-widest">
                       Building artifacts...
                     </p>
-                    <p className="text-[10px] text-zinc-600 mt-2">
+                    <p className="text-[10px] text-[#8d99c4]/60 mt-2">
                       Available once the pipeline completes.
                     </p>
                   </div>
@@ -622,7 +622,7 @@ export default function JobDetailPage() {
 
             <Button
               variant="ghost"
-              className="w-full text-zinc-600 hover:text-rose-400 hover:bg-rose-500/5 disabled:opacity-50"
+              className="w-full text-[#8d99c4]/80 hover:text-rose-400 hover:bg-rose-500/5 disabled:opacity-50"
               disabled={isDeleting}
               onClick={async () => {
                 if (
@@ -666,10 +666,10 @@ export default function JobDetailPage() {
 function SummaryItem({ label, value }: { label: string; value: string }) {
   return (
     <div className="space-y-1">
-      <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">
+      <p className="text-[10px] font-bold text-[#8d99c4] uppercase tracking-widest">
         {label}
       </p>
-      <p className="text-sm font-medium text-zinc-300 truncate" title={value}>
+      <p className="text-sm font-medium text-[#dee3f7]/85 truncate" title={value}>
         {value}
       </p>
     </div>
@@ -691,9 +691,9 @@ function StatusBadge({ status }: { status: ConversionStatus }) {
   const styles: Record<string, string> = {
     done: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
     failed: "bg-rose-500/10 text-rose-500 border-rose-500/20",
-    cancelled: "bg-zinc-800 text-zinc-500 border-zinc-700",
+    cancelled: "bg-[#030720] text-[#8d99c4] border-[#8d99c4]/15",
     default:
-      "bg-indigo-500/10 text-indigo-400 border-indigo-500/20 animate-pulse",
+      "bg-[#2b72f5]/10 text-[#2b72f5] border-[#2b72f5]/20 animate-pulse",
   };
 
   const style = styles[status] ?? styles.default;

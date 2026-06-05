@@ -4,8 +4,12 @@
  *  "online"  — Original cloud backend kept as-is (Supabase/Firebase untouched).
  *              App runs inside Electron with internet required.
  *              Best for: apps that must sync with a shared cloud database.
+ *
+ *  "offline" — Cloud backend replaced with a local Express + SQLite stack.
+ *              App works without any internet connection.
+ *              Best for: fully air-gapped / kiosk deployments.
  */
-export type ConversionMode = "online";
+export type ConversionMode = "online" | "offline";
 
 /**
  * User-supplied configuration — loaded from webtoapp.config.json or
@@ -28,7 +32,9 @@ export interface ConversionConfig {
   targets: Array<"windows" | "linux" | "mac" | "android" | "ios">;
 
   /**
-   * Conversion mode — always "online" (cloud backend kept as-is).
+   * Conversion mode.
+   * - "online"  — cloud backend kept as-is (internet required).
+   * - "offline" — local Express + SQLite replaces cloud backend.
    * @default "online"
    */
   mode: ConversionMode;

@@ -8,6 +8,8 @@ export interface ConversionQueuePayload {
   zipPath?: string;
   /** Absolute path to uploaded icon PNG/ICO (optional) */
   iconPath?: string;
+  /** Absolute path to uploaded keystore file (optional) */
+  keystorePath?: string;
 }
 
 // ── Redis connection (lazy / fault-tolerant) ──────────────────────────────────

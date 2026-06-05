@@ -44,10 +44,10 @@ function normalizePlan(plan: string): Plan {
 }
 
 const PLANS_METADATA = [
-  { id: "free", name: "Free", price: 0, conversionsPerMonth: 1, features: ["1 free conversion", "Choose Windows, Linux, or macOS", "Community support", "Basic templates"] },
-  { id: "pro", name: "Pro", price: 10000, conversionsPerMonth: 10, features: ["10 conversions per month", "Windows builds only", "Priority support", "Advanced templates", "Custom configurations"] },
-  { id: "team", name: "Team", price: 20000, conversionsPerMonth: 15, features: ["15 conversions per month", "Windows & Linux builds only", "Priority queue processing", "Team collaboration tools", "Advanced analytics"] },
-  { id: "ultra", name: "Ultra", price: 30000, conversionsPerMonth: 20, features: ["20 conversions per month", "All build targets (Win, Linux, Mac)", "Ultra priority queue", "CI/CD API access", "Custom integrations", "Dedicated support"] }
+  { id: "free", name: "Free", price: 0, conversionsPerMonth: 1, features: ["1 free conversion", "All build targets (Win, Linux, Mac, Android, iOS)", "Community support", "Basic templates"] },
+  { id: "pro", name: "Pro", price: 20000, conversionsPerMonth: 10, features: ["10 conversions per month", "All build targets (Win, Linux, Mac, Android, iOS)", "Priority support", "Advanced templates", "Custom configurations"] },
+  { id: "team", name: "Semi-Pro", price: 30000, conversionsPerMonth: 50, features: ["50 conversions per month", "All build targets (Win, Linux, Mac, Android, iOS)", "Priority queue processing", "Team collaboration tools", "Advanced analytics"] },
+  { id: "ultra", name: "Ultra", price: 50000, conversionsPerMonth: 100, features: ["100 conversions per month", "All build targets (Win, Linux, Mac, Android, iOS)", "Ultra priority queue", "CI/CD API access", "Custom integrations", "Dedicated support"] }
 ];
 
 const checkoutGatewaySchema = z.enum(["credit", "stripe", "paypal", "mpesa", "clickpesa", "mock", "mongike"]);
@@ -187,9 +187,17 @@ billingRouter.post("/checkout", requireAuth, async (req, res, next) => {
       if (env.WEBHOOK_BASE_URL) {
         webhookUrl = `${env.WEBHOOK_BASE_URL}/billing/webhooks/mongike`;
       } else if (webhookUrl.includes("localhost") || webhookUrl.includes("127.0.0.1")) {
-        // Mongike requires HTTPS and a valid domain for webhooks.
-        // Fall back to a placeholder HTTPS URL so payment creation does not error in dev.
-        webhookUrl = "https://example.com/webhook";
+        // WEBHOOK_BASE_URL is not set — Mongike cannot reach localhost.
+        // Set WEBHOOK_BASE_URL in .env to a public tunnel URL (e.g. cloudflare tunnel / ngrok).
+        // Payments will still be initiated but the webhook won't auto-upgrade the user.
+        // Use the 'Simulate Webhook Trigger' button in the UI to manually complete dev payments.
+        console.warn(
+          "[billing] ⚠️  WEBHOOK_BASE_URL is not set. Mongike cannot reach localhost.\n" +
+          "           Run: .\\cloudflared.exe tunnel --url http://localhost:3001\n" +
+          "           Then set WEBHOOK_BASE_URL=https://<your-tunnel>.trycloudflare.com in .env"
+        );
+        // Keep the localhost URL — Mongike will fail to deliver but at least won't error on creation.
+        // The dev simulation button in the UI can be used to complete the payment manually.
       }
 
       const tzsAmount = billingPlan.price;

@@ -47,6 +47,97 @@ export async function runPlanStage(ctx: PipelineContext): Promise<void> {
 
 function buildMigrationPlan(ctx: PipelineContext): MigrationPlan {
   const detection = ctx.detection!;
+
+  if (detection.isLiveUrl) {
+    const dependenciesToAdd: Record<string, string> = {
+      electron: ELECTRON_VERSION,
+      "electron-updater": ELECTRON_UPDATER_VERSION,
+      concurrently: CONCURRENTLY_VERSION,
+      "wait-on": WAIT_ON_VERSION,
+      react: "^18.3.1",
+      "react-dom": "^18.3.1",
+      vite: "^5.4.2",
+      "@vitejs/plugin-react": "^4.3.1",
+    };
+
+    const filesToGenerate: MigrationPlan["filesToGenerate"] = [
+      {
+        outputPath: "index.html",
+        generatorType: "online-iframe-index" as any,
+        templateVars: {
+          appName: ctx.config.name,
+        },
+      },
+      {
+        outputPath: "src/App.jsx",
+        generatorType: "online-iframe-app" as any,
+        templateVars: {
+          liveUrl: ctx.config.source,
+        },
+      },
+      {
+        outputPath: "src/main.jsx",
+        generatorType: "online-iframe-main" as any,
+        templateVars: {},
+      },
+      {
+        outputPath: "electron/main.cjs",
+        generatorType: "electron-main",
+        templateVars: {
+          appName: ctx.config.name,
+          devPort: 5173,
+          backendPort: 0,
+          onlineMode: true,
+        },
+      },
+      {
+        outputPath: "electron/preload.cjs",
+        generatorType: "electron-preload",
+        templateVars: {},
+      },
+      {
+        outputPath: "electron-builder.yml",
+        generatorType: "electron-builder-config",
+        templateVars: {
+          appId: ctx.config.appId,
+          appName: ctx.config.name,
+          version: ctx.config.version,
+          targets: ctx.config.targets,
+          icon: ctx.config.icon ?? "assets/icon.png",
+        },
+      },
+    ];
+
+    if (ctx.config.targets.includes("mac")) {
+      filesToGenerate.push({
+        outputPath: "build/entitlements.mac.plist",
+        generatorType: "mac-entitlements",
+        templateVars: {},
+      });
+    }
+
+    return {
+      filesToTransform: [],
+      filesToCopy: [],
+      filesToDelete: [],
+      filesToGenerate,
+      dependenciesToAdd,
+      dependenciesToRemove: [],
+      scriptsToInject: {
+        "electron:dev": "concurrently \"vite\" \"wait-on tcp:5173 && electron .\"",
+        "electron:build": `vite build && electron-builder --${
+          process.platform === "win32"
+            ? "win"
+            : process.platform === "darwin"
+              ? "mac"
+              : "linux"
+        }`,
+        "electron:build:all": "vite build && electron-builder",
+      },
+      summary: `Online mode - wrapping live website ${ctx.config.source} in Electron app.`,
+    };
+  }
+
   const filesToCopy = detection.scannedFiles.map((filePath) => ctx.relative(filePath));
 
   const dependenciesToAdd: Record<string, string> = {
@@ -54,6 +145,7 @@ function buildMigrationPlan(ctx: PipelineContext): MigrationPlan {
     "electron-updater": ELECTRON_UPDATER_VERSION,
     concurrently: CONCURRENTLY_VERSION,
     "wait-on": WAIT_ON_VERSION,
+    vite: "^5.4.2",
   };
 
   const filesToGenerate: MigrationPlan["filesToGenerate"] = [

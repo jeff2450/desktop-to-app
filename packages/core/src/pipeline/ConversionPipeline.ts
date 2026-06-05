@@ -46,9 +46,21 @@ export class ConversionPipeline {
   }
 
   async run(): Promise<BuildResult> {
-    const sourceDir = path.resolve(this.config.source);
+    const isUrl = this.config.source.startsWith("http://") || this.config.source.startsWith("https://");
+    const sourceDir = isUrl ? this.config.source : path.resolve(this.config.source);
+    
+    let defaultOutputDirName = "webtoapp-app-desktop";
+    if (!isUrl) {
+      defaultOutputDirName = `${path.basename(sourceDir)}-desktop`;
+    } else {
+      try {
+        const u = new URL(this.config.source);
+        defaultOutputDirName = `${u.hostname.replace(/\./g, "-")}-desktop`;
+      } catch {}
+    }
+
     const outputDir = path.resolve(
-      this.config.output ?? path.join(sourceDir, "..", `${path.basename(sourceDir)}-desktop`)
+      this.config.output ?? (isUrl ? path.join(process.cwd(), defaultOutputDirName) : path.join(sourceDir, "..", defaultOutputDirName))
     );
     const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "webtoapp-"));
 
@@ -167,6 +179,9 @@ export class ConversionPipeline {
 
   private async validateLoadedState(ctx: PipelineContext): Promise<void> {
     if (this.config.resumeFromStage || !ctx.getLastCompletedStage()) return;
+
+    const isUrl = ctx.sourceDir.startsWith("http://") || ctx.sourceDir.startsWith("https://");
+    if (isUrl) return;
 
     const outputHasPackageJson = await this.fileExists(path.join(ctx.outputDir, "package.json"));
     const outputHasSrc = await this.dirExists(path.join(ctx.outputDir, "src"));

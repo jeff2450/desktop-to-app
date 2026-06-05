@@ -40,55 +40,75 @@ export async function runPreflightStage(ctx: PipelineContext): Promise<void> {
   const failures: string[] = [];
   const warnings: string[] = [];
 
-  // ── Source directory ────────────────────────────────────────────
-  const srcExists = await isDir(ctx.sourceDir);
-  if (!srcExists) {
-    failures.push(`Source directory does not exist: ${ctx.sourceDir}`);
-    bail(ctx, failures);
-    return;
-  }
-
-  // ── package.json ────────────────────────────────────────────────
-  const pkgPath = path.join(ctx.sourceDir, "package.json");
+  const isUrl = ctx.sourceDir.startsWith("http://") || ctx.sourceDir.startsWith("https://");
+  let isStaticPlain = false;
   let pkg: Record<string, unknown> = {};
-  try {
-    const raw = await fs.readFile(pkgPath, "utf-8");
-    pkg = JSON.parse(raw);
-  } catch {
-    failures.push("No valid package.json found in source directory. Is this a Node.js project?");
-  }
 
-  // ── index.html ──────────────────────────────────────────────────
-  if (!(await fileExists(path.join(ctx.sourceDir, "index.html")))) {
-    failures.push(
-      "index.html not found in source root. " +
-      "Vite expects an index.html at the project root — is this a Vite project?"
-    );
-  }
+  if (isUrl) {
+    try {
+      new URL(ctx.sourceDir);
+    } catch {
+      failures.push(`Invalid source URL: ${ctx.sourceDir}`);
+      bail(ctx, failures);
+      return;
+    }
+  } else {
+    const srcExists = await isDir(ctx.sourceDir);
+    if (!srcExists) {
+      failures.push(`Source directory does not exist: ${ctx.sourceDir}`);
+      bail(ctx, failures);
+      return;
+    }
 
-  // ── src/ directory ──────────────────────────────────────────────
-  if (!(await isDir(path.join(ctx.sourceDir, "src")))) {
-    failures.push("No src/ directory found — detection and transformation require a standard src folder.");
-  }
+    const hasIndexHtml = await fileExists(path.join(ctx.sourceDir, "index.html"));
+    const hasPkgJson = await fileExists(path.join(ctx.sourceDir, "package.json"));
 
-  // ── Vite config ─────────────────────────────────────────────────
-  const viteConfigs = [
-    "vite.config.ts", "vite.config.js", "vite.config.mts", "vite.config.mjs",
-  ];
-  const hasViteConfig = (
-    await Promise.all(viteConfigs.map((f) => fileExists(path.join(ctx.sourceDir, f))))
-  ).some(Boolean);
+    if (hasIndexHtml && !hasPkgJson) {
+      isStaticPlain = true;
+      ctx.log("info", "Static plain HTML/CSS/JS site detected (no package.json).", STAGE);
+    } else {
+      // ── package.json ────────────────────────────────────────────────
+      const pkgPath = path.join(ctx.sourceDir, "package.json");
+      try {
+        const raw = await fs.readFile(pkgPath, "utf-8");
+        pkg = JSON.parse(raw);
+      } catch {
+        failures.push("No valid package.json found in source directory. Is this a Node.js project?");
+      }
 
-  if (!hasViteConfig) {
-    const allDeps = {
-      ...(pkg["dependencies"] as Record<string, string> ?? {}),
-      ...(pkg["devDependencies"] as Record<string, string> ?? {}),
-    };
-    if (!("vite" in allDeps)) {
-      failures.push(
-        "No vite.config file found and vite is not a dependency. " +
-        "WebToApp requires a Vite project."
-      );
+      // ── index.html ──────────────────────────────────────────────────
+      if (!hasIndexHtml) {
+        failures.push(
+          "index.html not found in source root. " +
+          "Vite expects an index.html at the project root — is this a Vite project?"
+        );
+      }
+
+      // ── src/ directory ──────────────────────────────────────────────
+      if (!(await isDir(path.join(ctx.sourceDir, "src")))) {
+        failures.push("No src/ directory found — detection and transformation require a standard src folder.");
+      }
+
+      // ── Vite config ─────────────────────────────────────────────────
+      const viteConfigs = [
+        "vite.config.ts", "vite.config.js", "vite.config.mts", "vite.config.mjs",
+      ];
+      const hasViteConfig = (
+        await Promise.all(viteConfigs.map((f) => fileExists(path.join(ctx.sourceDir, f))))
+      ).some(Boolean);
+
+      if (!hasViteConfig) {
+        const allDeps = {
+          ...(pkg["dependencies"] as Record<string, string> ?? {}),
+          ...(pkg["devDependencies"] as Record<string, string> ?? {}),
+        };
+        if (!("vite" in allDeps)) {
+          failures.push(
+            "No vite.config file found and vite is not a dependency. " +
+            "WebToApp requires a Vite project."
+          );
+        }
+      }
     }
   }
 

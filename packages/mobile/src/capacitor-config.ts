@@ -37,6 +37,12 @@ const config: CapacitorConfig = {
   },
 ${androidBlock}
   plugins: {
+    CapacitorHttp: {
+      enabled: true,
+    },
+    CapacitorCookies: {
+      enabled: true,
+    },
     SplashScreen: {
       launchShowDuration: 2000,
       backgroundColor: '#ffffff',

@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Onest } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const onest = Onest({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800", "900"],
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env["NEXT_PUBLIC_SITE_URL"] ?? "http://localhost:3000"),
@@ -46,7 +49,7 @@ import { Providers } from "@/components/providers";
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="h-full" suppressHydrationWarning>
-      <body className={`${inter.className} h-full bg-zinc-950 text-zinc-100 antialiased`}>
+      <body className={`${onest.className} h-full bg-[#020514] text-[#dee3f7] antialiased`}>
         <Providers attribute="class" defaultTheme="dark" enableSystem={false}>
           {children}
         </Providers>

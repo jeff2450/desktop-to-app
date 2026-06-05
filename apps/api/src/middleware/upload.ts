@@ -41,6 +41,13 @@ function fileFilter(
     } else {
       cb(new ApiError(400, "Icon must be a PNG, ICO, or JPG file", "INVALID_ICON_TYPE"));
     }
+  } else if (file.fieldname === "keystore") {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if ([".keystore", ".jks"].includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new ApiError(400, "Keystore must be a .keystore or .jks file", "INVALID_KEYSTORE_TYPE"));
+    }
   } else {
     cb(new ApiError(400, `Unexpected field: ${file.fieldname}`, "UNEXPECTED_FIELD"));
   }
@@ -51,11 +58,12 @@ export const uploadZip = multer({
   fileFilter,
   limits: {
     fileSize: env.UPLOAD_MAX_SIZE_MB * 1024 * 1024,
-    files: 2,  // archive + icon
+    files: 3,  // archive + icon + keystore
   },
 }).fields([
   { name: "archive", maxCount: 1 },
   { name: "icon",    maxCount: 1 },
+  { name: "keystore", maxCount: 1 },
 ]);
 
 /** Promisified multer middleware for use in async route handlers */
@@ -88,15 +96,17 @@ export function handleUpload(
 
 /**
  * After handleUpload(), call this to extract file references from req.files.
- * Returns { archiveFile, iconFile } — iconFile may be undefined.
+ * Returns { archiveFile, iconFile, keystoreFile } — iconFile and keystoreFile may be undefined.
  */
 export function extractUploadedFiles(req: import("express").Request): {
   archiveFile: Express.Multer.File | undefined;
   iconFile: Express.Multer.File | undefined;
+  keystoreFile: Express.Multer.File | undefined;
 } {
   const files = req.files as Record<string, Express.Multer.File[]> | undefined;
   return {
     archiveFile: files?.["archive"]?.[0],
     iconFile:    files?.["icon"]?.[0],
+    keystoreFile: files?.["keystore"]?.[0],
   };
 }

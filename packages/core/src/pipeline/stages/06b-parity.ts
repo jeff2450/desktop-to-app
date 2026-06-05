@@ -171,7 +171,7 @@ async function checkBuiltDist(ctx: PipelineContext, findings: Finding[]): Promis
     return;
   }
 
-  if (!/<script\b[^>]*type=["']module["'][^>]*src=/i.test(html)) {
+  if (!/<script\b[^>]*type=["']module["'][^>]*src=/i.test(html) && ctx.detection?.framework !== "static") {
     findings.push({
       level: "warn",
       file: "dist/index.html",

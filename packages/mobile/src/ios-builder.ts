@@ -68,6 +68,9 @@ export async function buildIos(
       warnings.push('iOS platform already existed; skipped `cap add ios`.');
     }
 
+    // 5b. Copy/patch custom iOS application icons
+    await copyCustomIosIcons(projectDir, log);
+
     // 6. Sync web assets (writes Podfile / updates native project)
     log('\n🔄  Syncing web assets (npx cap sync ios)...');
     await execa('npx', ['cap', 'sync', 'ios'], {
@@ -133,5 +136,63 @@ export async function buildIos(
       error: err?.message ?? String(err),
       warnings,
     };
+  }
+}
+
+async function loadSharp(): Promise<any> {
+  try {
+    const dynamicImport = new Function("m", "return import(m)") as (m: string) => Promise<unknown>;
+    const mod: any = await dynamicImport("sharp");
+    return mod.default ?? mod;
+  } catch {
+    return null;
+  }
+}
+
+async function copyCustomIosIcons(projectDir: string, log: (msg: string) => void): Promise<void> {
+  const sourceIcon = path.join(projectDir, 'assets', 'icon.png');
+  const appiconsetDir = path.join(projectDir, 'ios', 'App', 'App', 'Assets.xcassets', 'AppIcon.appiconset');
+  const contentsJsonPath = path.join(appiconsetDir, 'Contents.json');
+
+  if (!(await fs.pathExists(sourceIcon))) {
+    log('⚠️   Custom icon source (assets/icon.png) not found.');
+    return;
+  }
+  if (!(await fs.pathExists(contentsJsonPath))) {
+    log('⚠️   iOS AppIcon.appiconset/Contents.json not found. Skipping iOS icon patch.');
+    return;
+  }
+
+  log('🍎  Patching custom iOS application icons...');
+  try {
+    const contents = await fs.readJson(contentsJsonPath);
+    const images = contents.images || [];
+    const sharp = await loadSharp();
+
+    if (!sharp) {
+      log('⚠️   sharp is not installed. Copying base icon to all iOS sizes (quality will be low)...');
+    }
+
+    for (const img of images) {
+      if (img.filename && img.size && img.scale) {
+        const sizePt = parseFloat(img.size.split('x')[0]);
+        const scaleVal = parseFloat(img.scale.replace('x', ''));
+        const pixelSize = Math.round(sizePt * scaleVal);
+        const destPath = path.join(appiconsetDir, img.filename);
+
+        if (sharp) {
+          await sharp(sourceIcon)
+            .resize(pixelSize, pixelSize, { fit: 'contain' })
+            .png({ compressionLevel: 9 })
+            .toFile(destPath);
+        } else {
+          // Fallback: copy original source icon to all destinations
+          await fs.copyFile(sourceIcon, destPath);
+        }
+      }
+    }
+    log('    ✓ iOS application icons patched successfully.');
+  } catch (err: any) {
+    log(`⚠️   Failed to patch iOS icons: ${err?.message ?? String(err)}`);
   }
 }

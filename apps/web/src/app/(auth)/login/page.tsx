@@ -52,10 +52,10 @@ export default function LoginPage() {
   };
 
   return (
-    <Card className="w-full max-w-md bg-zinc-900/50 border-zinc-800 backdrop-blur-xl shadow-2xl">
+    <Card className="w-full max-w-md bg-[#030720]/50 border-[#8d99c4]/15 backdrop-blur-xl shadow-2xl">
       <CardHeader className="space-y-1 text-center pb-8">
         <CardTitle className="text-2xl font-black text-white tracking-tight">Welcome back</CardTitle>
-        <CardDescription className="text-zinc-500">
+        <CardDescription className="text-[#8d99c4]">
           Enter your credentials to access your dashboard
         </CardDescription>
       </CardHeader>
@@ -69,9 +69,9 @@ export default function LoginPage() {
           )}
           
           <div className="space-y-2">
-            <Label htmlFor="email" className="text-zinc-400 text-xs font-bold uppercase tracking-widest">Email Address</Label>
+            <Label htmlFor="email" className="text-[#8d99c4]/80 text-xs font-bold uppercase tracking-widest">Email Address</Label>
             <div className="relative">
-              <Mail className="w-4 h-4 text-zinc-600 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Mail className="w-4 h-4 text-[#8d99c4]/40 absolute left-3 top-1/2 -translate-y-1/2" />
               <Input 
                 id="email"
                 type="email" 
@@ -79,18 +79,18 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="bg-zinc-950 border-zinc-800 text-white pl-10 h-11 rounded-xl focus:ring-indigo-500"
+                className="bg-[#020514] border-[#8d99c4]/15 text-white pl-10 h-11 rounded-xl focus:ring-[#2b72f5]"
               />
             </div>
           </div>
 
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <Label htmlFor="password" className="text-zinc-400 text-xs font-bold uppercase tracking-widest">Password</Label>
-              <Link href="/forgot-password" className="text-[10px] text-zinc-500 hover:text-indigo-400 font-bold uppercase tracking-widest">Forgot?</Link>
+              <Label htmlFor="password" className="text-[#8d99c4]/80 text-xs font-bold uppercase tracking-widest">Password</Label>
+              <Link href="/forgot-password" className="text-[10px] text-[#8d99c4]/60 hover:text-[#2b72f5] font-bold uppercase tracking-widest">Forgot?</Link>
             </div>
             <div className="relative">
-              <Lock className="w-4 h-4 text-zinc-600 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Lock className="w-4 h-4 text-[#8d99c4]/40 absolute left-3 top-1/2 -translate-y-1/2" />
               <Input 
                 id="password"
                 type="password" 
@@ -98,7 +98,7 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="bg-zinc-950 border-zinc-800 text-white pl-10 h-11 rounded-xl focus:ring-indigo-500"
+                className="bg-[#020514] border-[#8d99c4]/15 text-white pl-10 h-11 rounded-xl focus:ring-[#2b72f5]"
               />
             </div>
           </div>
@@ -107,7 +107,7 @@ export default function LoginPage() {
             type="submit" 
             id="login-submit"
             disabled={loading}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white h-11 rounded-xl shadow-[0_0_20px_rgba(99,102,241,0.3)] transition-all"
+            className="w-full bg-[#2b72f5] hover:bg-[#1a5ecc] text-white h-11 rounded-xl shadow-[0_0_20px_rgba(43,114,245,0.3)] transition-all"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
               <span className="flex items-center gap-2">
@@ -117,10 +117,10 @@ export default function LoginPage() {
           </Button>
         </form>
       </CardContent>
-      <CardFooter className="flex justify-center border-t border-zinc-800/50 pt-6">
-        <p className="text-sm text-zinc-500">
+      <CardFooter className="flex justify-center border-t border-[#8d99c4]/10 pt-6">
+        <p className="text-sm text-[#8d99c4]">
           Don&apos;t have an account?{" "}
-          <Link href="/register" className="text-indigo-400 hover:text-indigo-300 font-bold">Sign up</Link>
+          <Link href="/register" className="text-[#2b72f5] hover:text-[#1a5ecc] font-bold">Sign up</Link>
         </p>
       </CardFooter>
     </Card>

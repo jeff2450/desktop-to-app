@@ -5,7 +5,7 @@ import { checkAndroid, checkIos } from "../doctor.js";
 
 describe("checkAndroid", () => {
   const savedEnv: Record<string, string | undefined> = {};
-  const WATCHED_KEYS = ["ANDROID_HOME", "ANDROID_SDK_ROOT", "JAVA_HOME", "JDK_HOME", "LOCALAPPDATA"];
+  const WATCHED_KEYS = ["ANDROID_HOME", "ANDROID_SDK_ROOT", "JAVA_HOME", "JDK_HOME", "LOCALAPPDATA", "WEBTOAPP_TEST_NO_SDK_DISCOVERY"];
 
   beforeEach(() => {
     for (const key of WATCHED_KEYS) {
@@ -75,6 +75,7 @@ describe("checkAndroid", () => {
     delete process.env["ANDROID_HOME"];
     delete process.env["ANDROID_SDK_ROOT"];
     delete process.env["LOCALAPPDATA"]; // prevent Windows-specific local SDK discovery
+    process.env["WEBTOAPP_TEST_NO_SDK_DISCOVERY"] = "true";
 
     const result = checkAndroid();
     const sdkCheck = result.checks.find(
@@ -98,6 +99,7 @@ describe("checkAndroid", () => {
     delete process.env["ANDROID_HOME"];
     delete process.env["ANDROID_SDK_ROOT"];
     delete process.env["LOCALAPPDATA"];
+    process.env["WEBTOAPP_TEST_NO_SDK_DISCOVERY"] = "true";
 
     const result = checkAndroid();
     for (const check of result.checks) {

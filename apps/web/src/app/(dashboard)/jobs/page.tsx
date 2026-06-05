@@ -50,18 +50,18 @@ export default function JobsPage() {
   );
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="min-h-screen bg-[#020514]">
       <TopBar title="My Conversions" />
 
       <div className="p-8 space-y-6 max-w-7xl mx-auto">
         {/* Header Actions */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8d99c4]/60" />
             <input
               type="text"
               placeholder="Search by app name..."
-              className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2.5 pl-10 pr-4 text-sm text-zinc-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+              className="w-full bg-[#030720]/50 border border-[#8d99c4]/15 rounded-xl py-2.5 pl-10 pr-4 text-sm text-[#dee3f7]/80 placeholder-[#8d99c4]/40 focus:outline-none focus:ring-1 focus:ring-[#2b72f5] transition-all"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -72,14 +72,14 @@ export default function JobsPage() {
               type="button"
               onClick={() => alert("Filter options coming soon!")}
               variant="outline"
-              className="border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl"
+              className="border-[#8d99c4]/15 bg-[#030720]/50 text-[#8d99c4] hover:text-white hover:bg-[#030720] rounded-xl"
             >
               <Filter className="w-4 h-4 mr-2" />
               Filter
             </Button>
             <Button
               asChild
-              className="bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-[0_0_20px_rgba(99,102,241,0.2)]"
+              className="bg-[#2b72f5] hover:bg-[#1a5ecc] rounded-xl shadow-[0_0_20px_rgba(43,114,245,0.3)]"
             >
               <Link href="/jobs/new">
                 <Plus className="w-4 h-4 mr-2" />
@@ -95,7 +95,7 @@ export default function JobsPage() {
             [1, 2, 3, 4].map((i) => (
               <Skeleton
                 key={i}
-                className="h-20 w-full bg-zinc-900/50 border border-zinc-800 rounded-2xl"
+                className="h-20 w-full bg-[#030720]/50 border border-[#8d99c4]/15 rounded-2xl"
               />
             ))
           ) : filteredJobs.length > 0 ? (
@@ -109,12 +109,12 @@ export default function JobsPage() {
               />
             ))
           ) : (
-            <div className="py-24 flex flex-col items-center justify-center border border-dashed border-zinc-800 rounded-[2rem] bg-zinc-900/10">
-              <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center mb-4">
-                <AlertCircle className="w-8 h-8 text-zinc-700" />
+            <div className="py-24 flex flex-col items-center justify-center border border-dashed border-[#8d99c4]/15 rounded-[2rem] bg-[#030720]/10">
+              <div className="w-16 h-16 bg-[#030720] border border-[#8d99c4]/10 rounded-full flex items-center justify-center mb-4">
+                <AlertCircle className="w-8 h-8 text-[#8d99c4]/30" />
               </div>
               <h3 className="text-white font-bold text-lg">No jobs found</h3>
-              <p className="text-zinc-500 text-sm mt-1 max-w-xs text-center">
+              <p className="text-[#8d99c4] text-sm mt-1 max-w-xs text-center">
                 {search
                   ? `We couldn't find any jobs matching "${search}"`
                   : "You haven't created any conversion jobs yet."}
@@ -122,7 +122,7 @@ export default function JobsPage() {
               {!search && (
                 <Button
                   asChild
-                  className="mt-6 bg-zinc-800 hover:bg-zinc-700 rounded-xl"
+                  className="mt-6 bg-[#030720] hover:bg-[#030720]/80 border border-[#8d99c4]/15 text-[#dee3f7] rounded-xl"
                 >
                   <Link href="/jobs/new">Create your first job</Link>
                 </Button>
@@ -144,29 +144,29 @@ function JobRow({
 }) {
   const [isDeleting, setIsDeleting] = useState(false);
   return (
-    <Card className="bg-zinc-900/30 border-zinc-800 hover:border-zinc-700 transition-all group overflow-hidden">
+    <Card className="bg-[#030720]/30 border-[#8d99c4]/15 hover:border-[#2b72f5]/50 transition-all group overflow-hidden">
       <CardContent className="p-0">
         <Link
           href={`/jobs/${job.id}`}
           className="flex flex-col md:flex-row md:items-center justify-between p-5 gap-4"
         >
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-zinc-800 border border-zinc-700 rounded-xl flex items-center justify-center text-zinc-400 group-hover:bg-indigo-500/10 group-hover:text-indigo-400 group-hover:border-indigo-500/20 transition-all">
+            <div className="w-12 h-12 bg-[#020514] border border-[#8d99c4]/10 rounded-xl flex items-center justify-center text-[#8d99c4] group-hover:bg-[#2b72f5]/15 group-hover:text-[#2b72f5] group-hover:border-[#2b72f5]/25 transition-all">
               {job?.name?.[0]?.toUpperCase()}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h4 className="font-bold text-white group-hover:text-indigo-400 transition-colors">
+                <h4 className="font-bold text-white group-hover:text-[#2b72f5] transition-colors">
                   {job.name}
                 </h4>
                 <StatusBadge status={job.status} />
               </div>
-              <p className="text-xs text-zinc-500 mt-1 flex items-center gap-3">
+              <p className="text-xs text-[#8d99c4] mt-1 flex items-center gap-3">
                 <span className="flex items-center gap-1">
                   <Clock className="w-3 h-3" />{" "}
                   {new Date(job.createdAt).toLocaleDateString()}
                 </span>
-                <span className="w-1 h-1 bg-zinc-800 rounded-full" />
+                <span className="w-1 h-1 bg-[#8d99c4]/20 rounded-full" />
                 <span className="flex items-center gap-1 font-mono">
                   {job.id.slice(0, 8)}
                 </span>
@@ -179,7 +179,7 @@ function JobRow({
               {job.targets.map((t) => (
                 <div
                   key={t}
-                  className="w-8 h-8 rounded-full bg-zinc-800 border-2 border-zinc-950 flex items-center justify-center text-[10px] font-bold text-zinc-400 uppercase"
+                  className="w-8 h-8 rounded-full bg-[#020514] border-2 border-[#020514] flex items-center justify-center text-[10px] font-bold text-[#8d99c4] uppercase"
                 >
                   {t?.[0]}
                 </div>
@@ -196,7 +196,7 @@ function JobRow({
                 }}
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-zinc-500 hover:text-white rounded-lg"
+                className="h-8 w-8 text-[#8d99c4] hover:text-white rounded-lg"
               >
                 <ExternalLink className="w-4 h-4" />
               </Button>
@@ -228,7 +228,7 @@ function JobRow({
                 disabled={isDeleting}
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-zinc-500 hover:text-rose-400 rounded-lg disabled:opacity-50"
+                className="h-8 w-8 text-[#8d99c4] hover:text-rose-400 rounded-lg disabled:opacity-50"
               >
                 <Trash2
                   className={cn("w-4 h-4", isDeleting && "animate-spin")}
@@ -243,7 +243,7 @@ function JobRow({
                 }}
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-zinc-500 hover:text-white rounded-lg"
+                className="h-8 w-8 text-[#8d99c4] hover:text-white rounded-lg"
               >
                 <MoreVertical className="w-4 h-4" />
               </Button>
@@ -267,9 +267,9 @@ function StatusBadge({ status }: { status: ConversionStatus }) {
   const styles: Partial<Record<ConversionStatus | "default", string>> = {
     done: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
     failed: "bg-rose-500/10 text-rose-500 border-rose-500/20",
-    cancelled: "bg-zinc-800 text-zinc-500 border-zinc-700",
+    cancelled: "bg-[#030720] text-[#8d99c4] border-[#8d99c4]/15",
     default:
-      "bg-indigo-500/10 text-indigo-400 border-indigo-500/20 animate-pulse",
+      "bg-[#2b72f5]/10 text-[#2b72f5] border-[#2b72f5]/20 animate-pulse",
   };
 
   const style = styles[status] || styles.default;

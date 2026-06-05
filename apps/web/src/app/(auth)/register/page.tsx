@@ -27,7 +27,7 @@ import {
 export default function RegisterPage() {
   return (
     <Suspense fallback={
-      <div className="w-full max-w-md h-96 bg-zinc-900/50 border border-zinc-800 rounded-2xl animate-pulse" />
+      <div className="w-full max-w-md h-96 bg-[#030720]/50 border border-[#8d99c4]/15 rounded-2xl animate-pulse" />
     }>
       <RegisterForm />
     </Suspense>
@@ -65,10 +65,10 @@ function RegisterForm() {
   };
 
   return (
-    <Card className="w-full max-w-md bg-zinc-900/50 border-zinc-800 backdrop-blur-xl shadow-2xl">
+    <Card className="w-full max-w-md bg-[#030720]/50 border-[#8d99c4]/15 backdrop-blur-xl shadow-2xl">
       <CardHeader className="space-y-1 text-center pb-8">
         <CardTitle className="text-2xl font-black text-white tracking-tight">Create an account</CardTitle>
-        <CardDescription className="text-zinc-500">
+        <CardDescription className="text-[#8d99c4]">
           Get started with WebToApp for free today
         </CardDescription>
       </CardHeader>
@@ -82,24 +82,24 @@ function RegisterForm() {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="name" className="text-zinc-400 text-xs font-bold uppercase tracking-widest">Full Name</Label>
+            <Label htmlFor="name" className="text-[#8d99c4]/80 text-xs font-bold uppercase tracking-widest">Full Name</Label>
             <div className="relative">
-              <User className="w-4 h-4 text-zinc-600 absolute left-3 top-1/2 -translate-y-1/2" />
+              <User className="w-4 h-4 text-[#8d99c4]/40 absolute left-3 top-1/2 -translate-y-1/2" />
               <Input 
                 id="name"
                 placeholder="John Doe" 
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="bg-zinc-950 border-zinc-800 text-white pl-10 h-11 rounded-xl focus:ring-indigo-500"
+                className="bg-[#020514] border-[#8d99c4]/15 text-white pl-10 h-11 rounded-xl focus:ring-[#2b72f5]"
               />
             </div>
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="email" className="text-zinc-400 text-xs font-bold uppercase tracking-widest">Email Address</Label>
+            <Label htmlFor="email" className="text-[#8d99c4]/80 text-xs font-bold uppercase tracking-widest">Email Address</Label>
             <div className="relative">
-              <Mail className="w-4 h-4 text-zinc-600 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Mail className="w-4 h-4 text-[#8d99c4]/40 absolute left-3 top-1/2 -translate-y-1/2" />
               <Input 
                 id="email"
                 type="email" 
@@ -107,15 +107,15 @@ function RegisterForm() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="bg-zinc-950 border-zinc-800 text-white pl-10 h-11 rounded-xl focus:ring-indigo-500"
+                className="bg-[#020514] border-[#8d99c4]/15 text-white pl-10 h-11 rounded-xl focus:ring-[#2b72f5]"
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password" className="text-zinc-400 text-xs font-bold uppercase tracking-widest">Password</Label>
+            <Label htmlFor="password" className="text-[#8d99c4]/80 text-xs font-bold uppercase tracking-widest">Password</Label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-zinc-600 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Lock className="w-4 h-4 text-[#8d99c4]/40 absolute left-3 top-1/2 -translate-y-1/2" />
               <Input 
                 id="password"
                 type="password" 
@@ -124,7 +124,7 @@ function RegisterForm() {
                 minLength={8}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="bg-zinc-950 border-zinc-800 text-white pl-10 h-11 rounded-xl focus:ring-indigo-500"
+                className="bg-[#020514] border-[#8d99c4]/15 text-white pl-10 h-11 rounded-xl focus:ring-[#2b72f5]"
               />
             </div>
           </div>
@@ -133,7 +133,7 @@ function RegisterForm() {
             type="submit"
             id="register-submit"
             disabled={loading}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white h-11 rounded-xl shadow-[0_0_20px_rgba(99,102,241,0.3)] transition-all"
+            className="w-full bg-[#2b72f5] hover:bg-[#1a5ecc] text-white h-11 rounded-xl shadow-[0_0_20px_rgba(43,114,245,0.3)] transition-all"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
               <span className="flex items-center gap-2">
@@ -143,16 +143,16 @@ function RegisterForm() {
           </Button>
         </form>
       </CardContent>
-      <CardFooter className="flex flex-col gap-4 border-t border-zinc-800/50 pt-6">
-        <p className="text-xs text-zinc-600 text-center">
+      <CardFooter className="flex flex-col gap-4 border-t border-[#8d99c4]/10 pt-6">
+        <p className="text-xs text-[#8d99c4] text-center">
           By clicking continue, you agree to our{" "}
-          <Link href="/terms" className="text-zinc-500 hover:text-white underline">Terms of Service</Link>{" "}
+          <Link href="/terms" className="text-[#8d99c4]/80 hover:text-white underline">Terms of Service</Link>{" "}
           and{" "}
-          <Link href="/privacy" className="text-zinc-500 hover:text-white underline">Privacy Policy</Link>.
+          <Link href="/privacy" className="text-[#8d99c4]/80 hover:text-white underline">Privacy Policy</Link>.
         </p>
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-[#8d99c4]">
           Already have an account?{" "}
-          <Link href="/login" className="text-indigo-400 hover:text-indigo-300 font-bold">Sign in</Link>
+          <Link href="/login" className="text-[#2b72f5] hover:text-[#1a5ecc] font-bold">Sign in</Link>
         </p>
       </CardFooter>
     </Card>

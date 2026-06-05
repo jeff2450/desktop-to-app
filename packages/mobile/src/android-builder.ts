@@ -59,6 +59,11 @@ export async function buildAndroid(
     });
     await ensureWebDirExists(projectDir, config.webDir ?? 'dist');
 
+    // 4c. Ensure every HTML file has a mobile viewport meta tag so the
+    //     Android WebView renders at device width instead of 980px desktop.
+    log('\n📐  Patching HTML viewport meta tags...');
+    await patchViewportMeta(projectDir, config.webDir ?? 'dist', log);
+
     // 5. Add Android platform (idempotent — safe to re-run)
     const androidDir = path.join(projectDir, 'android');
     if (!(await fs.pathExists(androidDir))) {
@@ -71,6 +76,9 @@ export async function buildAndroid(
       log('\n♻️   Android platform already exists — skipping cap add.');
       warnings.push('Android platform already existed; skipped `cap add android`.');
     }
+
+    // 5b. Copy custom Android application icons
+    await copyCustomIcons(projectDir, log);
 
     // 6. Sync web assets into Android project
     log('\n🔄  Syncing web assets into Android project (npx cap sync android)...');
@@ -142,6 +150,83 @@ async function ensureWebDirExists(projectDir: string, webDir: string): Promise<v
       `Web assets directory not found: ${webDir}. ` +
       `Set mobile.webDir to the build output directory or update your build script to produce it.`
     );
+  }
+}
+
+/**
+ * Ensures every HTML file in the web output directory has a correct mobile
+ * viewport <meta> tag. Without it, the Android WebView defaults to a 980px
+ * desktop layout and the app appears zoomed-out / too small on the device.
+ *
+ * The correct tag:
+ *   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+ *
+ * - `width=device-width`  — renders at the actual screen width, not 980px
+ * - `initial-scale=1.0`   — no zoom applied on first load
+ * - `viewport-fit=cover`  — fills the entire screen including camera notch areas
+ */
+async function patchViewportMeta(
+  projectDir: string,
+  webDir: string,
+  log: (msg: string) => void
+): Promise<void> {
+  const webDirPath = path.resolve(projectDir, webDir);
+  const CORRECT_VIEWPORT = 'width=device-width, initial-scale=1.0, viewport-fit=cover';
+  const VIEWPORT_TAG = `<meta name="viewport" content="${CORRECT_VIEWPORT}">`;
+
+  /**
+   * Walk all .html files under webDirPath and patch each one.
+   */
+  async function walk(dir: string): Promise<void> {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await walk(full);
+      } else if (entry.name.endsWith('.html')) {
+        await patchHtmlFile(full);
+      }
+    }
+  }
+
+  async function patchHtmlFile(filePath: string): Promise<void> {
+    let html = await fs.readFile(filePath, 'utf8');
+    const viewportRe = /<meta\s[^>]*name=["']viewport["'][^>]*>/i;
+
+    if (viewportRe.test(html)) {
+      // Replace whatever viewport content is there with the correct one
+      const existing = viewportRe.exec(html)![0];
+      const alreadyCorrect =
+        /width=device-width/.test(existing) &&
+        /initial-scale=1/.test(existing);
+
+      if (alreadyCorrect) return; // nothing to do
+
+      // Upgrade the existing tag to include all required attributes
+      html = html.replace(viewportRe, VIEWPORT_TAG);
+      log(`    ✓  Fixed viewport in ${path.relative(projectDir, filePath)}`);
+    } else {
+      // No viewport tag at all — inject one right after <head> (or <html>)
+      if (/<head>/i.test(html)) {
+        html = html.replace(/<head>/i, `<head>\n    ${VIEWPORT_TAG}`);
+      } else if (/<html/i.test(html)) {
+        // Fallback: insert before closing >
+        html = html.replace(/(<html[^>]*>)/i, `$1\n<head>\n    ${VIEWPORT_TAG}\n</head>`);
+      } else {
+        // Bare HTML with no head — prepend
+        html = `${VIEWPORT_TAG}\n${html}`;
+      }
+      log(`    ✓  Injected viewport in ${path.relative(projectDir, filePath)}`);
+    }
+
+    await fs.writeFile(filePath, html, 'utf8');
+  }
+
+  try {
+    await walk(webDirPath);
+  } catch (err: any) {
+    // Non-fatal — warn but don't block the build
+    log(`    ⚠  Viewport patch failed (non-fatal): ${err?.message ?? String(err)}`);
   }
 }
 
@@ -347,4 +432,21 @@ async function findArtifactInDir(outputsDir: string, extension: '.apk' | '.aab')
   }
 
   return null;
+}
+
+async function copyCustomIcons(projectDir: string, log: (msg: string) => void): Promise<void> {
+  const sourceAndroidIcons = path.join(projectDir, 'assets', 'icons-generated', 'android');
+  const destResDir = path.join(projectDir, 'android', 'app', 'src', 'main', 'res');
+
+  if (await fs.pathExists(sourceAndroidIcons)) {
+    log('🎨  Copying custom Android application icons...');
+    try {
+      await fs.copy(sourceAndroidIcons, destResDir, { overwrite: true });
+      log('    ✓ Custom icons copied to Android resources.');
+    } catch (err: any) {
+      log(`⚠️   Failed to copy custom Android icons: ${err?.message ?? String(err)}`);
+    }
+  } else {
+    log('⚠️   Custom Android icons source directory not found. Using default icons.');
+  }
 }
