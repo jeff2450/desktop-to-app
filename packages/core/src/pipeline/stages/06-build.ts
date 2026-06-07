@@ -202,6 +202,37 @@ async function patchScriptTags(ctx: PipelineContext): Promise<void> {
   }
 }
 
+// ─── Helper to find all HTML files for Vite multi-page builds ─────────────────
+
+async function findHtmlFiles(dir: string, baseDir: string = dir): Promise<string[]> {
+  const htmlFiles: string[] = [];
+  const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+  
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    const relativePath = path.relative(baseDir, fullPath).replace(/\\/g, "/");
+    
+    if (entry.isDirectory()) {
+      if (
+        entry.name === "node_modules" ||
+        entry.name === "dist" ||
+        entry.name === "electron" ||
+        entry.name === "release" ||
+        entry.name === "build" ||
+        entry.name === "public" ||
+        entry.name === ".git"
+      ) {
+        continue;
+      }
+      const nested = await findHtmlFiles(fullPath, baseDir);
+      htmlFiles.push(...nested);
+    } else if (entry.isFile() && entry.name.endsWith(".html")) {
+      htmlFiles.push(relativePath);
+    }
+  }
+  return htmlFiles;
+}
+
 // ─── Main vite config patcher ─────────────────────────────────────────────────
 
 async function patchViteConfig(ctx: PipelineContext): Promise<void> {
@@ -277,9 +308,18 @@ async function patchViteConfig(ctx: PipelineContext): Promise<void> {
   // For plain HTML/JS apps Vite works in "vanilla" mode — no plugins needed,
   // but we must tell Rollup the entry point is index.html explicitly.
   const isStaticApp = framework === "static" || framework === "unknown";
-  const rollupInputBlock = isStaticApp
-    ? `    rollupOptions: {\n      input: path.resolve(__dirname, 'index.html'),\n    },\n`
-    : ``;
+  let rollupInputBlock = "";
+  if (isStaticApp) {
+    const htmlFiles = await findHtmlFiles(ctx.outputDir);
+    if (!htmlFiles.includes("index.html")) {
+      htmlFiles.push("index.html");
+    }
+    ctx.log("info", `Found HTML entry points for static build: ${htmlFiles.join(", ")}`, STAGE);
+    const inputPaths = htmlFiles
+      .map((file) => `      path.resolve(__dirname, '${file}')`)
+      .join(",\n");
+    rollupInputBlock = `    rollupOptions: {\n      input: [\n${inputPaths}\n      ]\n    },\n`;
+  }
 
   const content = `import { defineConfig } from 'vite';
 import path from 'node:path';

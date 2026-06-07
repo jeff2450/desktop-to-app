@@ -264,7 +264,10 @@ app.whenReady().then(() => {
   // and long-lived cache headers for Vite-hashed assets.
   protocol.handle('app', (request) => {
     const url = new URL(request.url);
-    const pathname = url.pathname === '/' ? '/index.html' : url.pathname;
+    let pathname = url.pathname;
+    if (pathname === '/' || pathname.endsWith('/')) {
+      pathname = path.posix.join(pathname, 'index.html');
+    }
     const hasExtension = /\.\w+$/.test(pathname);
     const distDir = path.join(__dirname, '../dist');
     let filePath = path.join(distDir, pathname);
@@ -274,9 +277,17 @@ app.whenReady().then(() => {
       return new Response('Forbidden', { status: 403 });
     }
 
-    // SPA fallback: any path without a file extension → index.html
-    if (!hasExtension || !fs.existsSync(filePath)) {
-      filePath = path.join(distDir, 'index.html');
+    if (!fs.existsSync(filePath)) {
+      if (!hasExtension) {
+        const htmlFilePath = filePath + '.html';
+        if (fs.existsSync(htmlFilePath)) {
+          filePath = htmlFilePath;
+        } else {
+          filePath = path.join(distDir, 'index.html');
+        }
+      } else {
+        filePath = path.join(distDir, 'index.html');
+      }
     }
 
     return serveFile(filePath, pathname);

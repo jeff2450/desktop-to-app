@@ -374,12 +374,30 @@ function setupAutoUpdater() {
 app.whenReady().then(() => {
   protocol.handle('app', (request) => {
     const url = new URL(request.url);
-    const pathname = url.pathname === '/' ? '/index.html' : url.pathname;
+    let pathname = url.pathname;
+    if (pathname === '/' || pathname.endsWith('/')) {
+      pathname = path.posix.join(pathname, 'index.html');
+    }
     const hasExtension = /\\.\\w+$/.test(pathname);
-    let filePath = path.join(__dirname, '../dist', pathname);
+    const distDir = path.join(__dirname, '../dist');
+    let filePath = path.join(distDir, pathname);
 
-    if (!hasExtension || !fs.existsSync(filePath)) {
-      filePath = path.join(__dirname, '../dist/index.html');
+    // Security: prevent path traversal outside dist/
+    if (!filePath.startsWith(distDir + path.sep) && filePath !== distDir) {
+      return new Response('Forbidden', { status: 403 });
+    }
+
+    if (!fs.existsSync(filePath)) {
+      if (!hasExtension) {
+        const htmlFilePath = filePath + '.html';
+        if (fs.existsSync(htmlFilePath)) {
+          filePath = htmlFilePath;
+        } else {
+          filePath = path.join(distDir, 'index.html');
+        }
+      } else {
+        filePath = path.join(distDir, 'index.html');
+      }
     }
 
     return net.fetch('file://' + filePath);
