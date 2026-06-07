@@ -156,4 +156,39 @@ describe("Parity Fixes — Electron frame and PostCSS", () => {
     const configContent = await fs.readFile(configPath, "utf-8");
     expect(configContent).toContain("postcss: './postcss.config.js'");
   });
+
+  it("automatically detects all HTML files in a static/unknown project and adds them as input entrypoints in vite.config.ts", async () => {
+    await createFixture(outputDir, {
+      "package.json": JSON.stringify({ name: "test-app", version: "1.0.0" }),
+      "index.html": "<html></html>",
+      "about.html": "<html></html>",
+      "nested/contact.html": "<html></html>",
+      // Exclude files in public or build dirs
+      "public/ignored.html": "<html></html>",
+      "node_modules/ignored.html": "<html></html>",
+    });
+
+    const ctx = makeTestCtx(sourceDir, outputDir, workDir);
+    ctx.detection!.framework = "static";
+
+    await runPlanStage(ctx);
+
+    try {
+      await runBuildStage(ctx);
+    } catch (err) {
+      // Expected to fail on build execution
+    }
+
+    const configPath = path.join(outputDir, "vite.config.ts");
+    const configContent = await fs.readFile(configPath, "utf-8");
+
+    // It should include index.html, about.html, and nested/contact.html
+    expect(configContent).toContain("path.resolve(__dirname, 'index.html')");
+    expect(configContent).toContain("path.resolve(__dirname, 'about.html')");
+    expect(configContent).toContain("path.resolve(__dirname, 'nested/contact.html')");
+
+    // It should NOT include ignored.html from public or node_modules
+    expect(configContent).not.toContain("public/ignored.html");
+    expect(configContent).not.toContain("node_modules/ignored.html");
+  });
 });
