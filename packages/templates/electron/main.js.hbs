@@ -99,21 +99,29 @@ function serveFile(filePath, urlPath) {
 }
 
 function createWindow() {
+  const isCustomTitleBar = '{{titleBar}}' === 'custom';
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     minWidth: 800,
     minHeight: 600,
     title: '{{appName}}',
-    // Hide the native OS title bar — the app's own header acts as the title bar.
-    frame: false,
-    titleBarStyle: 'hidden',
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#0f0f0f' : '#ffffff',
+    // Apply modern borderless configurations when custom title bar is active
+    ...(isCustomTitleBar ? (
+      process.platform === 'darwin'
+        ? { titleBarStyle: 'hidden' }
+        : { frame: false }
+    ) : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true,
+      // sandbox is disabled for plain HTML/JS apps so onclick attributes and
+      // global JS functions remain accessible in the renderer. For React/Vue/
+      // Svelte apps the sandbox is kept enabled for security.
+      sandbox: {{#if disableSandbox}}false{{else}}true{{/if}},
     },
     show: false,
   });
@@ -126,13 +134,19 @@ function createWindow() {
   });
 
   // ---------------------------------------------------------------------------
-  // Update banner — inject a self-contained UI overlay into the renderer after
-  // each page load so the user sees a "Restart & Install" prompt when a new
-  // version is ready. The banner script lives next to main.cjs so it works in
-  // both dev (CSP is relaxed) and production (bundled in the app directory).
+  // Update banner & Window controls injection
   // ---------------------------------------------------------------------------
   const bannerPath = path.join(__dirname, 'update-banner.js');
+  const controlsPath = path.join(__dirname, 'window-controls.js');
+
   mainWindow.webContents.on('did-finish-load', () => {
+    if (isCustomTitleBar && fs.existsSync(controlsPath)) {
+      const controlsCode = fs.readFileSync(controlsPath, 'utf-8');
+      mainWindow?.webContents.executeJavaScript(controlsCode).catch((err) => {
+        console.error('[WebToApp] Window controls injection failed:', err);
+      });
+    }
+
     if (fs.existsSync(bannerPath)) {
       const bannerCode = fs.readFileSync(bannerPath, 'utf-8');
       mainWindow?.webContents.executeJavaScript(bannerCode).catch(() => {

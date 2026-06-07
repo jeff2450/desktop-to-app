@@ -111,6 +111,15 @@ export async function runTransformStage(ctx: PipelineContext): Promise<void> {
     // which throws ReferenceError at runtime — causing the blank white screen.
     await fixOrphanedSupabaseClient(ctx);
 
+    // ── Scrub imports that reference deleted modules (offline mode) ──
+    // Must run after all file mutations so we have a complete picture of
+    // which source files remain in the output directory.
+    await scrubOrphanedImports(ctx);
+
+    // ── Fix BrowserRouter → HashRouter for Electron's app:// protocol ──
+    // Non-root deep links return blank pages without this fix.
+    await fixReactRouterForElectron(ctx);
+
     if (hasMobileTarget(ctx)) {
       await assertNoRemovedDependencyImports(ctx);
     }
@@ -292,16 +301,74 @@ async function copySrcAssets(ctx: PipelineContext): Promise<void> {
     const destExists = await fs.access(dest).then(() => true).catch(() => false);
     if (srcExists && !destExists) {
       if (file.startsWith(".env")) {
-        let content = await fs.readFile(src, "utf-8");
-        await fs.writeFile(dest, content, "utf-8");
+        // Sanitize: strip server-side secrets that must not be bundled into
+        // the packaged Electron app (readable by anyone who unpacks the ASAR).
+        const raw = await fs.readFile(src, "utf-8");
+        const sanitized = sanitizeEnvContent(raw);
+        await fs.writeFile(dest, sanitized, "utf-8");
+        ctx.log("debug", `Copied (sanitized) asset: ${file}`, "03-transform");
       } else {
         await fs.copyFile(src, dest);
+        ctx.log("debug", `Copied asset: ${file}`, "03-transform");
       }
-      ctx.log("debug", `Copied asset: ${file}`, "03-transform");
     }
   }
 
   ctx.log("info", "Copied src/ assets and config files", "03-transform");
+}
+
+/**
+ * Strip server-side secrets from an .env file before it is written into the
+ * output project. Secrets embedded in the packaged ASAR archive are trivially
+ * readable by anyone who unpacks it.
+ *
+ * Rules:
+ *  • VITE_* keys are always kept — Vite already bakes them into the bundle.
+ *  • Lines matching known server-only patterns are redacted.
+ *  • Comments and blank lines are preserved as-is.
+ *
+ * This is a best-effort filter. Users should audit their own .env files and
+ * avoid putting truly sensitive credentials in a desktop-distributed app.
+ */
+function sanitizeEnvContent(content: string): string {
+  // Keys that are safe for the client bundle (already public via Vite)
+  const SAFE_PREFIX_RE = /^VITE_/i;
+
+  // Patterns that indicate server-side / privileged credentials
+  const SERVER_SECRET_RE = /(?:SERVICE_ROLE|SERVICE_KEY|PRIVATE_KEY|DB_PASSWORD|DATABASE_PASSWORD|JWT_SECRET|SMTP_PASS|SECRET_KEY|ADMIN_KEY|MASTER_KEY)/i;
+
+  const lines = content.split(/\r?\n/);
+  const result: string[] = [];
+
+  for (const line of lines) {
+    // Preserve comments and blank lines
+    const trimmed = line.trim();
+    if (trimmed === "" || trimmed.startsWith("#")) {
+      result.push(line);
+      continue;
+    }
+
+    const eqIdx = line.indexOf("=");
+    if (eqIdx === -1) {
+      result.push(line);
+      continue;
+    }
+
+    const key = line.slice(0, eqIdx).trim();
+
+    if (SAFE_PREFIX_RE.test(key)) {
+      // VITE_* keys are always kept (they're already in the JS bundle)
+      result.push(line);
+    } else if (SERVER_SECRET_RE.test(key)) {
+      // Redact server-only secrets with a clear marker
+      result.push(`# ${key}=<redacted by WebToApp — server-side secret>`);
+    } else {
+      // All other keys (e.g. SUPABASE_URL, DATABASE_URL) are kept
+      result.push(line);
+    }
+  }
+
+  return result.join("\n");
 }
 
 /**
@@ -382,12 +449,13 @@ async function scrubOrphanedImports(ctx: PipelineContext): Promise<void> {
     }
 
     if (changed) {
+      // Save only the files that were actually modified (not the whole project)
+      await sourceFile.save();
       scrubbed++;
     }
   }
 
   if (scrubbed > 0) {
-    await project.save();
     ctx.log("info", `Removed orphaned imports from ${scrubbed} file(s) using AST`, STAGE);
   }
 }
@@ -397,6 +465,10 @@ async function scrubOrphanedImports(ctx: PipelineContext): Promise<void> {
  * after the transformer ran. The transformer correctly removes the import but
  * can miss the actual call expression. We fully rewrite any such file to
  * re-export localApi as "supabase" so all existing import sites work unchanged.
+ *
+ * Files that are rewritten are recorded in ctx.plan.patchedFiles so that
+ * Stage 06b's parity check can exclude them (they are intentional modifications,
+ * not accidental divergences).
  */
 async function fixOrphanedSupabaseClient(ctx: PipelineContext): Promise<void> {
   // Online conversions keep the cloud Supabase client and do not generate
@@ -448,6 +520,10 @@ async function fixOrphanedSupabaseClient(ctx: PipelineContext): Promise<void> {
 
           await fs.writeFile(fullPath, replacement + typeExports, "utf-8");
           ctx.log("warn", `Fixed orphaned createClient() in ${rel} — rewrote as localApi re-export`, STAGE);
+
+          // Track intentional rewrites so Stage 06b's parity check can skip them
+          if (ctx.plan && !ctx.plan.patchedFiles) ctx.plan.patchedFiles = [];
+          ctx.plan?.patchedFiles?.push(rel);
         }
       }
     }
@@ -464,11 +540,20 @@ function planGeneratesLocalApi(ctx: PipelineContext): boolean {
 }
 
 /**
- * Legacy route patcher retained for compatibility with existing generated
- * outputs. Online conversions return before mutating route code.
+ * Patch React Router for Electron's app:// custom protocol.
+ *
+ * BrowserRouter uses the HTML5 History API which relies on a real HTTP server
+ * to serve every path. In packaged Electron, the app runs via the app://
+ * custom protocol — there is no server, so non-root deep links return a blank
+ * page. HashRouter encodes the route after #, which is never sent to the
+ * "server", solving this transparently.
+ *
+ * Online (live-URL) mode: the Electron shell is a thin React wrapper around
+ * an iframe; routing inside the shell is irrelevant, so this fix is skipped.
  */
 async function fixReactRouterForElectron(ctx: PipelineContext): Promise<void> {
-  return;
+  // Online mode wraps an external URL — no routing in the Electron shell itself
+  if (ctx.config.mode === "online" && ctx.detection?.isLiveUrl) return;
 
   const srcDir = path.join(ctx.outputDir, "src");
   if (!(await dirExists(srcDir))) return;

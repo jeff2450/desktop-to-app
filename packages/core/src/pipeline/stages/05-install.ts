@@ -180,8 +180,21 @@ async function writeOutputPackageJson(ctx: PipelineContext): Promise<void> {
     delete (devDeps as Record<string, string>)[p];
   }
 
+  // ── Sentry crash reporting ────────────────────────────────────────────────
+  // Auto-inject @sentry/electron when a DSN is configured (config file or env vars).
+  // Previously done in Stage 04's patchPackageJson; consolidated here to avoid
+  // double-patching conflicts.
+  const sentryDsn = (ctx.config as { crashReporting?: { dsn?: string } }).crashReporting?.dsn
+    ?? process.env["SENTRY_DSN"]
+    ?? process.env["VITE_SENTRY_DSN"];
+  if (sentryDsn) {
+    deps["@sentry/electron"] ??= "^5.0.0";
+    ctx.log("info", "Added @sentry/electron dependency (Sentry DSN detected)", STAGE);
+  }
+
   // Merge scripts
   const scripts = {
+    build: "vite build",
     ...((sourcePkg["scripts"] as Record<string, string>) ?? {}),
     ...plan.scriptsToInject,
   };

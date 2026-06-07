@@ -63,10 +63,10 @@ export default function PricingPage() {
           <ScrollReveal delay={100} className="flex h-full">
             <PricingPlanCard 
               name="Pro"
-              price="20000"
+              price="1000"
               desc="For individual developers getting started."
               features={[
-                "10 conversions / mo",
+                "20 conversions / mo",
                 "All build targets (Win, Linux, Mac, Android, iOS)",
                 "Priority Build Queue",
                 "Custom App Icons",

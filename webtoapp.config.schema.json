@@ -293,6 +293,12 @@
       "default": false,
       "description": "Open Electron DevTools in the output app"
     },
+    "titleBar": {
+      "type": "string",
+      "enum": ["native", "custom"],
+      "default": "native",
+      "description": "Style of the window title bar. 'native' uses standard OS borders. 'custom' creates a modern borderless app window with custom HTML window controls."
+    },
     "verbose": {
       "type": "boolean",
       "default": false,

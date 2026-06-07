@@ -26,6 +26,14 @@ export interface MigrationPlan {
 
   /** Summary of what this plan will do — shown to users */
   summary: string;
+
+  /**
+   * Relative paths (from outputDir) of files that were intentionally rewritten
+   * by post-transform fixers (e.g. the Supabase client rewrite in Stage 03).
+   * Stage 06b's parity check excludes these files from the byte-for-byte
+   * comparison so legitimate mutations are not flagged as errors.
+   */
+  patchedFiles?: string[];
 }
 
 export interface FileTransformPlan {

@@ -73,12 +73,12 @@ export interface IconGeneratorResult {
 
 const ICON_GRID_SIZES = [16, 32, 48, 64, 128, 256, 512, 1024] as const;
 
-const ANDROID_DENSITIES: Array<{ dir: string; size: number }> = [
-  { dir: "mipmap-mdpi",    size: 48  },
-  { dir: "mipmap-hdpi",    size: 72  },
-  { dir: "mipmap-xhdpi",   size: 96  },
-  { dir: "mipmap-xxhdpi",  size: 144 },
-  { dir: "mipmap-xxxhdpi", size: 192 },
+const ANDROID_DENSITIES: Array<{ dir: string; size: number; totalSize: number; iconSize: number }> = [
+  { dir: "mipmap-mdpi",    size: 48,  totalSize: 108, iconSize: 72  },
+  { dir: "mipmap-hdpi",    size: 72,  totalSize: 162, iconSize: 108 },
+  { dir: "mipmap-xhdpi",   size: 96,  totalSize: 216, iconSize: 144 },
+  { dir: "mipmap-xxhdpi",  size: 144, totalSize: 324, iconSize: 216 },
+  { dir: "mipmap-xxxhdpi", size: 192, totalSize: 432, iconSize: 288 },
 ];
 
 // ICO format supports multiple embedded PNG bitmaps
@@ -172,9 +172,10 @@ export class IconGenerator {
       if (sharp) {
         await this.buildIco(sharp, sourcePath, icoPath, warnings);
       } else {
-        // Fallback: copy PNG as .ico (Windows will display it, just not multi-res)
-        await fs.copyFile(sourcePath, icoPath);
-        warnings.push("icon.ico is a single-size PNG copy (sharp needed for true ICO).");
+        // Fallback: build a valid single-entry ICO using the source PNG bytes.
+        // rcedit (used by electron-builder) validates the ICO header and rejects
+        // a plain PNG file renamed to .ico — so we must write a real ICO binary.
+        await this.buildIcoFallback(sourcePath, icoPath, warnings);
       }
       files.push(icoPath);
     }
@@ -195,6 +196,14 @@ export class IconGenerator {
         const densityDir = path.join(androidDir, dir);
         const dest = path.join(densityDir, "ic_launcher_round.png");
         await this.resizePng(sharp, sourcePath, dest, size, warnings);
+        files.push(dest);
+      }
+
+      // Adaptive foreground icon (for Android 8+)
+      for (const { dir, totalSize, iconSize } of ANDROID_DENSITIES) {
+        const densityDir = path.join(androidDir, dir);
+        const dest = path.join(densityDir, "ic_launcher_foreground.png");
+        await this.resizeAdaptiveForegroundPng(sharp, sourcePath, dest, totalSize, iconSize, warnings);
         files.push(dest);
       }
     }
@@ -229,6 +238,37 @@ export class IconGenerator {
     }
   }
 
+  private async resizeAdaptiveForegroundPng(
+    sharp: SharpFn | null,
+    src: string,
+    dest: string,
+    totalSize: number,
+    iconSize: number,
+    warnings: string[]
+  ): Promise<void> {
+    try {
+      if (sharp) {
+        await sharp(src)
+          .resize(iconSize, iconSize, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+          .extend({
+            top: Math.floor((totalSize - iconSize) / 2),
+            bottom: Math.ceil((totalSize - iconSize) / 2),
+            left: Math.floor((totalSize - iconSize) / 2),
+            right: Math.ceil((totalSize - iconSize) / 2),
+            background: { r: 0, g: 0, b: 0, alpha: 0 }
+          })
+          .png({ compressionLevel: 9 })
+          .toFile(dest);
+      } else {
+        // Fallback: just copy the source (no resize without sharp)
+        await fs.copyFile(src, dest);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      warnings.push(`Failed to write adaptive foreground ${path.basename(dest)} (${totalSize}×${totalSize}): ${msg}`);
+    }
+  }
+
   /**
    * Build a multi-resolution ICO file by embedding several PNG bitmaps.
    * ICO format: ICONDIR header + ICONDIRENTRY[] + PNG data blobs
@@ -255,6 +295,28 @@ export class IconGenerator {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       warnings.push(`Failed to build icon.ico: ${msg}. Falling back to PNG copy.`);
+      await fs.copyFile(src, dest);
+    }
+  }
+
+  /**
+   * Build a valid single-entry ICO from the source PNG without sharp.
+   * Wraps the raw PNG bytes inside a proper ICONDIR/ICONDIRENTRY structure
+   * so rcedit and Windows accept it as a real ICO file.
+   */
+  private async buildIcoFallback(
+    src: string,
+    dest: string,
+    warnings: string[]
+  ): Promise<void> {
+    try {
+      const pngBuffer = await fs.readFile(src);
+      // Use 256 as the single size (0 in ICO spec means 256)
+      const icoBuffer = buildIcoBuffer([256], [pngBuffer]);
+      await fs.writeFile(dest, icoBuffer);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      warnings.push(`Failed to build fallback icon.ico: ${msg}. Copying PNG instead.`);
       await fs.copyFile(src, dest);
     }
   }

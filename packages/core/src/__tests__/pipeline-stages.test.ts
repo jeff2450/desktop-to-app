@@ -98,7 +98,7 @@ describe("Pipeline Stages (00-07b) Integration and Unit Tests", () => {
     );
   }
 
-  function makeContext(opts: { mode?: "online"; targets?: string[]; dryRun?: boolean } = {}) {
+  function makeContext(opts: { mode?: "online"; targets?: Array<"windows" | "linux" | "mac" | "android" | "ios">; dryRun?: boolean } = {}) {
     return new PipelineContext({
       config: {
         name: "Test Fixture App",
@@ -168,7 +168,7 @@ describe("Pipeline Stages (00-07b) Integration and Unit Tests", () => {
   });
 
   describe("Stage 03 — Transform", () => {
-    it("copies files without rewriting routes or Supabase clients in online mode", async () => {
+    it("rewrites BrowserRouter to HashRouter in online local-source mode (Electron app:// protocol requirement)", async () => {
       await createValidFixture(sourceDir);
 
       await fs.writeFile(
@@ -199,19 +199,19 @@ describe("Pipeline Stages (00-07b) Integration and Unit Tests", () => {
       await runPlanStage(ctx);
       await runTransformStage(ctx);
 
+      // BrowserRouter MUST be converted — Electron uses app:// protocol (no server)
+      // so BrowserRouter's History API causes blank screens on non-root routes.
       const routerFileContent = await fs.readFile(path.join(outputDir, "src/RouterFile.tsx"), "utf-8");
-      expect(routerFileContent).toContain("BrowserRouter");
-      expect(routerFileContent).not.toContain("HashRouter");
+      expect(routerFileContent).toContain("HashRouter");
+      expect(routerFileContent).not.toContain("BrowserRouter");
 
-      const clientFileContent = await fs.readFile(path.join(outputDir, "src/supabase-client.ts"), "utf-8");
-      expect(clientFileContent).toContain("= createClient(");
-
+      // Online mode keeps the real Supabase client (no localApi replacement)
       const integrationClientContent = await fs.readFile(path.join(outputDir, "src/integrations/supabase/client.ts"), "utf-8");
       expect(integrationClientContent).toContain("@supabase/supabase-js");
       expect(integrationClientContent).toContain("VITE_SUPABASE");
     });
 
-    it("does not rewrite BrowserRouter to HashRouter in online mode", async () => {
+    it("rewrites BrowserRouter to HashRouter in online mode and preserves Supabase client", async () => {
       await createValidFixture(sourceDir);
 
       await fs.writeFile(
@@ -237,10 +237,12 @@ describe("Pipeline Stages (00-07b) Integration and Unit Tests", () => {
       await runPlanStage(ctx);
       await runTransformStage(ctx);
 
+      // HashRouter fix applies — Electron uses app:// protocol even in online local-source mode
       const routerFileContent = await fs.readFile(path.join(outputDir, "src/RouterFile.tsx"), "utf-8");
-      expect(routerFileContent).toContain("BrowserRouter");
-      expect(routerFileContent).not.toContain("HashRouter");
+      expect(routerFileContent).toContain("HashRouter");
+      expect(routerFileContent).not.toContain("BrowserRouter");
 
+      // Online mode keeps the real Supabase client intact (no localApi)
       const supabaseClientContent = await fs.readFile(
         path.join(outputDir, "src/integrations/supabase/client.ts"),
         "utf-8"
@@ -273,6 +275,23 @@ describe("Pipeline Stages (00-07b) Integration and Unit Tests", () => {
       expect(outputPkg.devDependencies).toHaveProperty("electron");
       expect(outputPkg.dependencies).not.toHaveProperty("vite-plugin-pwa");
       expect(outputPkg.dependencies["date-fns"]).toBe("^3.6.0");
+      expect(outputPkg.scripts.build).toBe("vite build");
+    });
+
+    it("preserves custom build script in package.json", async () => {
+      await createValidFixture(sourceDir);
+      
+      const pkg = JSON.parse(await fs.readFile(path.join(sourceDir, "package.json"), "utf-8"));
+      pkg.scripts = { build: "custom-build-command" };
+      await fs.writeFile(path.join(sourceDir, "package.json"), JSON.stringify(pkg), "utf-8");
+
+      const ctx = makeContext({ mode: "online", dryRun: true });
+      await runDetectStage(ctx);
+      await runPlanStage(ctx);
+      await runInstallStage(ctx);
+
+      const outputPkg = JSON.parse(await fs.readFile(path.join(outputDir, "package.json"), "utf-8"));
+      expect(outputPkg.scripts.build).toBe("custom-build-command");
     });
   });
 

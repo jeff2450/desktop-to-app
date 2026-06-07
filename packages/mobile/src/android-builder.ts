@@ -51,13 +51,39 @@ export async function buildAndroid(
       stdio: 'inherit',
     });
 
-    // 4b. Build web assets — cap sync needs a populated dist/ folder
-    log('\n🏗️   Building web assets (npm run build)...');
-    await execa('npm', ['run', 'build'], {
-      cwd: projectDir,
-      stdio: 'inherit',
-    });
-    await ensureWebDirExists(projectDir, config.webDir ?? 'dist');
+    // 4b. Build web assets — cap sync needs a populated dist/ folder.
+    // If the pipeline already produced a dist/ directory (stage 06 ran vite build),
+    // skip the redundant rebuild to avoid failures caused by Capacitor's newly
+    // installed packages interacting with the vite config.
+    const webDir = config.webDir ?? 'dist';
+    const distPath = path.join(projectDir, webDir);
+    const distAlreadyExists = await fs.pathExists(distPath) &&
+      (await fs.stat(distPath)).isDirectory();
+
+    if (distAlreadyExists) {
+      log(`\n🏗️   Web assets already built (${webDir}/ exists) — skipping npm run build.`);
+    } else {
+      log('\n🏗️   Building web assets (npm run build)...');
+      try {
+        const buildResult = await execa('npm', ['run', 'build'], {
+          cwd: projectDir,
+          stdio: 'pipe',
+          env: { ...process.env, NODE_ENV: 'production' },
+        });
+        if (buildResult.stdout) log(buildResult.stdout);
+        if (buildResult.stderr) log(buildResult.stderr);
+      } catch (buildErr: any) {
+        const stdout = buildErr?.stdout ?? '';
+        const stderr = buildErr?.stderr ?? '';
+        if (stdout) log(stdout);
+        if (stderr) log(stderr);
+        throw new Error(
+          `npm run build failed (exit ${buildErr?.exitCode ?? 1}).\n` +
+          `stdout: ${stdout}\nstderr: ${stderr}`
+        );
+      }
+    }
+    await ensureWebDirExists(projectDir, webDir);
 
     // 4c. Ensure every HTML file has a mobile viewport meta tag so the
     //     Android WebView renders at device width instead of 980px desktop.

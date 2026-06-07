@@ -28,6 +28,9 @@ export async function runBuildStage(ctx: PipelineContext): Promise<void> {
     // ── Ensure index.html exists in output dir ────────────────────
     await ensureIndexHtml(ctx);
 
+    // ── Patch script tags to add type="module" for Vite ───────────
+    await patchScriptTags(ctx);
+
     // ── Patch vite config for Electron ────────────────────────────
     await patchViteConfig(ctx);
 
@@ -122,6 +125,7 @@ async function ensureNodeModules(ctx: PipelineContext): Promise<void> {
   // The pipeline generates a vite.config.ts that imports a framework plugin
   // (e.g. @vitejs/plugin-react). If that plugin isn't in node_modules the
   // build fails with ERR_MODULE_NOT_FOUND. Detect which one is needed and install.
+  // Angular is excluded — it has no standard Vite plugin (see patchViteConfig).
   const framework = ctx.detection?.framework ?? "react";
   const pluginMap: Record<string, string> = {
     react:  "@vitejs/plugin-react",
@@ -159,6 +163,42 @@ async function ensureIndexHtml(ctx: PipelineContext): Promise<void> {
     } catch {
       ctx.log("warn", "index.html not found in source", STAGE);
     }
+  }
+}
+
+async function patchScriptTags(ctx: PipelineContext): Promise<void> {
+  // Plain/static HTML+JS apps MUST NOT have type="module" injected.
+  // Module scope is different from global scope: functions and variables
+  // declared in a module script are NOT accessible from inline onclick="fn()"
+  // attributes or other <script> tags, causing buttons to silently do nothing.
+  const framework = ctx.detection?.framework;
+  if (framework === "static" || framework === "unknown") {
+    ctx.log("info", "Skipping type=module injection for plain HTML/JS project (would break global onclick handlers)", STAGE);
+    return;
+  }
+
+  const dest = path.join(ctx.outputDir, "index.html");
+  try {
+    let html = await fs.readFile(dest, "utf-8");
+    const original = html;
+
+    // Matches script tags with local src and no type="module"
+    html = html.replace(/<script\b([^>]*src=["']([^"']+)["'])([^>]*)>/gi, (match, beforeSrc, src, afterSrc) => {
+      const isExternal = /^https?:\/\//i.test(src) || src.startsWith("//");
+      const hasType = /\btype\s*=\s*["']/i.test(match);
+
+      if (!isExternal && !hasType) {
+        ctx.log("info", `Patching local script tag in index.html: added type="module" to ${src}`, STAGE);
+        return `<script type="module" ${beforeSrc}${afterSrc}>`;
+      }
+      return match;
+    });
+
+    if (html !== original) {
+      await fs.writeFile(dest, html, "utf-8");
+    }
+  } catch (err) {
+    ctx.log("warn", `Could not patch script tags in index.html: ${err instanceof Error ? err.message : String(err)}`, STAGE);
   }
 }
 
@@ -200,10 +240,45 @@ async function patchViteConfig(ctx: PipelineContext): Promise<void> {
   } else if (framework === "svelte") {
     pluginImport = "import { svelte } from '@sveltejs/vite-plugin-svelte';";
     pluginUse = "svelte()";
+  } else if (framework === "static" || framework === "unknown") {
+    // Plain HTML/CSS/JS — no framework plugin needed.
+    // Vite handles vanilla HTML+JS natively without any plugin.
+    ctx.log("info", "Static/plain HTML project detected — using Vite without a framework plugin", STAGE);
+  } else if (framework === "angular") {
+    // Angular uses its own @angular-devkit builder and does not have a
+    // standard Vite plugin. The generated vite.config.ts will be minimal
+    // (no plugin). For best results, convert Angular projects using online
+    // mode (wrap the deployed URL in Electron) rather than local mode.
+    ctx.log(
+      "warn",
+      "Angular detected: no Vite plugin is available for Angular. " +
+      "The vite build may fail. Consider using 'online' mode to wrap the deployed app instead.",
+      STAGE
+    );
   }
 
   const dirnamePolyfill = isESM 
     ? `import { fileURLToPath } from 'node:url';\nconst __filename = fileURLToPath(import.meta.url);\nconst __dirname = path.dirname(__filename);\n`
+    : ``;
+
+  // ── PostCSS / Tailwind detection ─────────────────────────────────────────
+  // If the project has a postcss config (e.g. for Tailwind), wire it up so
+  // the generated vite config honours it. Without this, all Tailwind utility
+  // classes are stripped from the Electron build output.
+  const postcssConfigFile = await detectPostcssConfig(ctx.outputDir);
+  const cssBlock = postcssConfigFile
+    ? `  css: {\n    postcss: './${postcssConfigFile}',\n  },\n`
+    : ``;
+
+  if (postcssConfigFile) {
+    ctx.log("info", `Detected PostCSS config (${postcssConfigFile}) — wiring into vite config`, STAGE);
+  }
+
+  // For plain HTML/JS apps Vite works in "vanilla" mode — no plugins needed,
+  // but we must tell Rollup the entry point is index.html explicitly.
+  const isStaticApp = framework === "static" || framework === "unknown";
+  const rollupInputBlock = isStaticApp
+    ? `    rollupOptions: {\n      input: path.resolve(__dirname, 'index.html'),\n    },\n`
     : ``;
 
   const content = `import { defineConfig } from 'vite';
@@ -214,11 +289,11 @@ export default defineConfig({
   base: './',
   build: {
     outDir: 'dist',
-  },
+${rollupInputBlock}  },
   plugins: [
     ${pluginUse}
   ],
-  resolve: {
+${cssBlock}  resolve: {
     alias: {
 ${aliasEntries}
     }
@@ -397,6 +472,27 @@ async function isESMProject(outputDir: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Detect the PostCSS config file in the output directory.
+ * Returns the filename (e.g. "postcss.config.js") or undefined if not found.
+ * This allows the generated vite.config.ts to wire up Tailwind and other
+ * PostCSS plugins that were part of the original project.
+ */
+async function detectPostcssConfig(outputDir: string): Promise<string | undefined> {
+  const candidates = [
+    "postcss.config.js",
+    "postcss.config.cjs",
+    "postcss.config.ts",
+    "postcss.config.mjs",
+  ];
+  for (const candidate of candidates) {
+    const exists = await fs.access(path.join(outputDir, candidate)).then(() => true).catch(() => false);
+    if (exists) return candidate;
+  }
+  return undefined;
+}
+
 
 /**
  * Resolve the best build command to use:

@@ -36,6 +36,8 @@ const STAGE_ORDER = [
   "06b-parity",
   "07-package",
   "07b-mobile",
+  "07c-sign",
+  "08-ci-emit",
 ] as const;
 
 /**

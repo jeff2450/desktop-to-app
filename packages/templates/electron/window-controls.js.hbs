@@ -1,0 +1,251 @@
+/**
+ * WebToApp — Custom Window Controls Titlebar
+ *
+ * Automatically injected into custom borderless Electron windows.
+ * Renders Close, Minimize, and Maximize buttons at the top of the webpage.
+ * Supports window dragging, dark/light theme sensing, and pushes down top-fixed elements.
+ */
+(function webToAppWindowControls() {
+  'use strict';
+
+  // Guard: only run inside Electron and prevent duplicate injection
+  if (!window.electronAPI) return;
+  if (document.getElementById('__wta-titlebar')) return;
+
+  const isMac = window.electronAPI.platform === 'darwin';
+
+  // ── CSS Styles ────────────────────────────────────────────────────────────
+  const style = document.createElement('style');
+  style.textContent = `
+    /* Draggable window area */
+    #__wta-drag-zone {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 32px;
+      z-index: 2147483646;
+      pointer-events: none;
+      -webkit-app-region: drag;
+    }
+
+    /* Fixed custom Titlebar */
+    #__wta-titlebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 32px;
+      z-index: 2147483647;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      background: rgba(15, 17, 23, 0.75);
+      backdrop-filter: blur(20px) saturate(1.4);
+      -webkit-backdrop-filter: blur(20px) saturate(1.4);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.85);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      font-size: 12px;
+      user-select: none;
+      transition: background 0.3s, border-color 0.3s, color 0.3s;
+    }
+
+    /* Light Theme override */
+    body.wta-light #__wta-titlebar {
+      background: rgba(255, 255, 255, 0.8);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+      color: rgba(15, 17, 23, 0.85);
+    }
+
+    /* App Title Label */
+    #__wta-titlebar-title {
+      flex: 1;
+      padding-left: 16px;
+      font-weight: 500;
+      letter-spacing: 0.3px;
+      pointer-events: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    ${isMac ? `
+    /* macOS specific adjustments for system traffic lights */
+    #__wta-titlebar {
+      height: 28px;
+      justify-content: center;
+    }
+    #__wta-drag-zone {
+      height: 28px;
+    }
+    #__wta-titlebar-title {
+      padding-left: 0;
+      text-align: center;
+    }
+    ` : ''}
+
+    /* Buttons Container (Windows/Linux) */
+    .wta-window-controls {
+      display: flex;
+      height: 100%;
+      -webkit-app-region: no-drag;
+    }
+
+    /* Control Button base */
+    .wta-control-btn {
+      width: 46px;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+      color: inherit;
+    }
+
+    .wta-control-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    body.wta-light .wta-control-btn:hover {
+      background: rgba(0, 0, 0, 0.06);
+    }
+
+    /* Close Button special hover */
+    .wta-control-btn-close:hover {
+      background: #e81123 !important;
+      color: #ffffff !important;
+    }
+
+    .wta-control-btn svg {
+      width: 10px;
+      height: 10px;
+      fill: currentColor;
+    }
+
+    /* Adjust page container top boundary */
+    body {
+      padding-top: ${isMac ? '28px' : '32px'} !important;
+    }
+  `;
+  document.head.appendChild(style);
+
+  // ── Build Elements ────────────────────────────────────────────────────────
+  const dragZone = document.createElement('div');
+  dragZone.id = '__wta-drag-zone';
+  document.body.appendChild(dragZone);
+
+  const titlebar = document.createElement('div');
+  titlebar.id = '__wta-titlebar';
+
+  const titleEl = document.createElement('div');
+  titleEl.id = '__wta-titlebar-title';
+  titleEl.textContent = document.title || '{{appName}}';
+  titlebar.appendChild(titleEl);
+
+  // Exclude buttons on macOS (uses Apple's native titleBarStyle buttons)
+  if (!isMac) {
+    const controls = document.createElement('div');
+    controls.className = 'wta-window-controls';
+    controls.innerHTML = `
+      <div class="wta-control-btn" id="wta-btn-min" title="Minimize">
+        <svg viewBox="0 0 10 1"><rect x="0" y="4.5" width="10" height="1"></rect></svg>
+      </div>
+      <div class="wta-control-btn" id="wta-btn-max" title="Maximize">
+        <svg viewBox="0 0 10 10"><path d="M0,0v10h10V0H0z M9,9H1V1h8V9z"></path></svg>
+      </div>
+      <div class="wta-control-btn wta-control-btn-close" id="wta-btn-close" title="Close">
+        <svg viewBox="0 0 10 10"><polygon points="10,1 9,0 5,4 1,0 0,1 4,5 0,9 1,10 5,6 9,10 10,9 6,5"></polygon></svg>
+      </div>
+    `;
+    titlebar.appendChild(controls);
+  }
+
+  document.body.insertBefore(titlebar, document.body.firstChild);
+
+  // ── Shift Fixed Elements Down ──────────────────────────────────────────────
+  // If a website header has position: fixed & top: 0, it will render under the
+  // custom titlebar. Shift it down by the height of the titlebar.
+  function shiftFixedElements() {
+    const offset = isMac ? '28px' : '32px';
+    const elements = document.querySelectorAll('*');
+    for (const el of elements) {
+      if (el.id === '__wta-titlebar' || el.id === '__wta-drag-zone') continue;
+      const s = window.getComputedStyle(el);
+      if (s.position === 'fixed' && s.top === '0px') {
+        el.style.top = offset;
+      }
+    }
+  }
+
+  shiftFixedElements();
+  setTimeout(shiftFixedElements, 250);
+  setTimeout(shiftFixedElements, 1000);
+  setTimeout(shiftFixedElements, 3000);
+
+  const observer = new MutationObserver(shiftFixedElements);
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  // ── Auto-Theme Adaptive Brightness ────────────────────────────────────────
+  function evaluateTheme() {
+    const bg = window.getComputedStyle(document.body).backgroundColor;
+    const rgb = bg.match(/\d+/g);
+    if (rgb && rgb.length >= 3) {
+      const r = parseInt(rgb[0], 10);
+      const g = parseInt(rgb[1], 10);
+      const b = parseInt(rgb[2], 10);
+      const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+      if (brightness > 125) {
+        document.body.classList.add('wta-light');
+      } else {
+        document.body.classList.remove('wta-light');
+      }
+    }
+  }
+
+  evaluateTheme();
+  const themeObserver = new MutationObserver(evaluateTheme);
+  themeObserver.observe(document.body, { attributes: true, attributeFilter: ['style', 'class'] });
+
+  // ── Setup Action Listeners ────────────────────────────────────────────────
+  if (!isMac) {
+    document.getElementById('wta-btn-min').addEventListener('click', () => {
+      window.electronAPI.minimize();
+    });
+
+    const maxBtn = document.getElementById('wta-btn-max');
+    maxBtn.addEventListener('click', () => {
+      window.electronAPI.maximize();
+    });
+
+    document.getElementById('wta-btn-close').addEventListener('click', () => {
+      window.electronAPI.closeWindow();
+    });
+
+    if (typeof window.electronAPI.onWindowStateChanged === 'function') {
+      window.electronAPI.onWindowStateChanged((state) => {
+        const svg = maxBtn.querySelector('svg');
+        if (state.maximized) {
+          svg.innerHTML = '<path d="M2,0v2H0v8h8V8h2V0H2z M7,9H1V3h6V9z M9,7H8V2H3V1h6V7z"></path>';
+          maxBtn.title = 'Restore';
+        } else {
+          svg.innerHTML = '<path d="M0,0v10h10V0H0z M9,9H1V1h8V9z"></path>';
+          maxBtn.title = 'Maximize';
+        }
+      });
+    }
+  }
+
+  titlebar.addEventListener('dblclick', () => {
+    window.electronAPI.maximize();
+  });
+
+  const titleObserver = new MutationObserver(() => {
+    titleEl.textContent = document.title || '{{appName}}';
+  });
+  const htmlTitle = document.querySelector('title');
+  if (htmlTitle) {
+    titleObserver.observe(htmlTitle, { subtree: true, characterData: true, childList: true });
+  }
+})();

@@ -88,6 +88,7 @@ function buildMigrationPlan(ctx: PipelineContext): MigrationPlan {
           devPort: 5173,
           backendPort: 0,
           onlineMode: true,
+          titleBar: ctx.config.titleBar ?? "native",
         },
       },
       {
@@ -107,6 +108,16 @@ function buildMigrationPlan(ctx: PipelineContext): MigrationPlan {
         },
       },
     ];
+
+    if (ctx.config.titleBar === "custom") {
+      filesToGenerate.push({
+        outputPath: "electron/window-controls.js",
+        generatorType: "window-controls" as any,
+        templateVars: {
+          appName: ctx.config.name,
+        },
+      });
+    }
 
     if (ctx.config.targets.includes("mac")) {
       filesToGenerate.push({
@@ -157,6 +168,10 @@ function buildMigrationPlan(ctx: PipelineContext): MigrationPlan {
         devPort: detection.bundler === "vite" ? 5173 : 3000,
         backendPort: 0,
         onlineMode: true,
+        titleBar: ctx.config.titleBar ?? "native",
+        // Plain HTML/JS apps need sandbox disabled so onclick handlers and
+        // global functions remain accessible inside the Electron renderer.
+        disableSandbox: detection.framework === "static" || detection.framework === "unknown",
       },
     },
     {
@@ -176,6 +191,16 @@ function buildMigrationPlan(ctx: PipelineContext): MigrationPlan {
       },
     },
   ];
+
+  if (ctx.config.titleBar === "custom") {
+    filesToGenerate.push({
+      outputPath: "electron/window-controls.js",
+      generatorType: "window-controls" as any,
+      templateVars: {
+        appName: ctx.config.name,
+      },
+    });
+  }
 
   if (ctx.config.targets.includes("mac")) {
     filesToGenerate.push({

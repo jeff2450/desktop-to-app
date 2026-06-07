@@ -88,9 +88,6 @@ function createWindow() {
     minWidth: 800,
     minHeight: 600,
     title: 'Test App',
-    // Hide the native OS title bar — the app's own header acts as the title bar.
-    frame: false,
-    titleBarStyle: 'hidden',
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#0f0f0f' : '#ffffff',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),

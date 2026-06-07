@@ -43,7 +43,23 @@ export class ElectronPackager {
 
     for (const targetFlag of targetFlags) {
       log(`[packager] Running electron-builder for target ${targetFlag}...`);
-      const buildCmd = cmd(`npx electron-builder ${targetFlag}`);
+
+      // Prefer the locally installed electron-builder binary to avoid npx
+      // downloading the latest version (26.x) which requires Node ≥22.12.0.
+      // electron-builder ^24 (pinned in devDependencies) works with Node 18+.
+      const localEbWin = path.join(opts.projectDir, "node_modules", ".bin", "electron-builder.cmd");
+      const localEbUnix = path.join(opts.projectDir, "node_modules", ".bin", "electron-builder");
+      const localEb = process.platform === "win32" ? localEbWin : localEbUnix;
+
+      let localEbExists = false;
+      try {
+        await fs.access(localEb);
+        localEbExists = true;
+      } catch { /* not found */ }
+
+      const buildCmd = localEbExists
+        ? cmd(`"${localEb}" ${targetFlag}`)
+        : cmd(`npx electron-builder@24 ${targetFlag}`);
 
       try {
         const { stdout, stderr } = await execAsync(buildCmd, {

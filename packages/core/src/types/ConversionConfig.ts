@@ -60,6 +60,14 @@ export interface ConversionConfig {
   /** Whether to open the Electron DevTools in the output app */
   devTools?: boolean;
 
+  /**
+   * Title bar style.
+   * - "native" — use standard OS window frame and controls.
+   * - "custom" — borderless window with injected custom HTML/CSS controls.
+   * @default "native"
+   */
+  titleBar?: "native" | "custom";
+
   /** Whether to enable verbose pipeline logging */
   verbose?: boolean;
 

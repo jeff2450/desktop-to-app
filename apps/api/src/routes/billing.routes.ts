@@ -45,7 +45,7 @@ function normalizePlan(plan: string): Plan {
 
 const PLANS_METADATA = [
   { id: "free", name: "Free", price: 0, conversionsPerMonth: 1, features: ["1 free conversion", "All build targets (Win, Linux, Mac, Android, iOS)", "Community support", "Basic templates"] },
-  { id: "pro", name: "Pro", price: 20000, conversionsPerMonth: 10, features: ["10 conversions per month", "All build targets (Win, Linux, Mac, Android, iOS)", "Priority support", "Advanced templates", "Custom configurations"] },
+  { id: "pro", name: "Pro", price: 1000, conversionsPerMonth: 20, features: ["20 conversions per month", "All build targets (Win, Linux, Mac, Android, iOS)", "Priority support", "Advanced templates", "Custom configurations"] },
   { id: "team", name: "Semi-Pro", price: 30000, conversionsPerMonth: 50, features: ["50 conversions per month", "All build targets (Win, Linux, Mac, Android, iOS)", "Priority queue processing", "Team collaboration tools", "Advanced analytics"] },
   { id: "ultra", name: "Ultra", price: 50000, conversionsPerMonth: 100, features: ["100 conversions per month", "All build targets (Win, Linux, Mac, Android, iOS)", "Ultra priority queue", "CI/CD API access", "Custom integrations", "Dedicated support"] }
 ];
@@ -210,6 +210,8 @@ billingRouter.post("/checkout", requireAuth, async (req, res, next) => {
             order_id: txRef,
             amount: tzsAmount,
             buyer_phone: phone,
+            buyer_email: user.email,
+            buyer_name: user.name || "Customer",
             fee_payer: "MERCHANT",
             webhook_url: webhookUrl
           })
@@ -252,9 +254,12 @@ billingRouter.post(["/mongike", "/webhooks/mongike"], express.json(), async (req
     const apiKey = (req.headers["x-api-key"] || req.headers["X-API-KEY"]) as string;
     
     // Security check: Verify the webhook call is signed with the correct API key.
-    // In local development, we bypass it if not provided to allow dev simulation.
-    if (env.NODE_ENV === "production" || apiKey) {
-      if (apiKey !== env.MONGIKE_API_KEY) {
+    // We bypass it ONLY in development or test environments if not provided to allow dev simulation.
+    const isLocalDev = env.NODE_ENV === "development" || env.NODE_ENV === "test";
+    const enforceAuth = !isLocalDev || apiKey;
+
+    if (enforceAuth) {
+      if (!env.MONGIKE_API_KEY || apiKey !== env.MONGIKE_API_KEY) {
         throw new ApiError(401, "Unauthorized webhook trigger", "UNAUTHORIZED");
       }
     }
@@ -269,12 +274,20 @@ billingRouter.post(["/mongike", "/webhooks/mongike"], express.json(), async (req
     if (transaction.status !== "PENDING") return res.json({ success: true, message: "Already processed" });
 
     const status = String(payment_status).toUpperCase();
-    if (status === "COMPLETED") {
-      await prisma.transaction.update({ where: { txRef: order_id }, data: { status: "COMPLETED" } });
-      await prisma.user.update({ where: { id: transaction.userId }, data: { plan: transaction.plan } });
+    if (status === "COMPLETED" || status === "SUCCESSFUL") {
+      // Perform atomic database update using Prisma transaction
+      await prisma.$transaction([
+        prisma.transaction.update({ where: { txRef: order_id }, data: { status: "COMPLETED" } }),
+        prisma.user.update({ where: { id: transaction.userId }, data: { plan: transaction.plan } })
+      ]);
       console.log(`[billing-webhook] Upgraded user ${transaction.userId} to ${transaction.plan}`);
-    } else {
+    } else if (status === "FAILED" || status === "CANCELLED" || status === "DECLINED") {
       await prisma.transaction.update({ where: { txRef: order_id }, data: { status: "FAILED" } });
+      console.log(`[billing-webhook] Transaction ${order_id} marked as FAILED`);
+    } else {
+      // Intermediate states like PENDING/PROCESSING.
+      // Log and return success to the gateway without changing the database state.
+      console.log(`[billing-webhook] Ignoring intermediate state: ${status}`);
     }
 
     return res.json({ success: true });

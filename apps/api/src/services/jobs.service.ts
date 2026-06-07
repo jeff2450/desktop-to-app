@@ -13,7 +13,7 @@ const PLAN_LIMITS: Record<
   { monthlyLimit: number | null; platforms: string[]; priority: number }
 > = {
   FREE:    { monthlyLimit: 1,    platforms: ALL_PLATFORMS, priority: 10 }, // Free plan: 1 conversion, all platforms
-  STARTER: { monthlyLimit: 10,   platforms: ALL_PLATFORMS, priority: 5  }, // Pro plan: 10 conversions, all platforms
+  STARTER: { monthlyLimit: 20,   platforms: ALL_PLATFORMS, priority: 5  }, // Pro plan: 20 conversions, all platforms
   PRO:     { monthlyLimit: 50,   platforms: ALL_PLATFORMS, priority: 3  }, // Team (semi-pro) plan: 50 conversions, all platforms
   ULTRA:   { monthlyLimit: 100,  platforms: ALL_PLATFORMS, priority: 1  }, // Ultra plan: 100 conversions, all platforms
 };

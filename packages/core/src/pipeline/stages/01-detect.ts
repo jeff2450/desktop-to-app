@@ -103,6 +103,16 @@ async function detectProject(
 
   if (isStaticPlain) {
     ctx.log("info", "Detected static/plain web files. Configuring minimal build pipeline.", STAGE);
+
+    // ── Backend connectivity check for static sites ──────────────────────
+    // Scan JS files for fetch/XHR calls that target localhost or relative
+    // API paths. These will break in the packaged Electron app because there
+    // is no local server running and relative paths go to the static file server.
+    const backendWarnings = await detectStaticBackendCalls(sourceDir, sourceFiles);
+    for (const w of backendWarnings) {
+      ctx.log("warn", w, STAGE);
+    }
+
     return {
       isStaticPlain: true,
       framework: "static",
@@ -115,7 +125,7 @@ async function detectProject(
       uiLibrary: "other",
       hasOfflineSupport: false,
       confidence: 1.0,
-      warnings: [],
+      warnings: backendWarnings,
       scannedFiles: sourceFiles,
       dependencies: {},
       devDependencies: {},
@@ -225,6 +235,18 @@ async function detectProject(
     );
   }
 
+  // ── Backend connectivity check for no-cloud-backend projects ──────────────
+  // If the project doesn't use Supabase/Firebase/PocketBase but is making
+  // fetch() calls to localhost or relative /api/ paths, those calls will break
+  // in the packaged Electron app (no local server runs inside Electron).
+  if (backend === "none") {
+    const backendWarnings = await detectStaticBackendCalls(sourceDir, sourceFiles);
+    for (const w of backendWarnings) {
+      warnings.push(w);
+      ctx.log("warn", w, STAGE);
+    }
+  }
+
   return {
     framework,
     bundler,
@@ -248,6 +270,87 @@ async function detectProject(
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/**
+ * Scan plain HTML/JS files for backend API calls that will break in a packaged
+ * Electron app. Looks for:
+ *  - fetch('http://localhost:...')  → local dev server, won't exist after packaging
+ *  - fetch('/api/...')              → relative path, resolves to static file server (404)
+ *  - new XMLHttpRequest() + open('...localhost...') → same issues
+ *  - axios.get('/api/...')          → relative path
+ *  - $.ajax({ url: '/api/...' })   → jQuery relative path
+ */
+async function detectStaticBackendCalls(
+  sourceDir: string,
+  sourceFiles: string[]
+): Promise<string[]> {
+  const warnings: string[] = [];
+
+  // Only scan JS files
+  const jsFiles = sourceFiles.filter((f) => /\.(js|mjs|cjs)$/i.test(f));
+
+  // Patterns that indicate localhost backend calls
+  const LOCALHOST_RE = /(?:fetch|axios\.(?:get|post|put|patch|delete)|(?:open|request)\s*\()\s*['"`](https?:\/\/localhost(?::\d+)?\/[^'"`]*)/gi;
+  // Patterns that indicate relative API path calls (likely backend routes)
+  const RELATIVE_API_RE = /(?:fetch|axios\.(?:get|post|put|patch|delete))\s*['"`](\/api\/[^'"`]*)/gi;
+  // XMLHttpRequest with localhost
+  const XHR_LOCALHOST_RE = /\.open\s*\(\s*['"`][A-Z]+['"`]\s*,\s*['"`](https?:\/\/localhost[^'"`]*)/gi;
+  // jQuery AJAX with localhost or /api
+  const JQUERY_AJAX_RE = /\$\.(?:ajax|get|post|getJSON)\s*\(\s*['"`]((?:https?:\/\/localhost|\/api\/)[^'"`]*)/gi;
+
+  const localhostFiles: string[] = [];
+  const relativeApiFiles: string[] = [];
+
+  for (const file of jsFiles.slice(0, 50)) {
+    let content: string;
+    try {
+      content = await fs.readFile(file, "utf-8");
+    } catch {
+      continue;
+    }
+
+    const relPath = path.relative(sourceDir, file);
+    let hasLocalhost = false;
+    let hasRelativeApi = false;
+
+    // Reset lastIndex for global regexes
+    LOCALHOST_RE.lastIndex = 0;
+    RELATIVE_API_RE.lastIndex = 0;
+    XHR_LOCALHOST_RE.lastIndex = 0;
+    JQUERY_AJAX_RE.lastIndex = 0;
+
+    if (LOCALHOST_RE.test(content)) hasLocalhost = true;
+    if (XHR_LOCALHOST_RE.test(content)) hasLocalhost = true;
+    if (JQUERY_AJAX_RE.test(content)) { hasLocalhost = true; }
+
+    RELATIVE_API_RE.lastIndex = 0;
+    if (RELATIVE_API_RE.test(content)) hasRelativeApi = true;
+
+    if (hasLocalhost) localhostFiles.push(relPath);
+    if (hasRelativeApi) relativeApiFiles.push(relPath);
+  }
+
+  if (localhostFiles.length > 0) {
+    warnings.push(
+      `Backend connectivity: ${localhostFiles.length} JS file(s) make fetch/XHR calls to ` +
+      `localhost (${localhostFiles.slice(0, 3).join(", ")}${localhostFiles.length > 3 ? ", ..." : ""}). ` +
+      `These calls will fail in the packaged Electron app — no local server runs inside the app. ` +
+      `Consider pointing your API calls to a hosted backend URL or bundling a local server.`
+    );
+  }
+
+  if (relativeApiFiles.length > 0) {
+    warnings.push(
+      `Backend connectivity: ${relativeApiFiles.length} JS file(s) make fetch calls to relative ` +
+      `'/api/...' paths (${relativeApiFiles.slice(0, 3).join(", ")}${relativeApiFiles.length > 3 ? ", ..." : ""}). ` +
+      `In the packaged Electron app, relative paths are served by the static file handler — there is ` +
+      `no backend server. These API calls will return 404. ` +
+      `Point them to an absolute hosted API URL or bundle an Express server with electron-express.`
+    );
+  }
+
+  return warnings;
+}
+
 function flattenDeps(pkg: Record<string, unknown>): Record<string, string> {
   const d = pkg["dependencies"];
   return typeof d === "object" && d !== null ? (d as Record<string, string>) : {};
@@ -258,11 +361,27 @@ function flattenDevDeps(pkg: Record<string, unknown>): Record<string, string> {
   return typeof d === "object" && d !== null ? (d as Record<string, string>) : {};
 }
 
+async function hasFrontendFiles(dir: string): Promise<boolean> {
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        if (!["node_modules", ".git", "dist", ".next", "build"].includes(entry.name)) {
+          const subHas = await hasFrontendFiles(path.join(dir, entry.name));
+          if (subHas) return true;
+        }
+      } else if (/\.(ts|tsx|js|jsx|css|scss|sass|less|html|vue|svelte)$/i.test(entry.name)) {
+        return true;
+      }
+    }
+  } catch {}
+  return false;
+}
+
 async function scanSourceFiles(sourceDir: string): Promise<string[]> {
   const files: string[] = [];
-  const srcDir = path.join(sourceDir, "src");
 
-  async function walk(dir: string): Promise<void> {
+  async function walk(dir: string, recursive: boolean): Promise<void> {
     let entries: import("node:fs").Dirent[];
     try {
       entries = await fs.readdir(dir, { withFileTypes: true }) as any;
@@ -273,8 +392,8 @@ async function scanSourceFiles(sourceDir: string): Promise<string[]> {
     for (const entry of entries) {
       const full = path.join(dir, entry.name as string);
       if (entry.isDirectory()) {
-        if (!["node_modules", ".git", "dist", ".next", "build"].includes(entry.name as string)) {
-          await walk(full);
+        if (recursive && !["node_modules", ".git", "dist", ".next", "build"].includes(entry.name as string)) {
+          await walk(full, true);
         }
       } else if (/\.(ts|tsx|js|jsx|css|scss|sass|less|html|json|svg|png|jpg|jpeg|webp|woff|woff2)$/.test(entry.name as string)) {
         files.push(full);
@@ -282,9 +401,27 @@ async function scanSourceFiles(sourceDir: string): Promise<string[]> {
     }
   }
 
-  const targetDir = await fileExists(srcDir) ? srcDir : sourceDir;
-  await walk(targetDir);
-  return files;
+  const srcDir = path.join(sourceDir, "src");
+  const hasPackageJson = await fileExists(path.join(sourceDir, "package.json"));
+  let targetDir = sourceDir;
+  let scanRootNonRecursively = false;
+
+  if (hasPackageJson && await fileExists(srcDir)) {
+    const isFrontendSrc = await hasFrontendFiles(srcDir);
+    if (isFrontendSrc) {
+      targetDir = srcDir;
+      scanRootNonRecursively = true;
+    }
+  }
+
+  await walk(targetDir, true);
+
+  if (scanRootNonRecursively) {
+    // Walk the root directory non-recursively to capture root-level config files and assets
+    await walk(sourceDir, false);
+  }
+
+  return [...new Set(files)];
 }
 
 async function extractImports(files: string[]): Promise<Set<string>> {

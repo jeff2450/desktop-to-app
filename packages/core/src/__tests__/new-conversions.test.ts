@@ -91,4 +91,27 @@ describe("Conversion — Local Plain Static Website", () => {
     expect(res.detectionResult?.scannedFiles.some(f => f.endsWith("styles.css"))).toBe(true);
     expect(res.detectionResult?.scannedFiles.some(f => f.endsWith("script.js"))).toBe(true);
   });
+
+  it("correctly identifies static plain site and scans root assets when a non-frontend src directory exists", async () => {
+    await createFixture(tmpDir, {
+      "index.html": "<!DOCTYPE html><html><head><link rel='stylesheet' href='style.css'></head><body><script src='script.js'></script></body></html>",
+      "style.css": "body { background: black; }",
+      "script.js": "console.log('loaded');",
+      "src/main/java/com/example/App.java": "public class App {}",
+    });
+
+    const { ConversionPipeline } = await import("../pipeline/ConversionPipeline.js");
+    const pipeline = new ConversionPipeline(
+      baseConfig({ source: tmpDir, dryRun: true }) as any
+    );
+
+    const res = await pipeline.run();
+
+    expect(res.status).toBe("success");
+    expect(res.detectionResult?.isStaticPlain).toBe(true);
+    expect(res.detectionResult?.framework).toBe("static");
+    expect(res.detectionResult?.scannedFiles.some(f => f.endsWith("style.css"))).toBe(true);
+    expect(res.detectionResult?.scannedFiles.some(f => f.endsWith("script.js"))).toBe(true);
+    expect(res.detectionResult?.scannedFiles.some(f => f.endsWith("App.java"))).toBe(false);
+  });
 });

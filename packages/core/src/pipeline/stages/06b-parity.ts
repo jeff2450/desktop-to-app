@@ -88,11 +88,20 @@ async function checkOnlineSourceParity(ctx: PipelineContext, findings: Finding[]
     });
   }
 
+  // Files that were intentionally rewritten by post-transform fixers (e.g.
+  // the Supabase client rewrite) are excluded from byte-for-byte comparison.
+  const patchedSet = new Set(
+    (ctx.plan!.patchedFiles ?? []).map((p) => normalizeRel(p))
+  );
+
   for (const absolutePath of ctx.detection!.scannedFiles) {
     if (!CODE_EXT_RE.test(absolutePath)) continue;
 
     const rel = ctx.relative(absolutePath);
     if (!normalizeRel(rel).startsWith("src/")) continue;
+
+    // Skip files that were intentionally patched by Stage 03 fixers
+    if (patchedSet.has(normalizeRel(rel))) continue;
 
     const outputPath = path.join(ctx.outputDir, rel);
     const [sourceContent, outputContent] = await Promise.all([
