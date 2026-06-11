@@ -3,6 +3,9 @@
  * Describes every file that needs to be transformed and what to do with it.
  */
 export interface MigrationPlan {
+  /** The mode the pipeline will actually execute after automatic fallback logic. */
+  effectiveMode?: "online" | "offline" | "hybrid";
+
   /** Files that need AST-based transformation */
   filesToTransform: FileTransformPlan[];
 

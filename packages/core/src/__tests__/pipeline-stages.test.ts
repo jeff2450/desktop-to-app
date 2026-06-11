@@ -98,7 +98,7 @@ describe("Pipeline Stages (00-07b) Integration and Unit Tests", () => {
     );
   }
 
-  function makeContext(opts: { mode?: "online"; targets?: Array<"windows" | "linux" | "mac" | "android" | "ios">; dryRun?: boolean } = {}) {
+  function makeContext(opts: { mode?: "online" | "offline" | "hybrid"; targets?: Array<"windows" | "linux" | "mac" | "android" | "ios">; dryRun?: boolean } = {}) {
     return new PipelineContext({
       config: {
         name: "Test Fixture App",
@@ -164,6 +164,31 @@ describe("Pipeline Stages (00-07b) Integration and Unit Tests", () => {
       const fileToGen = ctx.plan?.filesToGenerate.map(f => f.outputPath);
       expect(fileToGen).toContain("electron/main.cjs");
       expect(fileToGen).not.toContain("backend/server.cjs");
+    });
+
+    it("falls back from online to offline when local API calls would break packaged online mode", async () => {
+      const pkg = JSON.parse(await fs.readFile(path.join(sourceDir, "package.json"), "utf-8"));
+      delete pkg.dependencies["@supabase/supabase-js"];
+      await fs.writeFile(path.join(sourceDir, "package.json"), JSON.stringify(pkg), "utf-8");
+      await fs.writeFile(
+        path.join(sourceDir, "src/main.tsx"),
+        "import React from 'react';\nfetch('/api/orders').then((res) => res.json());",
+        "utf-8"
+      );
+
+      const ctx = makeContext({ mode: "online" });
+
+      await runDetectStage(ctx);
+      await runPlanStage(ctx);
+
+      expect(ctx.config.mode).toBe("offline");
+      expect(ctx.plan?.effectiveMode).toBe("offline");
+      expect(ctx.plan?.dependenciesToAdd).toHaveProperty("better-sqlite3");
+
+      const fileToGen = ctx.plan?.filesToGenerate.map(f => f.outputPath);
+      expect(fileToGen).toContain("backend/server.cjs");
+      expect(fileToGen).toContain("backend/database.cjs");
+      expect(fileToGen).toContain("src/lib/localApi.ts");
     });
   });
 

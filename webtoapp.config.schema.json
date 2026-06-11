@@ -45,8 +45,8 @@
     },
     "mode": {
       "type": "string",
-      "enum": ["online"],
-      "description": "online: original cloud backend kept as-is (Supabase/Firebase untouched)."
+      "enum": ["online", "offline", "hybrid"],
+      "description": "Conversion mode: online (cloud backend as-is), offline (local SQLite/Express backend), hybrid (local backend + cloud sync)"
     },
     "appId": {
       "type": "string",

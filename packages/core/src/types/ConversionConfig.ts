@@ -9,7 +9,7 @@
  *              App works without any internet connection.
  *              Best for: fully air-gapped / kiosk deployments.
  */
-export type ConversionMode = "online" | "offline";
+export type ConversionMode = "online" | "offline" | "hybrid";
 
 /**
  * User-supplied configuration — loaded from webtoapp.config.json or

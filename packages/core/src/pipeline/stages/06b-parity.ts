@@ -46,7 +46,8 @@ export async function runParityStage(ctx: PipelineContext): Promise<void> {
     }
 
     const findings: Finding[] = [];
-    if (ctx.config.mode === "online") {
+    const effectiveMode = ctx.plan.effectiveMode ?? ctx.config.mode;
+    if (effectiveMode === "online") {
       await checkOnlineSourceParity(ctx, findings);
       await checkCloudEnvPreserved(ctx, findings);
     } else {

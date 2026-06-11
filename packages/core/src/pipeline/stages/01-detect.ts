@@ -285,13 +285,13 @@ async function detectStaticBackendCalls(
 ): Promise<string[]> {
   const warnings: string[] = [];
 
-  // Only scan JS files
-  const jsFiles = sourceFiles.filter((f) => /\.(js|mjs|cjs)$/i.test(f));
+  // Scan frontend code files where API calls commonly live.
+  const jsFiles = sourceFiles.filter((f) => /\.(ts|tsx|js|jsx|mjs|cjs)$/i.test(f));
 
   // Patterns that indicate localhost backend calls
-  const LOCALHOST_RE = /(?:fetch|axios\.(?:get|post|put|patch|delete)|(?:open|request)\s*\()\s*['"`](https?:\/\/localhost(?::\d+)?\/[^'"`]*)/gi;
+  const LOCALHOST_RE = /(?:\bfetch\s*\(\s*|axios\.(?:get|post|put|patch|delete)\s*\(\s*|request\s*\(\s*)['"`](https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?\/[^'"`]*)/gi;
   // Patterns that indicate relative API path calls (likely backend routes)
-  const RELATIVE_API_RE = /(?:fetch|axios\.(?:get|post|put|patch|delete))\s*['"`](\/api\/[^'"`]*)/gi;
+  const RELATIVE_API_RE = /(?:\bfetch\s*\(\s*|axios\.(?:get|post|put|patch|delete)\s*\(\s*)['"`](\/api\/[^'"`]*)/gi;
   // XMLHttpRequest with localhost
   const XHR_LOCALHOST_RE = /\.open\s*\(\s*['"`][A-Z]+['"`]\s*,\s*['"`](https?:\/\/localhost[^'"`]*)/gi;
   // jQuery AJAX with localhost or /api
