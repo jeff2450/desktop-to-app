@@ -9,18 +9,22 @@ directories:
 files:
   - dist/**/*
   - electron/**/*
+  {{#if includeBackend}}
   - backend/**/*
+  {{/if}}
   - package.json
   - "!node_modules/.cache"
   - "!**/*.map"
   - "!**/*.ts"
 
+{{#if includeBackend}}
 extraResources:
   - from: backend/
     to: backend/
     filter:
       - "**/*"
       - "!**/*.ts"
+{{/if}}
 
 # ---------------------------------------------------------------------------
 # Windows

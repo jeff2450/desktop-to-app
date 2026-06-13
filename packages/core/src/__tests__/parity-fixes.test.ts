@@ -191,4 +191,56 @@ describe("Parity Fixes — Electron frame and PostCSS", () => {
     expect(configContent).not.toContain("public/ignored.html");
     expect(configContent).not.toContain("node_modules/ignored.html");
   });
+
+  it("copies classic static references to dist and verifies them in parity stage, handles case-mismatch on Windows", async () => {
+    // We set up outputDir with a lowercased drive letter if it has one
+    const lowerOutputDir = outputDir.match(/^[a-zA-Z]:/)
+      ? outputDir.replace(/^[a-zA-Z]:/, (m) => m.toLowerCase())
+      : outputDir;
+
+    await createFixture(sourceDir, {
+      "index.html": "<html><head><script src=\"script.js\"></script><link rel=\"stylesheet\" href=\"style.css\"></head></html>",
+      "script.js": "console.log('hello');",
+      "style.css": "body { color: red; }",
+    });
+
+    const ctx = makeTestCtx(sourceDir, lowerOutputDir, workDir, { verbose: true });
+    ctx.detection!.framework = "static";
+
+    // Run plan stage to set up context plans
+    await runPlanStage(ctx);
+
+    // Simulate runTransformStage copying files to outputDir
+    await fs.mkdir(path.join(lowerOutputDir, "src"), { recursive: true });
+    await fs.copyFile(path.join(sourceDir, "index.html"), path.join(lowerOutputDir, "index.html"));
+    await fs.copyFile(path.join(sourceDir, "script.js"), path.join(lowerOutputDir, "script.js"));
+    await fs.copyFile(path.join(sourceDir, "style.css"), path.join(lowerOutputDir, "style.css"));
+
+    // Write a mock vite binary to bypass real vite compile, but produce the expected dist/index.html
+    const isWin = process.platform === "win32";
+    const binDir = path.join(lowerOutputDir, "node_modules", ".bin");
+    await fs.mkdir(binDir, { recursive: true });
+
+    const htmlContent = "<html><head><script src=\"script.js\"></script><link rel=\"stylesheet\" href=\"style.css\"></head></html>";
+    const jsContent = `const fs = require('fs');\nconst path = require('path');\nconst dist = path.join(__dirname, '../../dist');\nfs.mkdirSync(dist, { recursive: true });\nfs.writeFileSync(path.join(dist, 'index.html'), ${JSON.stringify(htmlContent)}, 'utf-8');\n`;
+
+    if (isWin) {
+      await fs.writeFile(path.join(binDir, "vite.cmd"), `@node "%~dp0\\vite" %*\n`, "utf-8");
+      await fs.writeFile(path.join(binDir, "vite"), jsContent, "utf-8");
+    } else {
+      const binPath = path.join(binDir, "vite");
+      await fs.writeFile(binPath, `#!/usr/bin/env node\n${jsContent}`, "utf-8");
+      await fs.chmod(binPath, 0o755);
+    }
+    // Run build stage
+    await runBuildStage(ctx);
+
+    // Verify script.js is copied into dist/
+    const distScriptExists = await fs.access(path.join(lowerOutputDir, "dist", "script.js")).then(() => true).catch(() => false);
+    expect(distScriptExists).toBe(true);
+
+    // Now run runParityStage(ctx) to ensure it passes without reporting missing files
+    const { runParityStage } = await import("../pipeline/stages/06b-parity.js");
+    await expect(runParityStage(ctx)).resolves.toBeUndefined();
+  });
 });

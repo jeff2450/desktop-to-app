@@ -212,6 +212,27 @@ async function checkBuiltDist(ctx: PipelineContext, findings: Finding[]): Promis
       });
     }
   }
+
+  const localRefs = [...html.matchAll(/\b(?:src|href)=["']([^"']+)["']/gi)]
+    .map((match) => match[1])
+    .filter((value): value is string => Boolean(value))
+    .filter((value) => !shouldSkipLocalDistReference(value));
+
+  for (const localRef of localRefs) {
+    const assetPath = path.resolve(ctx.outputDir, "dist", localRef.replace(/^\.\//, ""));
+    const distRoot = path.resolve(ctx.outputDir, "dist");
+    const relAsset = path.relative(distRoot, assetPath);
+    const isInside = !relAsset.startsWith("..") && !path.isAbsolute(relAsset);
+    if (!isInside) continue;
+
+    if (!(await fileExists(assetPath))) {
+      findings.push({
+        level: "error",
+        file: "dist/index.html",
+        message: `Built HTML references missing local file ${localRef}.`,
+      });
+    }
+  }
 }
 
 function formatFinding(finding: Finding): string {
@@ -253,4 +274,13 @@ async function fileExists(filePath: string): Promise<boolean> {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function shouldSkipLocalDistReference(ref: string): boolean {
+  if (/^(?:https?:)?\/\//i.test(ref)) return true;
+  if (/^(?:data|blob|mailto|tel):/i.test(ref)) return true;
+  if (ref.startsWith("#")) return true;
+  if (ref.startsWith("/")) return true;
+  if (ref.includes("..")) return true;
+  return false;
 }

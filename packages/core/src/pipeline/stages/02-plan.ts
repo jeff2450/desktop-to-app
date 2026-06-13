@@ -162,6 +162,7 @@ async function buildMigrationPlan(
             version: ctx.config.version,
             targets: ctx.config.targets,
             icon: ctx.config.icon ?? "assets/icon.png",
+            includeBackend: false,
           },
         },
       ];
@@ -246,6 +247,7 @@ async function buildMigrationPlan(
           version: ctx.config.version,
           targets: ctx.config.targets,
           icon: ctx.config.icon ?? "assets/icon.png",
+          includeBackend: false,
         },
       }
     );
@@ -401,6 +403,7 @@ async function buildMigrationPlan(
         version: ctx.config.version,
         targets: ctx.config.targets,
         icon: ctx.config.icon ?? "assets/icon.png",
+        includeBackend: ctx.config.backend.type !== "none",
       },
     }
   );

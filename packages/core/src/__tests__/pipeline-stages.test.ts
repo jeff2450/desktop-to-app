@@ -297,7 +297,13 @@ describe("Pipeline Stages (00-07b) Integration and Unit Tests", () => {
       const outputPkg = JSON.parse(await fs.readFile(path.join(outputDir, "package.json"), "utf-8"));
 
       expect(outputPkg.dependencies).not.toHaveProperty("electron");
+      expect(outputPkg.dependencies).not.toHaveProperty("vite");
+      expect(outputPkg.dependencies).not.toHaveProperty("concurrently");
+      expect(outputPkg.dependencies).not.toHaveProperty("wait-on");
       expect(outputPkg.devDependencies).toHaveProperty("electron");
+      expect(outputPkg.devDependencies).toHaveProperty("vite");
+      expect(outputPkg.devDependencies).toHaveProperty("concurrently");
+      expect(outputPkg.devDependencies).toHaveProperty("wait-on");
       expect(outputPkg.dependencies).not.toHaveProperty("vite-plugin-pwa");
       expect(outputPkg.dependencies["date-fns"]).toBe("^3.6.0");
       expect(outputPkg.scripts.build).toBe("vite build");
@@ -321,6 +327,42 @@ describe("Pipeline Stages (00-07b) Integration and Unit Tests", () => {
   });
 
   describe("Stage 06 — Build", () => {
+    it("copies classic static script references into dist for plain HTML apps", async () => {
+      await fs.writeFile(
+        path.join(sourceDir, "index.html"),
+        "<!DOCTYPE html><html><body><div id='loader'></div><script src=\"script.js\"></script></body></html>",
+        "utf-8"
+      );
+      await fs.writeFile(
+        path.join(sourceDir, "script.js"),
+        "document.getElementById('loader').remove();",
+        "utf-8"
+      );
+
+      const ctx = makeContext({ mode: "online", dryRun: false });
+      await runDetectStage(ctx);
+
+      await fs.mkdir(path.join(outputDir, "node_modules/vite"), { recursive: true });
+      await fs.mkdir(path.join(outputDir, "dist"), { recursive: true });
+      await fs.copyFile(path.join(sourceDir, "index.html"), path.join(outputDir, "index.html"));
+      await fs.copyFile(path.join(sourceDir, "script.js"), path.join(outputDir, "script.js"));
+      await fs.writeFile(
+        path.join(outputDir, "dist", "index.html"),
+        "<!DOCTYPE html><html><body><div id='loader'></div><script src=\"script.js\"></script></body></html>",
+        "utf-8"
+      );
+      await fs.writeFile(
+        path.join(outputDir, "package.json"),
+        JSON.stringify({ type: "module" }),
+        "utf-8"
+      );
+
+      await runBuildStage(ctx);
+
+      const distScript = await fs.readFile(path.join(outputDir, "dist", "script.js"), "utf-8");
+      expect(distScript).toContain("loader");
+    });
+
     it("patches the vite config, fixes css imports, and runs vite build", async () => {
       await createValidFixture(sourceDir);
       const ctx = makeContext({ mode: "online", dryRun: false });

@@ -447,6 +447,7 @@ function generateElectronBuilderConfig(vars: Record<string, unknown>): string {
   const appName = String(vars["appName"] ?? "App");
   const icon = String(vars["icon"] ?? "assets/icon.png");
   const targets = Array.isArray(vars["targets"]) ? vars["targets"] : ["windows"];
+  const includeBackend = Boolean(vars["includeBackend"]);
 
   // Use .ico for Windows if available, otherwise fallback to the base icon
   const winIcon = icon.endsWith(".ico") ? icon : "assets/icon.ico";
@@ -458,9 +459,15 @@ directories:
 files:
   - dist/**/*
   - electron/**/*
-  - package.json
+${includeBackend ? `  - backend/**/*
+` : ""}  - package.json
 extraResources:
-  - from: assets
+${includeBackend ? `  - from: backend
+    to: backend
+    filter:
+      - "**/*"
+      - "!**/*.ts"
+` : ""}  - from: assets
     to: assets
     filter:
       - "**/*"
@@ -663,4 +670,3 @@ async function copyElectronAssets(ctx: PipelineContext): Promise<void> {
     }
   }
 }
-

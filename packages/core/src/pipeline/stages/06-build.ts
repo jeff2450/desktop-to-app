@@ -76,6 +76,11 @@ export async function runBuildStage(ctx: PipelineContext): Promise<void> {
 
     ctx.log("info", "Vite build complete — dist/ ready", STAGE);
 
+    // Vite leaves classic scripts such as <script src="script.js"></script>
+    // outside the bundle. Plain static apps need those globals, so preserve
+    // referenced files beside dist/index.html for Electron packaging.
+    await copyClassicStaticReferencesToDist(ctx);
+
     // ── Strip known injected preview scripts from dist/index.html ─
     // Lovable.dev and similar tools inject preview/runtime scripts into
     // index.html. Removing every external script is risky for mobile apps
@@ -603,6 +608,65 @@ async function stripExternalScriptsFromDistHtml(ctx: PipelineContext): Promise<v
     await fs.writeFile(htmlPath, html, "utf-8");
     ctx.log("info", "Stripped known injected preview scripts from dist/index.html", STAGE);
   }
+}
+
+async function copyClassicStaticReferencesToDist(ctx: PipelineContext): Promise<void> {
+  const framework = ctx.detection?.framework;
+  if (framework !== "static" && framework !== "unknown") return;
+
+  const distHtmlPath = path.join(ctx.outputDir, "dist", "index.html");
+  const html = await fs.readFile(distHtmlPath, "utf-8").catch(() => "");
+  if (!html) return;
+
+  const refs = new Set<string>();
+  const attrRe = /\b(?:src|href)=["']([^"']+)["']/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = attrRe.exec(html)) !== null) {
+    const ref = match[1]?.trim();
+    if (!ref || shouldSkipStaticReference(ref)) continue;
+    refs.add(ref.replace(/^\.\//, ""));
+  }
+
+  const outputRoot = path.resolve(ctx.outputDir);
+  const distRoot = path.resolve(ctx.outputDir, "dist");
+  let copied = 0;
+
+  for (const ref of refs) {
+    const sourcePath = path.resolve(ctx.outputDir, ref);
+    const distPath = path.resolve(distRoot, ref);
+
+    const relSource = path.relative(outputRoot, sourcePath);
+    const relDist = path.relative(distRoot, distPath);
+    const isSourceInside = !relSource.startsWith("..") && !path.isAbsolute(relSource);
+    const isDistInside = !relDist.startsWith("..") && !path.isAbsolute(relDist);
+
+    if (!isSourceInside || !isDistInside) {
+      continue;
+    }
+
+    const sourceExists = await fs.stat(sourcePath).then((stat) => stat.isFile()).catch(() => false);
+    const distExists = await fs.stat(distPath).then((stat) => stat.isFile()).catch(() => false);
+    if (!sourceExists || distExists) continue;
+
+    await fs.mkdir(path.dirname(distPath), { recursive: true });
+    await fs.copyFile(sourcePath, distPath);
+    copied++;
+  }
+
+  if (copied > 0) {
+    ctx.log("info", `Copied ${copied} classic static asset(s) into dist/`, STAGE);
+  }
+}
+
+function shouldSkipStaticReference(ref: string): boolean {
+  if (/^(?:https?:)?\/\//i.test(ref)) return true;
+  if (/^(?:data|blob|mailto|tel):/i.test(ref)) return true;
+  if (ref.startsWith("#")) return true;
+  if (ref.startsWith("/")) return true;
+  if (ref.startsWith("assets/")) return true;
+  if (ref.includes("..")) return true;
+  return false;
 }
 
 function shouldStripInjectedScript(tag: string): boolean {

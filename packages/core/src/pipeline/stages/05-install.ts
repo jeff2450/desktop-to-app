@@ -127,7 +127,18 @@ async function writeOutputPackageJson(ctx: PipelineContext): Promise<void> {
 
   // ── Error #2 Fix: electron MUST be in devDependencies ─────────
   // electron-builder will error if electron is listed as a runtime dependency.
-  const electronDevOnly = ["electron", "electron-builder", "electron-rebuild", "@electron/rebuild"];
+  const electronDevOnly = [
+    "electron",
+    "electron-builder",
+    "electron-rebuild",
+    "@electron/rebuild",
+    "vite",
+    "@vitejs/plugin-react",
+    "@vitejs/plugin-vue",
+    "@sveltejs/vite-plugin-svelte",
+    "concurrently",
+    "wait-on",
+  ];
   const extractedDevFromDeps: Record<string, string> = {};
   for (const pkg_name of electronDevOnly) {
     if (deps[pkg_name]) {
